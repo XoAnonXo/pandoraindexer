@@ -459,6 +459,7 @@ async function getOrCreateMinimalMarket(
           totalTrades: 0,
           currentTvl: 0n,
           uniqueTraders: 0,
+          initialLiquidity: 0n,
           createdAtBlock: blockNumber,
           createdAt: timestamp,
           createdTxHash: txHash ?? "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
@@ -758,6 +759,7 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }) => {
         totalTrades: existingMarket.totalTrades,
         currentTvl: existingMarket.currentTvl,
         uniqueTraders: existingMarket.uniqueTraders,
+        initialLiquidity: existingMarket.initialLiquidity ?? 0n,
         reserveYes: existingMarket.reserveYes ?? 0n,
         reserveNo: existingMarket.reserveNo ?? 0n,
         // Update creation metadata
@@ -786,6 +788,7 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }) => {
         totalTrades: 0,
         currentTvl: 0n,
         uniqueTraders: 0,
+        initialLiquidity: 0n,
         reserveYes: 0n,
         reserveNo: 0n,
         createdAtBlock: event.block.number,
@@ -892,6 +895,7 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
         totalTrades: existingMarket.totalTrades,
         currentTvl: existingMarket.currentTvl,
         uniqueTraders: existingMarket.uniqueTraders,
+        initialLiquidity: existingMarket.initialLiquidity ?? 0n,
         createdAtBlock: event.block.number,
         createdAt: timestamp,
         createdTxHash: event.transaction.hash,
@@ -915,6 +919,7 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
         totalTrades: 0,
         currentTvl: 0n,
         uniqueTraders: 0,
+        initialLiquidity: 0n,
         createdAtBlock: event.block.number,
         createdAt: timestamp,
         createdTxHash: event.transaction.hash,
@@ -1459,7 +1464,10 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
   // Get or create market (handle race conditions safely)
   const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "amm", timestamp, event.block.number, event.transaction.hash);
 
-  // Update market TVL and volume (if imbalanced)
+  // Check if this is the first liquidity event (initialLiquidity not yet set)
+  const isFirstLiquidity = (market.initialLiquidity ?? 0n) === 0n;
+
+  // Update market TVL, volume (if imbalanced), and initialLiquidity (if first)
   await context.db.markets.update({
     id: marketAddress,
     data: {
@@ -1467,6 +1475,8 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
       totalVolume: imbalanceVolume > 0n 
         ? market.totalVolume + imbalanceVolume 
         : market.totalVolume,
+      // Set initialLiquidity only on the first liquidity add
+      initialLiquidity: isFirstLiquidity ? collateralAmount : market.initialLiquidity,
     },
   });
 
@@ -1620,14 +1630,15 @@ ponder.on("PredictionPariMutuel:SeedInitialLiquidity", async ({ event, context }
   const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "pari", timestamp, event.block.number, event.transaction.hash);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // STEP 2: Update market with BOTH TVL and volume
+  // STEP 2: Update market with BOTH TVL, volume, and initialLiquidity
   // Seed liquidity is real capital entering → counts as volume
   // ─────────────────────────────────────────────────────────────────────────────
   await context.db.markets.update({
     id: marketAddress,
     data: {
-      currentTvl: market.currentTvl + totalLiquidity,    // +TVL
-      totalVolume: market.totalVolume + totalLiquidity,  // +Volume (IMPORTANT!)
+      currentTvl: market.currentTvl + totalLiquidity,      // +TVL
+      totalVolume: market.totalVolume + totalLiquidity,    // +Volume (IMPORTANT!)
+      initialLiquidity: totalLiquidity,                     // Set initial liquidity for PariMutuel
     },
   });
 

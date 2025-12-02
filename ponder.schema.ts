@@ -44,6 +44,7 @@
  * - Example: 1000000n = $1.00
  * 
  * @version 3 - Added createdTxHash to markets table for live activity display (2024-12-02)
+ * @version 4 - Added initialLiquidity to markets table for tracking initial deposits (2024-12-02)
  * @see https://ponder.sh/docs/schema
  */
 
@@ -135,6 +136,8 @@ export default createSchema((p) => ({
     currentTvl: p.bigint(),
     /** Number of unique traders */
     uniqueTraders: p.int(),
+    /** Initial liquidity deposited at market creation (6 decimals) */
+    initialLiquidity: p.bigint(),
     /** AMM reserve YES tokens */
     reserveYes: p.bigint().optional(),
     /** AMM reserve NO tokens */
