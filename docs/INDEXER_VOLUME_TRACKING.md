@@ -208,9 +208,99 @@ Before deploying indexer changes:
 
 ---
 
+## Critical Bug: Platform vs Market Stats Consistency
+
+### Problem (2024-12-02)
+
+Platform total volume showed `$1,041,109` but the correct value should be `$912,230`. 
+Sum of individual market volumes was only `$745,209`.
+
+**Discrepancy: $295,900 (28.4% over-counted)**
+
+### Root Cause
+
+Volume events were updating `platformStats.totalVolume` **UNCONDITIONALLY**, but only updating `market.totalVolume` if the market record existed:
+
+```typescript
+// BUG: This pattern causes inconsistency
+const market = await context.db.markets.findUnique({ id: marketAddress });
+
+if (market) {  // ⚠️ CONDITIONAL - may not run
+  await context.db.markets.update({
+    data: { totalVolume: market.totalVolume + amount }
+  });
+}
+
+// ⚠️ UNCONDITIONAL - always runs even if market doesn't exist!
+await context.db.platformStats.update({
+  data: { totalVolume: stats.totalVolume + amount }
+});
+```
+
+When market creation (`MarketCreated` / `PariMutuelCreated`) and volume events (`SeedInitialLiquidity`, `BuyTokens`, etc.) race, the market record may not exist when the volume event fires.
+
+### Solution
+
+Only update platform stats if the market record exists:
+
+```typescript
+// FIXED: Ensure consistency between platform and market stats
+const market = await context.db.markets.findUnique({ id: marketAddress });
+
+if (!market) {
+  console.warn(`Market not found ${marketAddress} - skipping volume update`);
+  return;  // Early return - don't update platform stats either
+}
+
+// Update market
+await context.db.markets.update({
+  data: { totalVolume: market.totalVolume + amount }
+});
+
+// Update platform (now guaranteed to be in sync)
+await context.db.platformStats.update({
+  data: { totalVolume: stats.totalVolume + amount }
+});
+```
+
+### Affected Handlers
+
+| Handler | Contract | Fix Applied |
+|---------|----------|-------------|
+| `BuyTokens` | AMM | ✅ Early return if no market |
+| `SellTokens` | AMM | ✅ Early return if no market |
+| `LiquidityAdded` | AMM | ✅ Early return if no market |
+| `SeedInitialLiquidity` | PariMutuel | ✅ Early return if no market |
+| `PositionPurchased` | PariMutuel | ✅ Early return if no market |
+
+### Verification
+
+After redeploying with fix, run:
+
+```bash
+curl -s -X POST https://your-indexer.railway.app/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ marketss(limit: 100) { items { totalVolume } } platformStatss { items { totalVolume } } }"}' | jq '{
+    sumOfMarkets: ([.data.marketss.items[].totalVolume | tonumber] | add),
+    platformTotal: .data.platformStatss.items[0].totalVolume
+  }'
+```
+
+**Expected:** `sumOfMarkets` should equal `platformTotal`
+
+### Prevention
+
+- [ ] All volume-updating handlers must check market exists BEFORE updating ANY stats
+- [ ] Use early return pattern: `if (!market) return;`
+- [ ] Never update platform stats outside of the market existence check
+- [ ] Add warning logs when market not found to catch issues early
+
+---
+
 ## Fix History
 
 | Date | Issue | Fix |
 |------|-------|-----|
+| 2024-12-02 | Platform volume 14% higher than correct value | Fixed all handlers to only update platform stats if market exists |
 | 2024-12-02 | Volume dropped after redeploy | Added `SeedInitialLiquidity`, `AnswerSet`, `Sync` handlers; fixed `LiquidityAdded` imbalance |
 
