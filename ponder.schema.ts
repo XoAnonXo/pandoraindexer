@@ -15,6 +15,7 @@
  * - dailyStats: Daily aggregated statistics (per chain)
  * - hourlyStats: Hourly aggregated statistics (per chain)
  * 
+ * @version 2 - Force resync after volume tracking fix (2024-12-02)
  * @see https://ponder.sh/docs/schema
  */
 
@@ -296,6 +297,8 @@ export default createSchema((p) => ({
     totalPariMarkets: p.int(),
     /** Last updated timestamp */
     lastUpdatedAt: p.bigint(),
+    /** Schema version for forced resync - increment to trigger re-index */
+    _resyncVersion: p.int().optional(),
   }),
 
   // ===========================================================================
