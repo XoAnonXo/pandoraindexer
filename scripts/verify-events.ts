@@ -168,7 +168,7 @@ async function fetchAllEvents<T>(
  * Fetch trading events from market contracts
  * 
  * Volume sources:
- * - AMM: BuyTokens + SellTokens (NOT LiquidityAdded imbalance)
+ * - AMM: BuyTokens + SellTokens + LiquidityAdded imbalance
  * - Pari: SeedInitialLiquidity + PositionPurchased
  */
 async function fetchMarketTradingEvents(
@@ -215,8 +215,21 @@ async function fetchMarketTradingEvents(
           trades++;
         }
         
-        // NOTE: LiquidityAdded imbalance is NOT counted as volume
-        // It's just token rebalancing, not actual trading activity
+        // Fetch LiquidityAdded for imbalance volume
+        const liqLogs = await client.getLogs({
+          address: marketAddress,
+          event: LiquidityAddedEvent,
+          fromBlock: start,
+          toBlock: end,
+        });
+        
+        for (const log of liqLogs) {
+          const amounts = (log as any).args.amounts;
+          if (amounts) {
+            const imbalance = (amounts.yesToReturn ?? 0n) + (amounts.noToReturn ?? 0n);
+            volume += imbalance;
+          }
+        }
       } else {
         // Fetch SeedInitialLiquidity (counts as volume)
         const seedLogs = await client.getLogs({

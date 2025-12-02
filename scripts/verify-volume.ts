@@ -5,8 +5,7 @@
  * compares the summed volume against what the indexer reports.
  * 
  * Volume sources:
- * - AMM: BuyTokens.collateralAmount + SellTokens.collateralAmount
- *        (LiquidityAdded imbalance does NOT count - it's just token rebalancing)
+ * - AMM: BuyTokens.collateralAmount + SellTokens.collateralAmount + LiquidityAdded imbalance
  * - PariMutuel: SeedInitialLiquidity + PositionPurchased.collateralIn
  */
 
@@ -120,13 +119,17 @@ const PositionPurchasedEvent = parseAbiItem(
   "event PositionPurchased(address indexed buyer, bool indexed isYes, uint256 collateralIn, uint256 sharesOut)"
 );
 
+const LiquidityAddedEvent = parseAbiItem(
+  "event LiquidityAdded(address indexed provider, uint256 collateralAmount, uint256 lpTokens, (uint256 yesToAdd, uint256 noToAdd, uint256 yesToReturn, uint256 noToReturn) amounts)"
+);
+
 const SeedInitialLiquidityEvent = parseAbiItem(
   "event SeedInitialLiquidity(uint256 yesAmount, uint256 noAmount)"
 );
 
 /**
  * Fetch AMM volume from on-chain events for a specific market
- * NOTE: LiquidityAdded imbalance is NOT counted as volume
+ * Includes LiquidityAdded imbalance as volume
  */
 async function fetchAMMVolumeFromEvents(
   marketAddress: Address,
@@ -170,8 +173,21 @@ async function fetchAMMVolumeFromEvents(
       trades++;
     }
     
-    // NOTE: LiquidityAdded imbalance is NOT counted as volume
-    // It's just token rebalancing, not actual trading activity
+    // Fetch LiquidityAdded events (imbalance counts as volume)
+    const liquidityLogs = await client.getLogs({
+      address: marketAddress,
+      event: LiquidityAddedEvent,
+      fromBlock: start,
+      toBlock: end,
+    });
+    
+    for (const log of liquidityLogs) {
+      const amounts = log.args.amounts;
+      if (amounts) {
+        const imbalance = (amounts.yesToReturn ?? 0n) + (amounts.noToReturn ?? 0n);
+        volume += imbalance;
+      }
+    }
     
     await sleep(50); // Rate limit
   }

@@ -65,7 +65,7 @@ PredictionPoll: {
 
 ---
 
-### 3. `LiquidityAdded` - TVL Only (NOT Volume)
+### 3. `LiquidityAdded` Imbalance
 
 **Contract:** `PredictionAMM`
 
@@ -78,20 +78,26 @@ event LiquidityAdded(
 );
 ```
 
-When LP adds liquidity, the imbalance tokens returned to the provider are **NOT counted as volume**. They represent token rebalancing, not actual trading activity.
+When LP adds liquidity with non-50/50 distribution, they receive tokens back. This imbalance is effectively a **position** and counts as volume:
 
 ```typescript
 ponder.on("PredictionAMM:LiquidityAdded", async ({ event }) => {
-  const { collateralAmount } = event.args;
+  const { amounts, collateralAmount } = event.args;
   
-  // Only update TVL/liquidity, NOT volume
-  // Imbalance is just token rebalancing, not trading
+  // Imbalance = tokens returned to provider = position taken
+  const imbalanceVolume = (amounts.yesToReturn ?? 0n) + (amounts.noToReturn ?? 0n);
+  
   market.currentTvl += collateralAmount;
   platformStats.totalLiquidity += collateralAmount;
+  
+  if (imbalanceVolume > 0n) {
+    market.totalVolume += imbalanceVolume;
+    platformStats.totalVolume += imbalanceVolume;
+  }
 });
 ```
 
-**Why it matters:** Counting imbalance as volume would over-count actual trading activity.
+**Why it matters:** First liquidity add often has significant imbalance based on initial odds.
 
 ---
 

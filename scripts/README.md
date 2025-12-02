@@ -85,8 +85,7 @@ npx tsx verify-platform-stats.ts --onchain
 - Trade counts
 
 **Volume sources tracked:**
-- AMM: `BuyTokens.collateralAmount` + `SellTokens.collateralAmount`
-  - NOTE: `LiquidityAdded` imbalance does NOT count (it's token rebalancing)
+- AMM: `BuyTokens.collateralAmount` + `SellTokens.collateralAmount` + `LiquidityAdded` imbalance
 - PariMutuel: `SeedInitialLiquidity` + `PositionPurchased.collateralIn`
 
 ### Platform Stats (`verify-platform-stats.ts`)
