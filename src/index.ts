@@ -64,6 +64,29 @@ function getDayTimestamp(timestamp: bigint): bigint {
 }
 
 /**
+ * Check if this is a new trader for a specific market
+ * Returns true if this trader has no previous trades on this market
+ */
+async function isNewTraderForMarket(
+  context: any,
+  marketAddress: `0x${string}`,
+  traderAddress: `0x${string}`,
+  chain: ChainInfo
+): Promise<boolean> {
+  // Query existing trades for this trader on this market
+  const existingTrades = await context.db.trades.findMany({
+    where: {
+      marketAddress: marketAddress,
+      trader: traderAddress.toLowerCase(),
+      chainId: chain.chainId,
+    },
+    limit: 1,
+  });
+  
+  return existingTrades.items.length === 0;
+}
+
+/**
  * Get the hour timestamp for a given timestamp
  */
 function getHourTimestamp(timestamp: bigint): bigint {
@@ -610,6 +633,9 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
   const user = await getOrCreateUser(context, trader, chain);
   const isNewUser = user.totalTrades === 0;
   
+  // Check if this is a new trader for this market (before creating trade record counts)
+  const isNewTrader = await isNewTraderForMarket(context, marketAddress, trader, chain);
+  
   await context.db.users.update({
     id: makeId(chain.chainId, trader.toLowerCase()),
     data: {
@@ -628,6 +654,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
       totalVolume: market.totalVolume + collateralAmount,
       totalTrades: market.totalTrades + 1,
       currentTvl: market.currentTvl + collateralAmount,
+      uniqueTraders: isNewTrader ? market.uniqueTraders + 1 : market.uniqueTraders,
     },
   });
 
@@ -703,6 +730,10 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
 
   // Update user stats
   const user = await getOrCreateUser(context, trader, chain);
+  
+  // Check if this is a new trader for this market
+  const isNewTrader = await isNewTraderForMarket(context, marketAddress, trader, chain);
+  
   await context.db.users.update({
     id: makeId(chain.chainId, trader.toLowerCase()),
     data: {
@@ -722,6 +753,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
       totalVolume: market.totalVolume + collateralAmount,
       totalTrades: market.totalTrades + 1,
       currentTvl: newMarketTvl,
+      uniqueTraders: isNewTrader ? market.uniqueTraders + 1 : market.uniqueTraders,
     },
   });
 
@@ -793,6 +825,10 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
   });
 
   const user = await getOrCreateUser(context, trader, chain);
+  
+  // Check if this is a new trader for this market
+  const isNewTrader = await isNewTraderForMarket(context, marketAddress, trader, chain);
+  
   await context.db.users.update({
     id: makeId(chain.chainId, trader.toLowerCase()),
     data: {
@@ -800,6 +836,17 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
       lastTradeAt: timestamp,
     },
   });
+
+  // Update market stats (swaps count as trades but not volume since no collateral moves)
+  if (market) {
+    await context.db.markets.update({
+      id: marketAddress,
+      data: {
+        totalTrades: market.totalTrades + 1,
+        uniqueTraders: isNewTrader ? market.uniqueTraders + 1 : market.uniqueTraders,
+      },
+    });
+  }
 
   const stats = await getOrCreatePlatformStats(context, chain);
   await context.db.platformStats.update({
@@ -1132,6 +1179,9 @@ ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) =
   const user = await getOrCreateUser(context, buyer, chain);
   const isNewUser = user.totalTrades === 0;
   
+  // Check if this is a new trader for this market
+  const isNewTrader = await isNewTraderForMarket(context, marketAddress, buyer, chain);
+  
   await context.db.users.update({
     id: makeId(chain.chainId, buyer.toLowerCase()),
     data: {
@@ -1150,6 +1200,7 @@ ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) =
       totalVolume: market.totalVolume + collateralIn,
       totalTrades: market.totalTrades + 1,
       currentTvl: market.currentTvl + collateralIn,
+      uniqueTraders: isNewTrader ? market.uniqueTraders + 1 : market.uniqueTraders,
     },
   });
 
