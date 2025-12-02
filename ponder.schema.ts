@@ -43,7 +43,7 @@
  * - To display: divide by 1,000,000 (1e6)
  * - Example: 1000000n = $1.00
  * 
- * @version 4 - Added createdTxHash and initialLiquidity to markets table for live activity display (2024-12-02)
+ * @version 5 - Added pollAddress to liquidityEvents for easier frontend querying (2024-12-02)
  * @version 4 - Added initialLiquidity to markets table for tracking initial deposits (2024-12-02)
  * @see https://ponder.sh/docs/schema
  */
@@ -342,6 +342,8 @@ export default createSchema((p) => ({
     provider: p.hex(),
     /** Market address */
     marketAddress: p.hex(),
+    /** Poll address (denormalized for easier querying) */
+    pollAddress: p.hex(),
     /** Event type: 'add' or 'remove' */
     eventType: p.string(),
     /** Collateral amount (6 decimals) */

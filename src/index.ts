@@ -1445,6 +1445,10 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
   // Imbalance volume = tokens returned to LP (represents position taken)
   const imbalanceVolume = (amounts.yesToReturn ?? 0n) + (amounts.noToReturn ?? 0n);
 
+  // Get or create market (handle race conditions safely)
+  const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "amm", timestamp, event.block.number, event.transaction.hash);
+  const pollAddress = market.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
+
   // Create liquidity event record
   await context.db.liquidityEvents.create({
     id: eventId,
@@ -1453,6 +1457,7 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
       chainName: chain.chainName,
       provider: provider.toLowerCase() as `0x${string}`,
       marketAddress,
+      pollAddress,
       eventType: "add",
       collateralAmount,
       lpTokens,
@@ -1460,9 +1465,6 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
       timestamp,
     },
   });
-
-  // Get or create market (handle race conditions safely)
-  const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "amm", timestamp, event.block.number, event.transaction.hash);
 
   // Check if this is the first liquidity event (initialLiquidity not yet set)
   const isFirstLiquidity = (market.initialLiquidity ?? 0n) === 0n;
@@ -1515,6 +1517,9 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
   const chain = getChainInfo(context);
   const eventId = makeId(chain.chainId, event.transaction.hash, event.log.logIndex);
 
+  const market = await context.db.markets.findUnique({ id: marketAddress });
+  const pollAddress = market?.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
+
   await context.db.liquidityEvents.create({
     id: eventId,
     data: {
@@ -1522,6 +1527,7 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
       chainName: chain.chainName,
       provider: provider.toLowerCase() as `0x${string}`,
       marketAddress,
+      pollAddress,
       eventType: "remove",
       collateralAmount: collateralToReturn,
       lpTokens,
@@ -1529,8 +1535,6 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
       timestamp,
     },
   });
-
-  const market = await context.db.markets.findUnique({ id: marketAddress });
   if (market) {
     const newTvl = market.currentTvl > collateralToReturn 
       ? market.currentTvl - collateralToReturn 
