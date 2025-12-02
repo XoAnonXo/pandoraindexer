@@ -6,7 +6,7 @@
  */
 
 export { PredictionOracleAbi } from "./PredictionOracle";
+export { PredictionPollAbi } from "./PredictionPoll";
 export { MarketFactoryAbi } from "./MarketFactory";
 export { PredictionAMMAbi } from "./PredictionAMM";
 export { PredictionPariMutuelAbi } from "./PredictionPariMutuel";
-

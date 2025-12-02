@@ -10,8 +10,9 @@
  * - SellTokens: When a trader sells YES or NO tokens
  * - SwapTokens: When a trader swaps between YES and NO
  * - WinningsRedeemed: When a winner claims their payout
- * - LiquidityAdded: When LP adds liquidity
+ * - LiquidityAdded: When LP adds liquidity (first add has IMBALANCE VOLUME!)
  * - LiquidityRemoved: When LP removes liquidity
+ * - Sync: Reserve updates (for price tracking)
  */
 
 export const PredictionAMMAbi = [
@@ -66,7 +67,7 @@ export const PredictionAMMAbi = [
     type: "event",
   },
 
-  // Liquidity Events
+  // Liquidity Events - IMPORTANT: First add has imbalance volume!
   {
     anonymous: false,
     inputs: [
@@ -101,7 +102,7 @@ export const PredictionAMMAbi = [
     type: "event",
   },
 
-  // Sync Event
+  // Sync Event - Reserve updates for price tracking
   {
     anonymous: false,
     inputs: [
@@ -133,4 +134,3 @@ export const PredictionAMMAbi = [
     type: "function",
   },
 ] as const;
-

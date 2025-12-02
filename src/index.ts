@@ -4,12 +4,11 @@
  * This file contains all event handlers for the Anymarket indexer.
  * Each handler processes blockchain events and updates the database.
  * 
- * Event Flow:
- * 1. Oracle: PollCreated → creates poll record, updates platform stats
- * 2. Factory: MarketCreated/PariMutuelCreated → creates market record
- * 3. AMM: BuyTokens/SellTokens/SwapTokens → creates trade records
- * 4. AMM/PariMutuel: WinningsRedeemed → creates winning record
- * 5. AMM: LiquidityAdded/Removed → creates liquidity event
+ * IMPORTANT: Volume Tracking
+ * - AMM: BuyTokens, SellTokens count as volume
+ * - AMM: First LiquidityAdded has IMBALANCE that counts as volume
+ * - PariMutuel: SeedInitialLiquidity counts as volume
+ * - PariMutuel: PositionPurchased counts as volume
  * 
  * @module src/index
  */
@@ -75,6 +74,7 @@ async function getOrCreatePlatformStats(context: any) {
       id: "global",
       data: {
         totalPolls: 0,
+        totalPollsResolved: 0,
         totalMarkets: 0,
         totalTrades: 0,
         totalUsers: 0,
@@ -156,12 +156,12 @@ ponder.on("PredictionOracle:PollCreated", async ({ event, context }) => {
     data: {
       creator: creator.toLowerCase() as `0x${string}`,
       question,
-      rules: "", // Will be populated if we add a call to get full poll data
+      rules: "",
       sources: "[]",
       deadlineEpoch: Number(deadlineEpoch),
-      finalizationEpoch: 0, // Will be derived from deadline
+      finalizationEpoch: 0,
       checkEpoch: 0,
-      category: 0, // Default, would need contract call for actual value
+      category: 0,
       status: 0, // Pending
       createdAtBlock: event.block.number,
       createdAt: timestamp,
@@ -202,12 +202,10 @@ ponder.on("PredictionOracle:PollCreated", async ({ event, context }) => {
 
 /**
  * Handle PollRefreshed event
- * Logs poll refresh for tracking
  */
 ponder.on("PredictionOracle:PollRefreshed", async ({ event, context }) => {
   const { pollAddress, newCheckEpoch } = event.args;
   
-  // Update poll check epoch if poll exists
   const poll = await context.db.polls.findUnique({ id: pollAddress });
   if (poll) {
     await context.db.polls.update({
@@ -217,8 +215,45 @@ ponder.on("PredictionOracle:PollRefreshed", async ({ event, context }) => {
       },
     });
   }
+});
 
-  console.log(`[Oracle] Poll refreshed: ${pollAddress}, new check epoch: ${newCheckEpoch}`);
+// =============================================================================
+// POLL EVENT HANDLERS (Dynamic - for resolution)
+// =============================================================================
+
+/**
+ * Handle AnswerSet event from PredictionPoll
+ * Updates poll status when resolved
+ */
+ponder.on("PredictionPoll:AnswerSet", async ({ event, context }) => {
+  const { status, reason } = event.args;
+  const pollAddress = event.log.address;
+  const timestamp = event.block.timestamp;
+
+  // Update poll status
+  const poll = await context.db.polls.findUnique({ id: pollAddress });
+  if (poll) {
+    await context.db.polls.update({
+      id: pollAddress,
+      data: {
+        status: Number(status),
+        resolutionReason: reason,
+        resolvedAt: timestamp,
+      },
+    });
+  }
+
+  // Update platform stats
+  const stats = await getOrCreatePlatformStats(context);
+  await context.db.platformStats.update({
+    id: "global",
+    data: {
+      totalPollsResolved: stats.totalPollsResolved + 1,
+      lastUpdatedAt: timestamp,
+    },
+  });
+
+  console.log(`[Poll] Resolved: ${pollAddress} -> status ${status}`);
 });
 
 // =============================================================================
@@ -227,7 +262,6 @@ ponder.on("PredictionOracle:PollRefreshed", async ({ event, context }) => {
 
 /**
  * Handle MarketCreated event from MarketFactory
- * Creates AMM market record
  */
 ponder.on("MarketFactory:MarketCreated", async ({ event, context }) => {
   const { 
@@ -258,6 +292,8 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }) => {
       totalTrades: 0,
       currentTvl: 0n,
       uniqueTraders: 0,
+      reserveYes: 0n,
+      reserveNo: 0n,
       createdAtBlock: event.block.number,
       createdAt: timestamp,
     },
@@ -292,12 +328,11 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }) => {
     },
   });
 
-  console.log(`[Factory] AMM market created: ${marketAddress} for poll ${pollAddress}`);
+  console.log(`[Factory] AMM market created: ${marketAddress}`);
 });
 
 /**
  * Handle PariMutuelCreated event from MarketFactory
- * Creates PariMutuel market record
  */
 ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
   const { 
@@ -358,7 +393,7 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
     },
   });
 
-  console.log(`[Factory] PariMutuel market created: ${marketAddress} for poll ${pollAddress}`);
+  console.log(`[Factory] PariMutuel market created: ${marketAddress}`);
 });
 
 // =============================================================================
@@ -367,7 +402,7 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
 
 /**
  * Handle BuyTokens event from PredictionAMM
- * Records trade and updates stats
+ * Records trade and updates stats - THIS IS VOLUME
  */
 ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
   const { trader, isYes, tokenAmount, collateralAmount, fee } = event.args;
@@ -375,7 +410,6 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
   const marketAddress = event.log.address;
   const tradeId = `${event.transaction.hash}-${event.log.logIndex}`;
 
-  // Get market to find poll address
   const market = await context.db.markets.findUnique({ id: marketAddress });
   const pollAddress = market?.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
 
@@ -460,7 +494,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
 
 /**
  * Handle SellTokens event from PredictionAMM
- * Records trade and updates stats
+ * Records trade - THIS IS VOLUME
  */
 ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
   const { trader, isYes, tokenAmount, collateralAmount, fee } = event.args;
@@ -545,7 +579,6 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
 
 /**
  * Handle SwapTokens event from PredictionAMM
- * Records swap trade and updates stats
  */
 ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
   const { trader, yesToNo, amountIn, amountOut, fee } = event.args;
@@ -556,7 +589,7 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
   const market = await context.db.markets.findUnique({ id: marketAddress });
   const pollAddress = market?.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
 
-  // Create trade record (use amountIn as collateralAmount for volume tracking)
+  // Create trade record
   await context.db.trades.create({
     id: tradeId,
     data: {
@@ -564,9 +597,9 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
       marketAddress,
       pollAddress,
       tradeType: "swap",
-      side: yesToNo ? "yes" : "no", // Input side
-      collateralAmount: amountIn, // Use input amount for volume
-      tokenAmount: amountOut,
+      side: yesToNo ? "yes" : "no",
+      collateralAmount: 0n, // Swaps don't add collateral
+      tokenAmount: amountIn,
       feeAmount: fee,
       txHash: event.transaction.hash,
       blockNumber: event.block.number,
@@ -574,7 +607,7 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
     },
   });
 
-  // Update user stats
+  // Update user stats (swaps don't add to volume)
   const user = await getOrCreateUser(context, trader);
   await context.db.users.update({
     id: trader.toLowerCase() as `0x${string}`,
@@ -584,7 +617,7 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
     },
   });
 
-  // Update platform stats (swaps don't add new collateral, so no volume update)
+  // Update platform stats
   const stats = await getOrCreatePlatformStats(context);
   await context.db.platformStats.update({
     id: "global",
@@ -595,7 +628,7 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
     },
   });
 
-  // Update daily/hourly stats
+  // Update daily stats
   const daily = await getOrCreateDailyStats(context, timestamp);
   await context.db.dailyStats.update({
     id: getDayTimestamp(timestamp),
@@ -603,19 +636,10 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
       tradesCount: daily.tradesCount + 1,
     },
   });
-
-  const hourly = await getOrCreateHourlyStats(context, timestamp);
-  await context.db.hourlyStats.update({
-    id: getHourTimestamp(timestamp),
-    data: {
-      tradesCount: hourly.tradesCount + 1,
-    },
-  });
 });
 
 /**
  * Handle WinningsRedeemed event from PredictionAMM
- * Records winning and updates user stats
  */
 ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
   const { user, collateralAmount } = event.args;
@@ -623,7 +647,6 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
   const marketAddress = event.log.address;
   const winningId = `${event.transaction.hash}-${event.log.logIndex}`;
 
-  // Get market to find question
   const market = await context.db.markets.findUnique({ id: marketAddress });
   const poll = market?.pollAddress 
     ? await context.db.polls.findUnique({ id: market.pollAddress })
@@ -636,7 +659,7 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
       user: user.toLowerCase() as `0x${string}`,
       marketAddress,
       collateralAmount,
-      feeAmount: 0n, // AMM doesn't have separate fee on redeem
+      feeAmount: 0n,
       marketQuestion: poll?.question,
       marketType: "amm",
       txHash: event.transaction.hash,
@@ -677,18 +700,21 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
       winningsPaid: daily.winningsPaid + collateralAmount,
     },
   });
-
-  console.log(`[AMM] Winnings redeemed: ${user} received ${collateralAmount}`);
 });
 
 /**
  * Handle LiquidityAdded event from PredictionAMM
+ * IMPORTANT: First liquidity add has IMBALANCE that counts as volume!
  */
 ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
-  const { provider, collateralAmount, lpTokens } = event.args;
+  const { provider, collateralAmount, lpTokens, amounts } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
   const eventId = `${event.transaction.hash}-${event.log.logIndex}`;
+
+  // Calculate imbalance volume (tokens returned to provider)
+  // This represents the "bet" direction that was placed via liquidity
+  const imbalanceVolume = (amounts.yesToReturn ?? 0n) + (amounts.noToReturn ?? 0n);
 
   // Create liquidity event record
   await context.db.liquidityEvents.create({
@@ -711,21 +737,37 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
       id: marketAddress,
       data: {
         currentTvl: market.currentTvl + collateralAmount,
+        // If there's imbalance, add to volume
+        totalVolume: imbalanceVolume > 0n 
+          ? market.totalVolume + imbalanceVolume 
+          : market.totalVolume,
       },
     });
   }
 
-  // Update platform liquidity
+  // Update platform liquidity and volume (if imbalance)
   const stats = await getOrCreatePlatformStats(context);
   await context.db.platformStats.update({
     id: "global",
     data: {
       totalLiquidity: stats.totalLiquidity + collateralAmount,
+      totalVolume: imbalanceVolume > 0n 
+        ? stats.totalVolume + imbalanceVolume 
+        : stats.totalVolume,
       lastUpdatedAt: timestamp,
     },
   });
 
-  console.log(`[AMM] Liquidity added: ${provider} added ${collateralAmount}`);
+  // Update daily volume if imbalance
+  if (imbalanceVolume > 0n) {
+    const daily = await getOrCreateDailyStats(context, timestamp);
+    await context.db.dailyStats.update({
+      id: getDayTimestamp(timestamp),
+      data: {
+        volume: daily.volume + imbalanceVolume,
+      },
+    });
+  }
 });
 
 /**
@@ -777,8 +819,26 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
       lastUpdatedAt: timestamp,
     },
   });
+});
 
-  console.log(`[AMM] Liquidity removed: ${provider} withdrew ${collateralToReturn}`);
+/**
+ * Handle Sync event from PredictionAMM
+ * Updates reserve values for price tracking
+ */
+ponder.on("PredictionAMM:Sync", async ({ event, context }) => {
+  const { rYes, rNo } = event.args;
+  const marketAddress = event.log.address;
+
+  const market = await context.db.markets.findUnique({ id: marketAddress });
+  if (market) {
+    await context.db.markets.update({
+      id: marketAddress,
+      data: {
+        reserveYes: BigInt(rYes),
+        reserveNo: BigInt(rNo),
+      },
+    });
+  }
 });
 
 // =============================================================================
@@ -786,8 +846,55 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
 // =============================================================================
 
 /**
+ * Handle SeedInitialLiquidity event from PredictionPariMutuel
+ * CRITICAL: This is VOLUME! Initial liquidity counts as bets.
+ */
+ponder.on("PredictionPariMutuel:SeedInitialLiquidity", async ({ event, context }) => {
+  const { yesAmount, noAmount } = event.args;
+  const timestamp = event.block.timestamp;
+  const marketAddress = event.log.address;
+
+  // Total initial liquidity is volume
+  const totalVolume = yesAmount + noAmount;
+
+  // Update market stats
+  const market = await context.db.markets.findUnique({ id: marketAddress });
+  if (market) {
+    await context.db.markets.update({
+      id: marketAddress,
+      data: {
+        totalVolume: market.totalVolume + totalVolume,
+        currentTvl: market.currentTvl + totalVolume,
+      },
+    });
+  }
+
+  // Update platform stats
+  const stats = await getOrCreatePlatformStats(context);
+  await context.db.platformStats.update({
+    id: "global",
+    data: {
+      totalVolume: stats.totalVolume + totalVolume,
+      totalLiquidity: stats.totalLiquidity + totalVolume,
+      lastUpdatedAt: timestamp,
+    },
+  });
+
+  // Update daily stats
+  const daily = await getOrCreateDailyStats(context, timestamp);
+  await context.db.dailyStats.update({
+    id: getDayTimestamp(timestamp),
+    data: {
+      volume: daily.volume + totalVolume,
+    },
+  });
+
+  console.log(`[PariMutuel] Seed liquidity: ${marketAddress} - ${totalVolume}`);
+});
+
+/**
  * Handle PositionPurchased event from PredictionPariMutuel
- * Records bet and updates stats
+ * Records bet and updates stats - THIS IS VOLUME
  */
 ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) => {
   const { buyer, isYes, collateralIn, sharesOut } = event.args;
@@ -809,7 +916,7 @@ ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) =
       side: isYes ? "yes" : "no",
       collateralAmount: collateralIn,
       tokenAmount: sharesOut,
-      feeAmount: 0n, // Fee is embedded in shares calculation
+      feeAmount: 0n,
       txHash: event.transaction.hash,
       blockNumber: event.block.number,
       timestamp,
@@ -880,7 +987,6 @@ ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) =
 
 /**
  * Handle WinningsRedeemed event from PredictionPariMutuel
- * Records winning and updates user stats
  */
 ponder.on("PredictionPariMutuel:WinningsRedeemed", async ({ event, context }) => {
   const { user, collateralAmount, outcome, fee } = event.args;
@@ -888,7 +994,6 @@ ponder.on("PredictionPariMutuel:WinningsRedeemed", async ({ event, context }) =>
   const marketAddress = event.log.address;
   const winningId = `${event.transaction.hash}-${event.log.logIndex}`;
 
-  // Get market to find question
   const market = await context.db.markets.findUnique({ id: marketAddress });
   const poll = market?.pollAddress 
     ? await context.db.polls.findUnique({ id: market.pollAddress })
@@ -912,9 +1017,7 @@ ponder.on("PredictionPariMutuel:WinningsRedeemed", async ({ event, context }) =>
 
   // Update user stats
   const userData = await getOrCreateUser(context, user);
-  
-  // Determine if it was a win or refund (outcome 3 = Unknown = refund)
-  const isWin = outcome !== 3;
+  const isWin = outcome !== 3; // 3 = Unknown = refund
   const newStreak = isWin 
     ? (userData.currentStreak >= 0 ? userData.currentStreak + 1 : 1)
     : (userData.currentStreak <= 0 ? userData.currentStreak - 1 : -1);
@@ -949,7 +1052,4 @@ ponder.on("PredictionPariMutuel:WinningsRedeemed", async ({ event, context }) =>
       winningsPaid: daily.winningsPaid + collateralAmount,
     },
   });
-
-  console.log(`[PariMutuel] Winnings redeemed: ${user} received ${collateralAmount}`);
 });
-

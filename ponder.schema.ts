@@ -98,6 +98,10 @@ export default createSchema((p) => ({
     currentTvl: p.bigint(),
     /** Number of unique traders */
     uniqueTraders: p.int(),
+    /** AMM reserve YES tokens */
+    reserveYes: p.bigint().optional(),
+    /** AMM reserve NO tokens */
+    reserveNo: p.bigint().optional(),
     /** Block when created */
     createdAtBlock: p.bigint(),
     /** Timestamp when created */
@@ -239,6 +243,8 @@ export default createSchema((p) => ({
     id: p.string(),
     /** Total polls created */
     totalPolls: p.int(),
+    /** Total polls resolved */
+    totalPollsResolved: p.int(),
     /** Total markets created */
     totalMarkets: p.int(),
     /** Total trades executed */

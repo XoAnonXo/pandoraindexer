@@ -15,6 +15,7 @@ import { http } from "viem";
 // =============================================================================
 
 import { PredictionOracleAbi } from "./abis/PredictionOracle";
+import { PredictionPollAbi } from "./abis/PredictionPoll";
 import { MarketFactoryAbi } from "./abis/MarketFactory";
 import { PredictionAMMAbi } from "./abis/PredictionAMM";
 import { PredictionPariMutuelAbi } from "./abis/PredictionPariMutuel";
@@ -69,6 +70,23 @@ export default createConfig({
     },
 
     /**
+     * PredictionPoll (Dynamic)
+     * Individual poll contracts created by Oracle
+     * Events: AnswerSet (resolution), ArbitrationStarted
+     * Uses factory pattern - polls are created dynamically via PollCreated
+     */
+    PredictionPoll: {
+      network: "sonic",
+      abi: PredictionPollAbi,
+      factory: {
+        address: CONTRACTS.ORACLE,
+        event: PredictionOracleAbi.find((e) => e.type === "event" && e.name === "PollCreated")!,
+        parameter: "pollAddress",
+      },
+      startBlock: START_BLOCK,
+    },
+
+    /**
      * MarketFactory
      * Creates AMM and PariMutuel markets for polls
      * Events: MarketCreated, PariMutuelCreated
@@ -81,10 +99,10 @@ export default createConfig({
     },
 
     /**
-     * PredictionAMM
+     * PredictionAMM (Dynamic)
      * AMM-style prediction market contracts
-     * Uses factory pattern - contracts are created dynamically
-     * Events: BuyTokens, SellTokens, SwapTokens, WinningsRedeemed, LiquidityAdded, LiquidityRemoved
+     * Events: BuyTokens, SellTokens, SwapTokens, WinningsRedeemed, 
+     *         LiquidityAdded, LiquidityRemoved, Sync
      */
     PredictionAMM: {
       network: "sonic",
@@ -98,10 +116,9 @@ export default createConfig({
     },
 
     /**
-     * PredictionPariMutuel
+     * PredictionPariMutuel (Dynamic)
      * Pari-mutuel style betting markets
-     * Uses factory pattern - contracts are created dynamically
-     * Events: PositionPurchased, WinningsRedeemed
+     * Events: SeedInitialLiquidity, PositionPurchased, WinningsRedeemed
      */
     PredictionPariMutuel: {
       network: "sonic",
@@ -115,4 +132,3 @@ export default createConfig({
     },
   },
 });
-

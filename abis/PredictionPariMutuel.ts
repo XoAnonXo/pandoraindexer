@@ -6,11 +6,22 @@
  * Uses dynamic odds based on betting activity.
  * 
  * Key Events:
+ * - SeedInitialLiquidity: When initial liquidity is added (COUNTS AS VOLUME!)
  * - PositionPurchased: When a user places a bet
  * - WinningsRedeemed: When a winner claims their payout
  */
 
 export const PredictionPariMutuelAbi = [
+  // CRITICAL: Initial liquidity event - this is volume!
+  {
+    type: "event",
+    name: "SeedInitialLiquidity",
+    inputs: [
+      { name: "yesAmount", type: "uint256", indexed: false },
+      { name: "noAmount", type: "uint256", indexed: false },
+    ],
+  },
+
   // Betting Event
   {
     type: "event",
@@ -35,6 +46,16 @@ export const PredictionPariMutuelAbi = [
     ],
   },
 
+  // Protocol Fees
+  {
+    type: "event",
+    name: "ProtocolFeesWithdrawn",
+    inputs: [
+      { name: "caller", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+    ],
+  },
+
   // View function for poll address (factory pattern)
   {
     type: "function",
@@ -43,26 +64,4 @@ export const PredictionPariMutuelAbi = [
     outputs: [{ name: "", type: "address" }],
     stateMutability: "view",
   },
-
-  // Market info
-  {
-    type: "function",
-    name: "getMarketInfo",
-    inputs: [],
-    outputs: [
-      {
-        components: [
-          { name: "creator", type: "address" },
-          { name: "pollAddress", type: "address" },
-          { name: "collateralToken", type: "address" },
-          { name: "protocolFeeRate", type: "uint24" },
-          { name: "marketCloseTimestamp", type: "uint32" },
-          { name: "marketStartTimestamp", type: "uint32" },
-        ],
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-  },
 ] as const;
-
