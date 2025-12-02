@@ -1,345 +1,310 @@
 # Anymarket Indexer
 
-A [Ponder](https://ponder.sh) blockchain indexer for the Anymarket prediction markets platform on Sonic Chain.
+A blockchain indexer for the Anymarket prediction markets platform, built with [Ponder](https://ponder.sh).
 
-## Overview
-
-This indexer listens to smart contract events, processes them, stores data in a database, and exposes a GraphQL API. The frontend uses this API to display platform statistics, leaderboards, and activity feeds.
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              SONIC CHAIN (ID: 146)                          │
-│                                                                             │
-│   PredictionOracle  →  MarketFactory  →  AMM / PariMutuel Markets          │
-│   (Polls)               (Creates Markets)  (Trading Events)                 │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-                    ┌─────────────────────────────────────┐
-                    │         PONDER INDEXER              │
-                    │                                     │
-                    │   Event Handlers → Database         │
-                    │         │              │            │
-                    │         └──────────────┘            │
-                    │                │                    │
-                    │                ▼                    │
-                    │          GraphQL API                │
-                    │       localhost:42069               │
-                    └─────────────────────────────────────┘
-                                    │
-                                    ▼
-                    ┌─────────────────────────────────────┐
-                    │       ANYMARKET FRONTEND            │
-                    │                                     │
-                    │   usePonderStats() → Statistics     │
-                    └─────────────────────────────────────┘
-```
+**Multi-Chain Support**: All tables include `chainId` and `chainName` for cross-chain data filtering.
 
 ## Quick Start
 
-### Prerequisites
-
-- Node.js >= 18.0.0
-- npm or yarn
-
-### Installation
-
 ```bash
-cd ponder
+# Install dependencies
 npm install
-```
 
-### Development
+# Set environment variables
+cp .env.example .env
+# Edit .env with your RPC URL
 
-```bash
-# Generate types from schema
-npm run codegen
-
-# Start development server (hot reload)
+# Run in development mode
 npm run dev
 ```
 
-The GraphQL API will be available at `http://localhost:42069/graphql`.
+## Features
 
-### Production
+- ✅ **Multi-Chain Ready** - Tables support multiple EVM chains
+- ✅ **Real-time Indexing** - Polls, markets, trades, users, winnings
+- ✅ **Platform Statistics** - Per-chain and time-series analytics
+- ✅ **GraphQL API** - Auto-generated from schema
+- ✅ **Docker Support** - Easy deployment to Railway
 
-```bash
-npm run start
-```
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file:
-
-```bash
-# Required: Sonic Chain RPC endpoint
-PONDER_RPC_URL_146=https://rpc.soniclabs.com
-
-# Optional: Database URL (defaults to SQLite)
-DATABASE_URL=postgresql://user:pass@host:5432/anymarket
-
-# Optional: Max historical block range per request (performance tuning)
-PONDER_MAX_HISTORICAL_TOTAL_BLOCKS=100000
-```
-
-### Contract Addresses
-
-The indexer is configured for these Sonic mainnet contracts:
-
-| Contract | Address |
-|----------|---------|
-| Oracle | `0x9492a0c32Fb22d1b8940e44C4D69f82B6C3cb298` |
-| MarketFactory | `0x017277d36f80422a5d0aA5B8C93f5ae57BA2A317` |
-
-To update addresses, modify `ponder.config.ts`.
-
-## Project Structure
+## Architecture
 
 ```
-ponder/
-├── ponder.config.ts     # Network and contract configuration
-├── ponder.schema.ts     # Database schema definitions
-├── src/
-│   └── index.ts         # Event handlers
-├── abis/                # Contract ABIs
-│   ├── PredictionOracle.ts
-│   ├── MarketFactory.ts
-│   ├── PredictionAMM.ts
-│   └── PredictionPariMutuel.ts
-├── package.json
-├── tsconfig.json
-└── README.md
+┌─────────────────────────────────────────────────────────────┐
+│                    ANYMARKET INDEXER                        │
+│                   (Multi-Chain Support)                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   ┌─────────┐      ┌─────────┐      ┌─────────┐            │
+│   │  Sonic  │      │  Base   │      │ Arbitrum│   ...      │
+│   │ (146)   │      │ (8453)  │      │ (42161) │            │
+│   └────┬────┘      └────┬────┘      └────┬────┘            │
+│        │                │                │                  │
+│        └────────────────┼────────────────┘                  │
+│                         ▼                                   │
+│              ┌─────────────────┐                            │
+│              │  Event Handlers │                            │
+│              │   (src/index.ts)│                            │
+│              └────────┬────────┘                            │
+│                       ▼                                     │
+│              ┌─────────────────┐                            │
+│              │   PostgreSQL    │                            │
+│              │   (Multi-Chain) │                            │
+│              └────────┬────────┘                            │
+│                       ▼                                     │
+│              ┌─────────────────┐                            │
+│              │   GraphQL API   │                            │
+│              │  (port 42069)   │                            │
+│              └─────────────────┘                            │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Database Schema
 
-### Tables
+### Core Tables (Per Chain)
 
-| Table | Description |
-|-------|-------------|
-| `polls` | Prediction polls from Oracle |
-| `markets` | AMM and PariMutuel markets |
-| `trades` | All trading activity |
-| `users` | User statistics |
-| `winnings` | Winning redemptions |
-| `liquidityEvents` | LP add/remove events |
-| `platformStats` | Global metrics (singleton) |
-| `dailyStats` | Daily aggregations |
-| `hourlyStats` | Hourly aggregations |
+| Table | Description | Key Fields |
+|-------|-------------|------------|
+| `polls` | Prediction questions | chainId, question, status, resolvedAt |
+| `markets` | AMM & PariMutuel markets | chainId, marketType, totalVolume, currentTvl |
+| `trades` | All trading activity | chainId, tradeType, side, collateralAmount |
+| `users` | Per-chain user stats | chainId, address, totalVolume, totalWinnings |
+| `winnings` | Winning redemptions | chainId, collateralAmount, outcome |
+| `liquidityEvents` | LP add/remove | chainId, eventType, collateralAmount |
 
-### Entity Relationships
+### Analytics Tables (Per Chain)
 
+| Table | Description | Key Fields |
+|-------|-------------|------------|
+| `platformStats` | Chain totals | chainId, totalVolume, totalMarkets, totalUsers |
+| `dailyStats` | Daily aggregates | chainId, dayTimestamp, volume, tradesCount |
+| `hourlyStats` | Hourly aggregates | chainId, hourTimestamp, volume |
+
+## Adding a New Chain
+
+### 1. Add Chain Config
+
+Edit `config.ts`:
+
+```typescript
+export const CHAINS: Record<number, ChainConfig> = {
+  // Existing chain...
+  146: { /* Sonic */ },
+  
+  // Add new chain
+  8453: {
+    chainId: 8453,
+    name: "Base",
+    shortName: "base",
+    rpcUrl: process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org",
+    explorerUrl: "https://basescan.org",
+    contracts: {
+      oracle: "0x...",         // Deploy and add address
+      marketFactory: "0x...",  // Deploy and add address
+      usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    },
+    startBlock: 12345678,  // Block when contracts were deployed
+    enabled: true,
+  },
+};
 ```
-polls (1) ────── (1) markets
-     │
-     └───────── (N) trades
-                    │
-                    └── (N) users
+
+### 2. Update Ponder Config
+
+Edit `ponder.config.ts`:
+
+```typescript
+// Add network
+networks: {
+  sonic: { ... },
+  base: {
+    chainId: 8453,
+    transport: http(process.env.PONDER_RPC_URL_8453),
+    pollingInterval: 2_000,
+  },
+},
+
+// Add contracts
+contracts: {
+  // Sonic contracts...
+  
+  PredictionOracle_Base: {
+    network: "base",
+    abi: PredictionOracleAbi,
+    address: CHAINS[8453].contracts.oracle,
+    startBlock: CHAINS[8453].startBlock,
+  },
+  // ... add other Base contracts
+},
 ```
 
-## Events Indexed
+### 3. Set Environment Variable
 
-### PredictionOracle
-- `PollCreated` → Creates poll record
-- `PollRefreshed` → Updates check epoch
+```bash
+PONDER_RPC_URL_8453=https://your-base-rpc-url
+```
 
-### MarketFactory
-- `MarketCreated` → Creates AMM market
-- `PariMutuelCreated` → Creates pari-mutuel market
+### 4. Deploy
 
-### PredictionAMM
-- `BuyTokens` → Records buy trade
-- `SellTokens` → Records sell trade
-- `SwapTokens` → Records token swap
-- `WinningsRedeemed` → Records payout
-- `LiquidityAdded` → Records LP deposit
-- `LiquidityRemoved` → Records LP withdrawal
+The indexer will start syncing the new chain from its startBlock.
 
-### PredictionPariMutuel
-- `PositionPurchased` → Records bet
-- `WinningsRedeemed` → Records payout
+## Volume Tracking
 
-## GraphQL API
+**CRITICAL**: These events generate volume:
 
-### Endpoints
+| Event | Contract | Counts As Volume |
+|-------|----------|------------------|
+| `SeedInitialLiquidity` | PariMutuel | `yesAmount + noAmount` |
+| `PositionPurchased` | PariMutuel | `collateralIn` |
+| `BuyTokens` | AMM | `collateralAmount` |
+| `SellTokens` | AMM | `collateralAmount` |
+| `LiquidityAdded` (imbalance) | AMM | `yesToReturn + noToReturn` |
 
-| Path | Description |
-|------|-------------|
-| `/graphql` | GraphQL playground and API |
-| `/health` | Health check |
-| `/metrics` | Prometheus metrics |
+## GraphQL Examples
 
-### Example Queries
+### Get Platform Stats by Chain
 
-**Platform Statistics:**
 ```graphql
 query {
-  platformStats(id: "global") {
-    totalPolls
-    totalMarkets
-    totalTrades
-    totalUsers
-    totalVolume
-    totalLiquidity
-    totalWinningsPaid
+  platformStatss(where: { chainId: 146 }) {
+    items {
+      chainName
+      totalVolume
+      totalMarkets
+      totalUsers
+    }
   }
 }
 ```
 
-**Leaderboard (Top Traders by Volume):**
+### Get Markets Across All Chains
+
 ```graphql
 query {
-  userss(orderBy: "totalVolume", orderDirection: "desc", limit: 10) {
+  marketss(orderBy: "totalVolume", orderDirection: "desc", limit: 10) {
     items {
       id
+      chainId
+      chainName
+      marketType
+      totalVolume
+      totalTrades
+    }
+  }
+}
+```
+
+### Get User Stats by Chain
+
+```graphql
+query {
+  userss(where: { address: "0x123...", chainId: 146 }) {
+    items {
+      chainName
       totalTrades
       totalVolume
       totalWinnings
-      totalWins
       bestStreak
     }
   }
 }
 ```
 
-**Recent Trades:**
-```graphql
-query {
-  tradess(orderBy: "timestamp", orderDirection: "desc", limit: 20) {
-    items {
-      id
-      trader
-      tradeType
-      side
-      collateralAmount
-      timestamp
-    }
-  }
-}
-```
+### Get Daily Volume by Chain
 
-**Top Winnings:**
 ```graphql
 query {
-  winningss(orderBy: "collateralAmount", orderDirection: "desc", limit: 5) {
+  dailyStatss(
+    where: { chainId: 146 }
+    orderBy: "dayTimestamp"
+    orderDirection: "desc"
+    limit: 7
+  ) {
     items {
-      id
-      user
-      collateralAmount
-      marketQuestion
-      timestamp
-    }
-  }
-}
-```
-
-**Daily Statistics:**
-```graphql
-query {
-  dailyStatss(orderBy: "id", orderDirection: "desc", limit: 30) {
-    items {
-      id
-      tradesCount
+      dayTimestamp
       volume
-      winningsPaid
+      tradesCount
+      newUsers
     }
   }
 }
 ```
 
-## Deployment
+## Environment Variables
 
-### Railway
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `PONDER_RPC_URL_146` | Sonic RPC URL | Yes |
+| `PONDER_RPC_URL_8453` | Base RPC URL | If Base enabled |
+| `DATABASE_URL` | PostgreSQL URL | Production |
 
-1. Push code to GitHub
-2. Create new Railway project from repo
-3. Add PostgreSQL database
-4. Set environment variables:
-   ```
-   PONDER_RPC_URL_146=https://rpc.soniclabs.com
-   ```
-5. Deploy
-
-### Docker
-
-```dockerfile
-FROM node:20-alpine
-
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-
-COPY . .
-RUN npm run codegen
-
-EXPOSE 42069
-CMD ["npm", "run", "start"]
-```
+## Development
 
 ```bash
-docker build -t anymarket-indexer .
-docker run -p 42069:42069 \
-  -e PONDER_RPC_URL_146=https://rpc.soniclabs.com \
-  -e DATABASE_URL=postgresql://... \
-  anymarket-indexer
+# Run development server
+npm run dev
+
+# Generate types from schema
+npm run codegen
+
+# Run in production mode
+npm run start
+```
+
+## Deployment (Railway)
+
+1. Create PostgreSQL database on Railway
+2. Create new service from this repo
+3. Set environment variables:
+   ```
+   DATABASE_URL=postgresql://...
+   PONDER_RPC_URL_146=https://rpc.soniclabs.com
+   ```
+4. Deploy
+
+## Files
+
+```
+ponder/
+├── config.ts           # Chain configurations (addresses, RPC URLs)
+├── ponder.config.ts    # Ponder setup (networks, contracts)
+├── ponder.schema.ts    # Database tables
+├── src/
+│   └── index.ts        # Event handlers
+├── abis/               # Contract ABIs
+│   ├── PredictionOracle.ts
+│   ├── PredictionPoll.ts
+│   ├── MarketFactory.ts
+│   ├── PredictionAMM.ts
+│   └── PredictionPariMutuel.ts
+├── Dockerfile
+└── docker-compose.yml
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Volume Not Tracking
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Slow initial sync | Start block too early | Update `startBlock` in config |
-| "Market not found" | Factory events delayed | Wait for factory sync |
-| Empty query results | Sync incomplete | Wait for 100% sync |
-| RPC rate limiting | Public RPC limits | Use dedicated RPC |
+Check that these events are being indexed:
+- `SeedInitialLiquidity` for PariMutuel initial volume
+- `LiquidityAdded` imbalance for AMM (non-50/50 liquidity)
 
-### Reset and Resync
+See `docs/INDEXER_VOLUME_TRACKING.md` for details.
 
+### Schema Changes
+
+Schema changes require a full re-sync:
 ```bash
 rm -rf .ponder
 npm run dev
 ```
 
-### Logs
+### Adding New Events
 
-Ponder provides detailed logging:
-```
-11:41:04 PM INFO  historical Started syncing 'sonic' with 0.0% cached
-11:41:38 PM INFO  realtime   Synced block 56719270 from 'sonic'
-```
+1. Add event to ABI file
+2. Add handler in `src/index.ts`
+3. Redeploy (triggers resync)
 
-## Performance Tips
+## License
 
-1. **Start Block**: Set as close to contract deployment as possible
-2. **RPC Provider**: Use dedicated RPC for production (Alchemy, QuickNode)
-3. **Database**: PostgreSQL for production, SQLite for development
-4. **Caching**: Historical data cached in `.ponder/` directory
-
-## Security
-
-- **Read-only**: Only reads blockchain data, never writes
-- **No private keys**: No wallet or signing capabilities
-- **Public API**: GraphQL is public by default (add auth middleware if needed)
-
-## Frontend Integration
-
-The Anymarket frontend uses `usePonderStats()` hook to query this indexer:
-
-```typescript
-// In src/hooks/usePonderStats.ts
-const PONDER_API_URL = 'https://your-indexer.railway.app/graphql';
-
-const { platformStats, leaderboard, recentTrades } = usePonderStats();
-```
-
-## Links
-
-- [Ponder Documentation](https://ponder.sh/docs)
-- [Sonic Chain Explorer](https://sonicscan.org)
-- [Anymarket Frontend](../README.md)
-- [Smart Contracts](../prediction-oracle-contracts/README.md)
-
+MIT

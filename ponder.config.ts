@@ -1,8 +1,14 @@
 /**
- * Ponder Configuration
+ * Ponder Configuration - Multi-Chain Support
  * 
  * This file configures the Ponder indexer for Anymarket prediction markets.
- * It defines which contracts to index, on which network, and starting blocks.
+ * Supports multiple EVM chains - add new chains in config.ts
+ * 
+ * To add a new chain:
+ * 1. Add chain config to config.ts
+ * 2. Add network definition below
+ * 3. Add contract definitions for that chain
+ * 4. Set environment variable PONDER_RPC_URL_{chainId}
  * 
  * @see https://ponder.sh/docs/getting-started/new-project
  */
@@ -21,20 +27,13 @@ import { PredictionAMMAbi } from "./abis/PredictionAMM";
 import { PredictionPariMutuelAbi } from "./abis/PredictionPariMutuel";
 
 // =============================================================================
-// CONTRACT ADDRESSES (Sonic Mainnet - Chain ID: 146)
+// CHAIN CONFIGURATION
 // =============================================================================
 
-const CONTRACTS = {
-  ORACLE: "0x9492a0c32Fb22d1b8940e44C4D69f82B6C3cb298",
-  MARKET_FACTORY: "0x017277d36f80422a5d0aA5B8C93f5ae57BA2A317",
-} as const;
+import { CHAINS } from "./config";
 
-/**
- * Start block for indexing
- * Set this to the block when contracts were deployed to avoid
- * unnecessary historical scanning
- */
-const START_BLOCK = 56_000_000;
+// Get Sonic config
+const sonic = CHAINS[146];
 
 // =============================================================================
 // CONFIGURATION
@@ -42,93 +41,104 @@ const START_BLOCK = 56_000_000;
 
 export default createConfig({
   // ---------------------------------------------------------------------------
-  // Network Configuration
+  // Networks
   // ---------------------------------------------------------------------------
   networks: {
+    // Sonic Mainnet (Chain ID: 146)
     sonic: {
       chainId: 146,
-      transport: http(process.env.PONDER_RPC_URL_146 ?? "https://rpc.soniclabs.com"),
-      // Polling interval for new blocks (ms)
+      transport: http(sonic.rpcUrl),
       pollingInterval: 2_000,
     },
+    
+    // Add more networks here when deploying to other chains:
+    // base: {
+    //   chainId: 8453,
+    //   transport: http(process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org"),
+    //   pollingInterval: 2_000,
+    // },
   },
 
   // ---------------------------------------------------------------------------
-  // Contract Definitions
+  // Contracts
   // ---------------------------------------------------------------------------
   contracts: {
+    // =========================================================================
+    // SONIC CHAIN CONTRACTS
+    // =========================================================================
+    
     /**
-     * PredictionOracle
-     * Creates and manages prediction polls
-     * Events: PollCreated, PollRefreshed
+     * PredictionOracle (Sonic)
      */
     PredictionOracle: {
       network: "sonic",
       abi: PredictionOracleAbi,
-      address: CONTRACTS.ORACLE,
-      startBlock: START_BLOCK,
+      address: sonic.contracts.oracle,
+      startBlock: sonic.startBlock,
     },
 
     /**
-     * PredictionPoll (Dynamic)
-     * Individual poll contracts created by Oracle
-     * Events: AnswerSet (resolution), ArbitrationStarted
-     * Uses factory pattern - polls are created dynamically via PollCreated
+     * PredictionPoll (Sonic) - Dynamic
      */
     PredictionPoll: {
       network: "sonic",
       abi: PredictionPollAbi,
       factory: {
-        address: CONTRACTS.ORACLE,
+        address: sonic.contracts.oracle,
         event: PredictionOracleAbi.find((e) => e.type === "event" && e.name === "PollCreated")!,
         parameter: "pollAddress",
       },
-      startBlock: START_BLOCK,
+      startBlock: sonic.startBlock,
     },
 
     /**
-     * MarketFactory
-     * Creates AMM and PariMutuel markets for polls
-     * Events: MarketCreated, PariMutuelCreated
+     * MarketFactory (Sonic)
      */
     MarketFactory: {
       network: "sonic",
       abi: MarketFactoryAbi,
-      address: CONTRACTS.MARKET_FACTORY,
-      startBlock: START_BLOCK,
+      address: sonic.contracts.marketFactory,
+      startBlock: sonic.startBlock,
     },
 
     /**
-     * PredictionAMM (Dynamic)
-     * AMM-style prediction market contracts
-     * Events: BuyTokens, SellTokens, SwapTokens, WinningsRedeemed, 
-     *         LiquidityAdded, LiquidityRemoved, Sync
+     * PredictionAMM (Sonic) - Dynamic
      */
     PredictionAMM: {
       network: "sonic",
       abi: PredictionAMMAbi,
       factory: {
-        address: CONTRACTS.MARKET_FACTORY,
+        address: sonic.contracts.marketFactory,
         event: MarketFactoryAbi.find((e) => e.type === "event" && e.name === "MarketCreated")!,
         parameter: "marketAddress",
       },
-      startBlock: START_BLOCK,
+      startBlock: sonic.startBlock,
     },
 
     /**
-     * PredictionPariMutuel (Dynamic)
-     * Pari-mutuel style betting markets
-     * Events: SeedInitialLiquidity, PositionPurchased, WinningsRedeemed
+     * PredictionPariMutuel (Sonic) - Dynamic
      */
     PredictionPariMutuel: {
       network: "sonic",
       abi: PredictionPariMutuelAbi,
       factory: {
-        address: CONTRACTS.MARKET_FACTORY,
+        address: sonic.contracts.marketFactory,
         event: MarketFactoryAbi.find((e) => e.type === "event" && e.name === "PariMutuelCreated")!,
         parameter: "marketAddress",
       },
-      startBlock: START_BLOCK,
+      startBlock: sonic.startBlock,
     },
+
+    // =========================================================================
+    // BASE CHAIN CONTRACTS (Example - uncomment when deploying)
+    // =========================================================================
+    
+    // PredictionOracle_Base: {
+    //   network: "base",
+    //   abi: PredictionOracleAbi,
+    //   address: CHAINS[8453].contracts.oracle,
+    //   startBlock: CHAINS[8453].startBlock,
+    // },
+    // ... add other Base contracts
   },
 });

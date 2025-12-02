@@ -1,19 +1,19 @@
 /**
- * Ponder Schema
+ * Ponder Schema - Multi-Chain Support
  * 
  * Defines the database tables for the Anymarket indexer.
- * These tables store indexed blockchain events and aggregated statistics.
+ * All tables include chainId for multi-chain support.
  * 
  * Table Overview:
  * - polls: Prediction polls from the Oracle contract
  * - markets: AMM and PariMutuel markets
  * - trades: All trading activity (buys, sells, swaps, bets)
- * - users: Aggregated user statistics
+ * - users: Aggregated user statistics (per chain)
  * - winnings: Winning redemption records
  * - liquidityEvents: LP add/remove events
- * - platformStats: Global platform metrics (singleton)
- * - dailyStats: Daily aggregated statistics
- * - hourlyStats: Hourly aggregated statistics
+ * - platformStats: Platform metrics (per chain, ID = chainId)
+ * - dailyStats: Daily aggregated statistics (per chain)
+ * - hourlyStats: Hourly aggregated statistics (per chain)
  * 
  * @see https://ponder.sh/docs/schema
  */
@@ -31,6 +31,10 @@ export default createSchema((p) => ({
   polls: p.createTable({
     /** Poll contract address (primary key) */
     id: p.hex(),
+    /** Chain ID where poll exists */
+    chainId: p.int(),
+    /** Chain name for display */
+    chainName: p.string(),
     /** Creator's wallet address */
     creator: p.hex(),
     /** The prediction question */
@@ -70,6 +74,10 @@ export default createSchema((p) => ({
   markets: p.createTable({
     /** Market contract address (primary key) */
     id: p.hex(),
+    /** Chain ID where market exists */
+    chainId: p.int(),
+    /** Chain name for display */
+    chainName: p.string(),
     /** Linked poll address */
     pollAddress: p.hex(),
     /** Market creator address */
@@ -116,8 +124,12 @@ export default createSchema((p) => ({
    * Includes AMM buys/sells/swaps and PariMutuel bets
    */
   trades: p.createTable({
-    /** Unique ID: txHash-logIndex */
+    /** Unique ID: chainId-txHash-logIndex */
     id: p.string(),
+    /** Chain ID where trade occurred */
+    chainId: p.int(),
+    /** Chain name for display */
+    chainName: p.string(),
     /** Trader's wallet address */
     trader: p.hex(),
     /** Market address */
@@ -146,11 +158,18 @@ export default createSchema((p) => ({
   // USERS TABLE
   // ===========================================================================
   /**
-   * Aggregated statistics per user
+   * Aggregated statistics per user per chain
+   * ID format: chainId-userAddress
    */
   users: p.createTable({
-    /** User wallet address (primary key) */
-    id: p.hex(),
+    /** Composite ID: chainId-userAddress */
+    id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** Chain name for display */
+    chainName: p.string(),
+    /** User wallet address */
+    address: p.hex(),
     /** Total number of trades */
     totalTrades: p.int(),
     /** Total trading volume (6 decimals) */
@@ -184,8 +203,12 @@ export default createSchema((p) => ({
    * Individual winning redemption records
    */
   winnings: p.createTable({
-    /** Unique ID: txHash-logIndex */
+    /** Unique ID: chainId-txHash-logIndex */
     id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** Chain name for display */
+    chainName: p.string(),
     /** User who redeemed */
     user: p.hex(),
     /** Market address */
@@ -213,8 +236,12 @@ export default createSchema((p) => ({
    * Liquidity add/remove events (AMM only)
    */
   liquidityEvents: p.createTable({
-    /** Unique ID: txHash-logIndex */
+    /** Unique ID: chainId-txHash-logIndex */
     id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** Chain name for display */
+    chainName: p.string(),
     /** Liquidity provider address */
     provider: p.hex(),
     /** Market address */
@@ -232,15 +259,19 @@ export default createSchema((p) => ({
   }),
 
   // ===========================================================================
-  // PLATFORM STATS TABLE (Singleton)
+  // PLATFORM STATS TABLE (Per Chain)
   // ===========================================================================
   /**
-   * Global platform statistics
-   * Uses 'global' as the singleton ID
+   * Platform statistics per chain
+   * ID is the chainId as string (e.g., "146" for Sonic)
    */
   platformStats: p.createTable({
-    /** Singleton ID: 'global' */
+    /** Chain ID as string (e.g., "146") */
     id: p.string(),
+    /** Chain ID as number */
+    chainId: p.int(),
+    /** Chain name for display */
+    chainName: p.string(),
     /** Total polls created */
     totalPolls: p.int(),
     /** Total polls resolved */
@@ -268,15 +299,21 @@ export default createSchema((p) => ({
   }),
 
   // ===========================================================================
-  // DAILY STATS TABLE
+  // DAILY STATS TABLE (Per Chain)
   // ===========================================================================
   /**
-   * Daily aggregated statistics
-   * ID is the Unix timestamp of the day start (midnight UTC)
+   * Daily aggregated statistics per chain
+   * ID format: chainId-dayTimestamp
    */
   dailyStats: p.createTable({
-    /** Day timestamp (midnight UTC) */
+    /** Composite ID: chainId-dayTimestamp */
     id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** Chain name for display */
+    chainName: p.string(),
+    /** Day timestamp (midnight UTC) */
+    dayTimestamp: p.bigint(),
     /** Polls created that day */
     pollsCreated: p.int(),
     /** Markets created that day */
@@ -294,15 +331,21 @@ export default createSchema((p) => ({
   }),
 
   // ===========================================================================
-  // HOURLY STATS TABLE
+  // HOURLY STATS TABLE (Per Chain)
   // ===========================================================================
   /**
-   * Hourly aggregated statistics
-   * ID is the Unix timestamp of the hour start
+   * Hourly aggregated statistics per chain
+   * ID format: chainId-hourTimestamp
    */
   hourlyStats: p.createTable({
-    /** Hour timestamp */
+    /** Composite ID: chainId-hourTimestamp */
     id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** Chain name for display */
+    chainName: p.string(),
+    /** Hour timestamp */
+    hourTimestamp: p.bigint(),
     /** Trades executed that hour */
     tradesCount: p.int(),
     /** Trading volume that hour (6 decimals) */
@@ -311,4 +354,3 @@ export default createSchema((p) => ({
     uniqueTraders: p.int(),
   }),
 }));
-
