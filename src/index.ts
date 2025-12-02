@@ -184,6 +184,56 @@ async function getOrCreateHourlyStats(context: any, timestamp: bigint, chain: Ch
   return hourly;
 }
 
+/**
+ * Safely get or create a minimal market record
+ * Handles race conditions where multiple events might try to create the same market
+ */
+async function getOrCreateMinimalMarket(
+  context: any, 
+  marketAddress: `0x${string}`, 
+  chain: ChainInfo,
+  marketType: "amm" | "pari",
+  timestamp: bigint,
+  blockNumber: bigint
+) {
+  let market = await context.db.markets.findUnique({ id: marketAddress });
+  
+  if (!market) {
+    try {
+      console.warn(`[${chain.chainName}] Creating minimal market record for ${marketAddress}`);
+      market = await context.db.markets.create({
+        id: marketAddress,
+        data: {
+          chainId: chain.chainId,
+          chainName: chain.chainName,
+          pollAddress: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+          creator: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+          marketType,
+          collateralToken: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+          totalVolume: 0n,
+          totalTrades: 0,
+          currentTvl: 0n,
+          uniqueTraders: 0,
+          createdAtBlock: blockNumber,
+          createdAt: timestamp,
+        },
+      });
+    } catch (e: any) {
+      // Market was created by another event handler (race condition) - fetch it
+      if (e.message?.includes("unique constraint") || e.code === "P2002") {
+        market = await context.db.markets.findUnique({ id: marketAddress });
+        if (!market) {
+          throw new Error(`Failed to get or create market ${marketAddress}: ${e.message}`);
+        }
+      } else {
+        throw e;
+      }
+    }
+  }
+  
+  return market;
+}
+
 // =============================================================================
 // ORACLE EVENT HANDLERS
 // =============================================================================
@@ -455,28 +505,8 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
   const chain = getChainInfo(context);
   const tradeId = makeId(chain.chainId, event.transaction.hash, event.log.logIndex);
 
-  // Get or create market (handle race conditions)
-  let market = await context.db.markets.findUnique({ id: marketAddress });
-  if (!market) {
-    console.warn(`[${chain.chainName}] BuyTokens: Market not found ${marketAddress} - creating minimal record`);
-    market = await context.db.markets.create({
-      id: marketAddress,
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        pollAddress: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        creator: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        marketType: "amm",
-        collateralToken: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        totalVolume: 0n,
-        totalTrades: 0,
-        currentTvl: 0n,
-        uniqueTraders: 0,
-        createdAtBlock: event.block.number,
-        createdAt: timestamp,
-      },
-    });
-  }
+  // Get or create market (handle race conditions safely)
+  const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "amm", timestamp, event.block.number);
   const pollAddress = market.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
 
   // Create trade record
@@ -567,28 +597,8 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
   const chain = getChainInfo(context);
   const tradeId = makeId(chain.chainId, event.transaction.hash, event.log.logIndex);
 
-  // Get or create market (handle race conditions)
-  let market = await context.db.markets.findUnique({ id: marketAddress });
-  if (!market) {
-    console.warn(`[${chain.chainName}] SellTokens: Market not found ${marketAddress} - creating minimal record`);
-    market = await context.db.markets.create({
-      id: marketAddress,
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        pollAddress: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        creator: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        marketType: "amm",
-        collateralToken: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        totalVolume: 0n,
-        totalTrades: 0,
-        currentTvl: 0n,
-        uniqueTraders: 0,
-        createdAtBlock: event.block.number,
-        createdAt: timestamp,
-      },
-    });
-  }
+  // Get or create market (handle race conditions safely)
+  const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "amm", timestamp, event.block.number);
   const pollAddress = market.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
 
   // Create trade record
@@ -815,28 +825,8 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
     },
   });
 
-  // Get or create market (handle race conditions)
-  let market = await context.db.markets.findUnique({ id: marketAddress });
-  if (!market) {
-    console.warn(`[${chain.chainName}] LiquidityAdded: Market not found ${marketAddress} - creating minimal record`);
-    market = await context.db.markets.create({
-      id: marketAddress,
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        pollAddress: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        creator: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        marketType: "amm",
-        collateralToken: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        totalVolume: 0n,
-        totalTrades: 0,
-        currentTvl: 0n,
-        uniqueTraders: 0,
-        createdAtBlock: event.block.number,
-        createdAt: timestamp,
-      },
-    });
-  }
+  // Get or create market (handle race conditions safely)
+  const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "amm", timestamp, event.block.number);
 
   // Update market TVL and volume (if imbalanced)
   await context.db.markets.update({
@@ -960,30 +950,8 @@ ponder.on("PredictionPariMutuel:SeedInitialLiquidity", async ({ event, context }
 
   const totalVolume = yesAmount + noAmount;
 
-  // Try to get existing market, create minimal record if not exists (race condition handling)
-  let market = await context.db.markets.findUnique({ id: marketAddress });
-  
-  if (!market) {
-    // Market might not exist yet due to event ordering - create minimal record
-    console.warn(`[${chain.chainName}] SeedInitialLiquidity: Market not found ${marketAddress} - creating minimal record`);
-    market = await context.db.markets.create({
-      id: marketAddress,
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        pollAddress: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        creator: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        marketType: "pari",
-        collateralToken: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        totalVolume: 0n,
-        totalTrades: 0,
-        currentTvl: 0n,
-        uniqueTraders: 0,
-        createdAtBlock: event.block.number,
-        createdAt: timestamp,
-      },
-    });
-  }
+  // Get or create market (handle race conditions safely)
+  const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "pari", timestamp, event.block.number);
 
   // Update market volume and TVL
   await context.db.markets.update({
@@ -1018,9 +986,6 @@ ponder.on("PredictionPariMutuel:SeedInitialLiquidity", async ({ event, context }
 
 /**
  * Handle PositionPurchased event from PredictionPariMutuel
- */
-/**
- * Handle PositionPurchased event from PredictionPariMutuel
  * NOTE: Always update both market AND platform stats together for consistency
  */
 ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) => {
@@ -1030,28 +995,8 @@ ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) =
   const chain = getChainInfo(context);
   const tradeId = makeId(chain.chainId, event.transaction.hash, event.log.logIndex);
 
-  // Get or create market (handle race conditions)
-  let market = await context.db.markets.findUnique({ id: marketAddress });
-  if (!market) {
-    console.warn(`[${chain.chainName}] PositionPurchased: Market not found ${marketAddress} - creating minimal record`);
-    market = await context.db.markets.create({
-      id: marketAddress,
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        pollAddress: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        creator: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        marketType: "pari",
-        collateralToken: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-        totalVolume: 0n,
-        totalTrades: 0,
-        currentTvl: 0n,
-        uniqueTraders: 0,
-        createdAtBlock: event.block.number,
-        createdAt: timestamp,
-      },
-    });
-  }
+  // Get or create market (handle race conditions safely)
+  const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "pari", timestamp, event.block.number);
   const pollAddress = market.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
 
   // Create trade record
