@@ -9,6 +9,7 @@ export const CONTRACTS = {
   oracle: "0x9492a0c32Fb22d1b8940e44C4D69f82B6C3cb298" as const,
   marketFactory: "0x017277d36f80422a5d0aA5B8C93f5ae57BA2A317" as const,
   usdc: "0xc6020e5492c2892fD63489797ce3d431ae101d5e" as const,
+  startBlock: 5507800, // Block where contracts were deployed
 };
 
 // RPC URL

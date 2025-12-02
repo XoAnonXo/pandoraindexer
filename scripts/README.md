@@ -115,6 +115,18 @@ npx tsx verify-tvl.ts
 | `SeedInitialLiquidity` | PariMutuel | +(yesAmount + noAmount) |
 | `PositionPurchased` | PariMutuel | +collateralIn |
 
+### Predictions (`verify-predictions.ts`)
+Compares indexed trades with on-chain event logs.
+
+```bash
+npx tsx verify-predictions.ts
+```
+
+Verifies:
+- AMM `BuyTokens` and `SellTokens` event counts match
+- PariMutuel `PositionPurchased` event counts match
+- Trade amounts and volumes
+
 ## Output
 
 The scripts produce colored terminal output with:
