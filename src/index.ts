@@ -27,6 +27,20 @@
  * - PositionPurchased: +collateralIn (trader deposits collateral)
  * - WinningsRedeemed: -collateralAmount (winner withdraws collateral)
  * 
+ * IMPORTANT: Realized PnL Tracking
+ * realizedPnL = (totalWithdrawn + totalWinnings) - totalDeposited
+ * 
+ * Only tracks REALIZED returns:
+ * - totalDeposited: Money put in via BuyTokens / PositionPurchased
+ * - totalWithdrawn: Money taken out via SellTokens (net of fees)
+ * - totalWinnings: Money claimed via WinningsRedeemed (after resolution + 24h)
+ * 
+ * WinningsRedeemed only fires when:
+ * 1. Market is resolved (poll status != 0)
+ * 2. 24-hour finalization period has passed
+ * 3. No arbitration pending
+ * 4. User actively claims their winnings
+ * 
  * @module src/index
  */
 
@@ -121,6 +135,8 @@ async function getOrCreateUser(context: any, address: `0x${string}`, chain: Chai
         totalVolume: 0n,
         totalWinnings: 0n,
         totalDeposited: 0n,
+        totalWithdrawn: 0n,
+        realizedPnL: 0n,
         totalWins: 0,
         totalLosses: 0,
         currentStreak: 0,
@@ -734,11 +750,22 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
   // Check if this is a new trader for this market
   const isNewTrader = await isNewTraderForMarket(context, marketAddress, trader, chain);
   
+  // Track sell proceeds (net of fees) as withdrawn funds
+  // This represents realized exit from trading positions
+  const netProceeds = collateralAmount > fee ? collateralAmount - fee : 0n;
+  const newTotalWithdrawn = (user.totalWithdrawn ?? 0n) + netProceeds;
+  
+  // realizedPnL = (totalWithdrawn + totalWinnings) - totalDeposited
+  // This gives true realized profit/loss (money out - money in)
+  const newRealizedPnL = newTotalWithdrawn + (user.totalWinnings ?? 0n) - (user.totalDeposited ?? 0n);
+  
   await context.db.users.update({
     id: makeId(chain.chainId, trader.toLowerCase()),
     data: {
       totalTrades: user.totalTrades + 1,
       totalVolume: user.totalVolume + collateralAmount,
+      totalWithdrawn: newTotalWithdrawn,
+      realizedPnL: newRealizedPnL,
       lastTradeAt: timestamp,
     },
   });
@@ -916,13 +943,20 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
   const newStreak = userData.currentStreak >= 0 ? userData.currentStreak + 1 : 1;
   const bestStreak = Math.max(userData.bestStreak, newStreak);
   
+  // Calculate new totalWinnings and update realizedPnL
+  // WinningsRedeemed only fires after market is resolved AND finalization period (24h) passed
+  const newTotalWinnings = (userData.totalWinnings ?? 0n) + collateralAmount;
+  // realizedPnL = (totalWithdrawn + totalWinnings) - totalDeposited
+  const newRealizedPnL = (userData.totalWithdrawn ?? 0n) + newTotalWinnings - (userData.totalDeposited ?? 0n);
+  
   await context.db.users.update({
     id: makeId(chain.chainId, user.toLowerCase()),
     data: {
-      totalWinnings: userData.totalWinnings + collateralAmount,
+      totalWinnings: newTotalWinnings,
       totalWins: userData.totalWins + 1,
       currentStreak: newStreak,
       bestStreak,
+      realizedPnL: newRealizedPnL,
     },
   });
 
@@ -1290,13 +1324,21 @@ ponder.on("PredictionPariMutuel:WinningsRedeemed", async ({ event, context }) =>
     : (userData.currentStreak <= 0 ? userData.currentStreak - 1 : -1);
   const bestStreak = Math.max(userData.bestStreak, newStreak > 0 ? newStreak : 0);
   
+  // Calculate new totalWinnings and update realizedPnL
+  // WinningsRedeemed only fires after market is resolved AND finalization period (24h) passed
+  // Note: PariMutuel winnings are net of fees (fee already deducted by contract)
+  const newTotalWinnings = (userData.totalWinnings ?? 0n) + collateralAmount;
+  // realizedPnL = (totalWithdrawn + totalWinnings) - totalDeposited
+  const newRealizedPnL = (userData.totalWithdrawn ?? 0n) + newTotalWinnings - (userData.totalDeposited ?? 0n);
+  
   await context.db.users.update({
     id: makeId(chain.chainId, user.toLowerCase()),
     data: {
-      totalWinnings: userData.totalWinnings + collateralAmount,
+      totalWinnings: newTotalWinnings,
       totalWins: isWin ? userData.totalWins + 1 : userData.totalWins,
       currentStreak: newStreak,
       bestStreak,
+      realizedPnL: newRealizedPnL,
     },
   });
 

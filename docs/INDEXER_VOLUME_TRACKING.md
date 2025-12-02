@@ -341,4 +341,34 @@ curl -s -X POST https://your-indexer.railway.app/graphql \
 | 2024-12-02 | Platform volume 14% higher than correct value | Fixed all handlers to only update platform stats if market exists |
 | 2024-12-02 | Volume dropped after redeploy | Added `SeedInitialLiquidity`, `AnswerSet`, `Sync` handlers; fixed `LiquidityAdded` imbalance |
 | 2024-12-02 | TVL 22% lower than on-chain balance (~224K USDC missing) | Added TVL tracking to `BuyTokens` (+), `SellTokens` (-), `WinningsRedeemed` (-) events for both AMM and PariMutuel |
+| 2024-12-02 | No realized PnL tracking | Added `totalWithdrawn`, `realizedPnL` fields to users table; only tracks REALIZED profits from sells and claimed winnings |
+
+---
+
+## Realized PnL Tracking
+
+The indexer now tracks realized (not paper) profits:
+
+```
+realizedPnL = (totalWithdrawn + totalWinnings) - totalDeposited
+```
+
+| Field | Updated By | Description |
+|-------|------------|-------------|
+| `totalDeposited` | BuyTokens, PositionPurchased | Money put into markets |
+| `totalWithdrawn` | SellTokens | Money taken out from selling (net of fees) |
+| `totalWinnings` | WinningsRedeemed | Claimed winnings after resolution + 24h |
+| `realizedPnL` | SellTokens, WinningsRedeemed | Running realized profit/loss |
+
+### Important Notes
+
+1. **WinningsRedeemed** only fires when:
+   - Market is resolved (poll status != 0)
+   - 24-hour finalization period has passed  
+   - No arbitration pending
+   - User actively claims their winnings
+
+2. **Trading profit** (from sells) is realized immediately when user sells tokens
+
+3. **Unrealized gains** from held positions are NOT tracked in realizedPnL
 

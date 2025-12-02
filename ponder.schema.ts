@@ -175,10 +175,18 @@ export default createSchema((p) => ({
     totalTrades: p.int(),
     /** Total trading volume (6 decimals) */
     totalVolume: p.bigint(),
-    /** Total winnings collected (6 decimals) */
+    /** Total winnings collected from resolved markets (6 decimals) */
     totalWinnings: p.bigint(),
-    /** Total deposited (6 decimals) */
+    /** Total deposited via buys (6 decimals) */
     totalDeposited: p.bigint(),
+    /** Total withdrawn via sells (6 decimals) - realized exit from trades */
+    totalWithdrawn: p.bigint(),
+    /** 
+     * Realized profit from trading = totalWithdrawn - cost basis of sold tokens
+     * Only updated when user SELLS tokens (realized, not paper gains)
+     * Positive = profit, Negative = loss
+     */
+    realizedPnL: p.bigint(),
     /** Number of winning positions */
     totalWins: p.int(),
     /** Number of losing positions */
