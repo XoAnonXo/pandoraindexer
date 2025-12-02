@@ -298,7 +298,7 @@ export default createSchema((p) => ({
     /** Last updated timestamp */
     lastUpdatedAt: p.bigint(),
     /** Schema version for forced resync - increment to trigger re-index */
-    _resyncVersion: p.int().optional(),
+    resyncVersion: p.int().optional(),
   }),
 
   // ===========================================================================
