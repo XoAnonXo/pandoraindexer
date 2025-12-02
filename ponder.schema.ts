@@ -1,19 +1,47 @@
 /**
- * Ponder Schema - Multi-Chain Support
+ * ╔═══════════════════════════════════════════════════════════════════════════╗
+ * ║                     PONDER DATABASE SCHEMA                                 ║
+ * ╠═══════════════════════════════════════════════════════════════════════════╣
+ * ║  Defines all database tables for the Anymarket prediction markets indexer. ║
+ * ║  All tables include chainId/chainName for multi-chain support.             ║
+ * ╚═══════════════════════════════════════════════════════════════════════════╝
  * 
- * Defines the database tables for the Anymarket indexer.
- * All tables include chainId for multi-chain support.
+ * TABLE OVERVIEW:
+ * ───────────────
  * 
- * Table Overview:
- * - polls: Prediction polls from the Oracle contract
- * - markets: AMM and PariMutuel markets
- * - trades: All trading activity (buys, sells, swaps, bets)
- * - users: Aggregated user statistics (per chain)
- * - winnings: Winning redemption records
- * - liquidityEvents: LP add/remove events
- * - platformStats: Platform metrics (per chain, ID = chainId)
- * - dailyStats: Daily aggregated statistics (per chain)
- * - hourlyStats: Hourly aggregated statistics (per chain)
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ CORE ENTITY TABLES                                                      │
+ * ├──────────────────┬──────────────────────────────────────────────────────┤
+ * │ polls            │ Prediction questions from Oracle contract            │
+ * │ markets          │ AMM and PariMutuel trading markets                   │
+ * │ trades           │ Individual buy/sell/swap/bet transactions            │
+ * │ users            │ Aggregated user statistics (per chain)               │
+ * │ winnings         │ Winning redemption records after resolution          │
+ * │ liquidityEvents  │ LP add/remove liquidity actions                      │
+ * └──────────────────┴──────────────────────────────────────────────────────┘
+ * 
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ ANALYTICS TABLES                                                        │
+ * ├──────────────────┬──────────────────────────────────────────────────────┤
+ * │ platformStats    │ Global platform metrics (one record per chain)       │
+ * │ dailyStats       │ Daily aggregated metrics (one record per day/chain)  │
+ * │ hourlyStats      │ Hourly aggregated metrics (one record per hour/chain)│
+ * └──────────────────┴──────────────────────────────────────────────────────┘
+ * 
+ * ID CONVENTIONS:
+ * ───────────────
+ * - polls, markets: Contract address (hex)
+ * - trades, winnings, liquidityEvents: chainId-txHash-logIndex
+ * - users: chainId-address
+ * - platformStats: chainId (as string)
+ * - dailyStats: chainId-dayTimestamp
+ * - hourlyStats: chainId-hourTimestamp
+ * 
+ * DECIMAL CONVENTIONS:
+ * ────────────────────
+ * - All monetary values (USDC) use 6 decimals
+ * - To display: divide by 1,000,000 (1e6)
+ * - Example: 1000000n = $1.00
  * 
  * @version 2 - Force resync after volume tracking fix (2024-12-02)
  * @see https://ponder.sh/docs/schema
@@ -160,48 +188,102 @@ export default createSchema((p) => ({
   // ===========================================================================
   /**
    * Aggregated statistics per user per chain
-   * ID format: chainId-userAddress
+   * 
+   * ID FORMAT: chainId-userAddress (e.g., "146-0x1234...")
+   * 
+   * A user record is created on their first interaction with the platform.
+   * All monetary values are in USDC (6 decimals).
+   * 
+   * PROFIT/LOSS CALCULATION:
+   * ────────────────────────
+   * realizedPnL = (totalWithdrawn + totalWinnings) - totalDeposited
+   * 
+   * This only tracks REALIZED profits:
+   * - totalDeposited: Money put into markets (buys/bets)
+   * - totalWithdrawn: Money taken out from sells (net of fees)
+   * - totalWinnings: Claimed winnings after market resolution
+   * 
+   * Unrealized gains (held positions) are NOT tracked here.
    */
   users: p.createTable({
-    /** Composite ID: chainId-userAddress */
+    // ─────────────────────────────────────────────────────────────────────────
+    // IDENTITY FIELDS
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Composite ID: chainId-userAddress (e.g., "146-0x1234...") */
     id: p.string(),
-    /** Chain ID */
+    /** Chain ID where this user record applies */
     chainId: p.int(),
-    /** Chain name for display */
+    /** Human-readable chain name for UI display */
     chainName: p.string(),
-    /** User wallet address */
+    /** User's wallet address (lowercase, normalized) */
     address: p.hex(),
-    /** Total number of trades */
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // TRADING ACTIVITY
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Total number of trades executed (buys, sells, swaps, bets) */
     totalTrades: p.int(),
-    /** Total trading volume (6 decimals) */
+    /** Total trading volume in USDC (6 decimals) - sum of all trade amounts */
     totalVolume: p.bigint(),
-    /** Total winnings collected from resolved markets (6 decimals) */
-    totalWinnings: p.bigint(),
-    /** Total deposited via buys (6 decimals) */
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // PROFIT/LOSS TRACKING
+    // ─────────────────────────────────────────────────────────────────────────
+    /** 
+     * Total USDC deposited into markets via BuyTokens/PositionPurchased
+     * Represents capital at risk (6 decimals)
+     */
     totalDeposited: p.bigint(),
-    /** Total withdrawn via sells (6 decimals) - realized exit from trades */
+    /** 
+     * Total USDC withdrawn via SellTokens (net of fees)
+     * Represents realized exit from trading positions (6 decimals)
+     */
     totalWithdrawn: p.bigint(),
     /** 
-     * Realized profit from trading = totalWithdrawn - cost basis of sold tokens
-     * Only updated when user SELLS tokens (realized, not paper gains)
-     * Positive = profit, Negative = loss
+     * Total USDC won from resolved markets via WinningsRedeemed
+     * Only updated after market resolution + 24h finalization (6 decimals)
+     */
+    totalWinnings: p.bigint(),
+    /** 
+     * Realized profit/loss formula:
+     * realizedPnL = (totalWithdrawn + totalWinnings) - totalDeposited
+     * 
+     * Positive = net profit, Negative = net loss
+     * Only tracks realized returns (money actually received)
+     * Does NOT include unrealized gains from held positions
      */
     realizedPnL: p.bigint(),
-    /** Number of winning positions */
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // WIN/LOSS TRACKING
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Number of markets where user was on the winning side */
     totalWins: p.int(),
-    /** Number of losing positions */
+    /** Number of markets where user was on the losing side */
     totalLosses: p.int(),
-    /** Current win/loss streak (positive = wins, negative = losses) */
+    /** 
+     * Current consecutive streak: 
+     * Positive = consecutive wins, Negative = consecutive losses
+     * Resets when streak breaks
+     */
     currentStreak: p.int(),
-    /** Best winning streak ever */
+    /** Highest winning streak ever achieved (always >= 0) */
     bestStreak: p.int(),
-    /** Number of markets created */
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // CREATOR STATS
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Number of AMM/PariMutuel markets created by this user */
     marketsCreated: p.int(),
-    /** Number of polls created */
+    /** Number of prediction polls created by this user */
     pollsCreated: p.int(),
-    /** Timestamp of first trade */
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // TIMESTAMPS
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Unix timestamp of user's first trade (null if never traded) */
     firstTradeAt: p.bigint().optional(),
-    /** Timestamp of last trade */
+    /** Unix timestamp of user's most recent trade (null if never traded) */
     lastTradeAt: p.bigint().optional(),
   }),
 
@@ -271,41 +353,90 @@ export default createSchema((p) => ({
   // PLATFORM STATS TABLE (Per Chain)
   // ===========================================================================
   /**
-   * Platform statistics per chain
-   * ID is the chainId as string (e.g., "146" for Sonic)
+   * Global platform statistics aggregated per blockchain.
+   * 
+   * ID FORMAT: chainId as string (e.g., "146" for Sonic)
+   * 
+   * One record exists per supported chain. This provides dashboard-level
+   * metrics for the entire platform on each chain.
+   * 
+   * VOLUME vs LIQUIDITY (TVL):
+   * ──────────────────────────
+   * - totalVolume: Sum of all trading activity (buys, sells, bets)
+   * - totalLiquidity: Current USDC locked across all markets (TVL)
+   * 
+   * Volume is cumulative (always increases), while liquidity fluctuates
+   * as users add/remove funds and redeem winnings.
+   * 
+   * CONSISTENCY RULE:
+   * ─────────────────
+   * totalVolume should equal the sum of all market.totalVolume values.
+   * If they differ, there's a bug in the event handlers.
    */
   platformStats: p.createTable({
-    /** Chain ID as string (e.g., "146") */
+    // ─────────────────────────────────────────────────────────────────────────
+    // IDENTITY
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Chain ID as string (e.g., "146") - primary key */
     id: p.string(),
-    /** Chain ID as number */
+    /** Chain ID as number for filtering/joins */
     chainId: p.int(),
-    /** Chain name for display */
+    /** Human-readable chain name for UI */
     chainName: p.string(),
-    /** Total polls created */
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // POLL METRICS
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Total prediction polls created via Oracle */
     totalPolls: p.int(),
-    /** Total polls resolved */
+    /** Total polls that have been resolved (status != 0) */
     totalPollsResolved: p.int(),
-    /** Total markets created */
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // MARKET METRICS
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Total markets created (AMM + PariMutuel) */
     totalMarkets: p.int(),
-    /** Total trades executed */
-    totalTrades: p.int(),
-    /** Total unique users */
-    totalUsers: p.int(),
-    /** Total trading volume (6 decimals) */
-    totalVolume: p.bigint(),
-    /** Total liquidity currently locked (6 decimals) */
-    totalLiquidity: p.bigint(),
-    /** Total protocol fees collected (6 decimals) */
-    totalFees: p.bigint(),
-    /** Total winnings paid out (6 decimals) */
-    totalWinningsPaid: p.bigint(),
-    /** Total AMM markets */
+    /** AMM markets specifically */
     totalAmmMarkets: p.int(),
-    /** Total PariMutuel markets */
+    /** PariMutuel markets specifically */
     totalPariMarkets: p.int(),
-    /** Last updated timestamp */
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // TRADING METRICS
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Total trades executed across all markets */
+    totalTrades: p.int(),
+    /** Total unique users who have traded */
+    totalUsers: p.int(),
+    /** 
+     * Total trading volume in USDC (6 decimals)
+     * Includes: buys, sells, bets, seed liquidity
+     */
+    totalVolume: p.bigint(),
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // FINANCIAL METRICS
+    // ─────────────────────────────────────────────────────────────────────────
+    /** 
+     * Current TVL: Total USDC locked across all markets (6 decimals)
+     * This should approximate the sum of on-chain USDC balances
+     */
+    totalLiquidity: p.bigint(),
+    /** Total protocol fees collected from trading (6 decimals) */
+    totalFees: p.bigint(),
+    /** Total USDC paid out to winners (6 decimals) */
+    totalWinningsPaid: p.bigint(),
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // METADATA
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Unix timestamp of last update to this record */
     lastUpdatedAt: p.bigint(),
-    /** Schema version for forced resync - increment to trigger re-index */
+    /** 
+     * Schema version marker - increment to force full re-index
+     * Not currently used but reserved for future migrations
+     */
     resyncVersion: p.int().optional(),
   }),
 

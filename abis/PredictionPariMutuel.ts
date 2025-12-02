@@ -1,18 +1,81 @@
 /**
- * PredictionPariMutuel ABI
+ * ╔═══════════════════════════════════════════════════════════════════════════╗
+ * ║                    PREDICTION PARI-MUTUEL ABI                              ║
+ * ╠═══════════════════════════════════════════════════════════════════════════╣
+ * ║  Pool-based betting market where all bets are aggregated.                  ║
+ * ║  Winners split the entire pool (including losers' stakes).                 ║
+ * ║  Simpler than AMM - buy only, no selling or swapping.                      ║
+ * ╚═══════════════════════════════════════════════════════════════════════════╝
  * 
- * Pari-mutuel betting market for predictions.
- * All bets are pooled and winners share the losing pool proportionally.
- * Uses dynamic odds based on betting activity.
+ * HOW PARI-MUTUEL WORKS:
+ * ──────────────────────
  * 
- * Key Events:
- * - SeedInitialLiquidity: When initial liquidity is added (COUNTS AS VOLUME!)
- * - PositionPurchased: When a user places a bet
- * - WinningsRedeemed: When a winner claims their payout
+ *   ┌────────────────────────────────────────────────────────────┐
+ *   │                     BETTING POOL                           │
+ *   │                                                            │
+ *   │    ┌─────────────────┐    ┌─────────────────┐             │
+ *   │    │   YES Pool      │    │    NO Pool      │             │
+ *   │    │   $600 total    │    │   $400 total    │             │
+ *   │    │   (60% of bets) │    │   (40% of bets) │             │
+ *   │    └─────────────────┘    └─────────────────┘             │
+ *   │                                                            │
+ *   │    If YES wins: YES bettors share entire $1000 pool       │
+ *   │    If NO wins: NO bettors share entire $1000 pool         │
+ *   │                                                            │
+ *   │    Payout = (your bet / winning pool) × total pool        │
+ *   └────────────────────────────────────────────────────────────┘
+ * 
+ * ODDS CALCULATION:
+ * ─────────────────
+ *   Implied Probability (YES) = yesPool / totalPool
+ *   Example: 600/1000 = 60% implied probability
+ *   
+ *   Potential Return (YES) = totalPool / yesPool
+ *   Example: 1000/600 = 1.67x return (67% profit if win)
+ * 
+ * VOLUME TRACKING (CRITICAL):
+ * ───────────────────────────
+ * 
+ *   ┌─────────────────────────┬────────────────────┬──────────────┐
+ *   │ Event                   │ Counts as Volume?  │ Amount       │
+ *   ├─────────────────────────┼────────────────────┼──────────────┤
+ *   │ SeedInitialLiquidity    │ ✅ YES (CRITICAL!) │ yes + no     │
+ *   │ PositionPurchased       │ ✅ YES             │ collateralIn │
+ *   │ WinningsRedeemed        │ ❌ NO              │ (payout)     │
+ *   └─────────────────────────┴────────────────────┴──────────────┘
+ *   
+ *   ⚠️ SeedInitialLiquidity is often missed and causes volume under-counting!
+ * 
+ * TVL TRACKING:
+ * ─────────────
+ *   +collateral: SeedInitialLiquidity, PositionPurchased
+ *   -collateral: WinningsRedeemed
  */
 
 export const PredictionPariMutuelAbi = [
-  // CRITICAL: Initial liquidity event - this is volume!
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INITIALIZATION EVENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * SeedInitialLiquidity - Market creator seeds the pool
+   * 
+   * ⚠️ CRITICAL EVENT: This is REAL VOLUME, often missed in indexers!
+   * 
+   * When a PariMutuel market is created, the creator must provide
+   * initial liquidity split between YES and NO pools. This capital
+   * is at risk and counts as trading volume.
+   * 
+   * VOLUME: ✅ yesAmount + noAmount (total seed)
+   * TVL: ➕ increases by (yesAmount + noAmount)
+   * 
+   * @param yesAmount - Initial collateral in YES pool (uint256, 6 decimals)
+   * @param noAmount - Initial collateral in NO pool (uint256, 6 decimals)
+   * 
+   * @example
+   * // Market seeded with $500 YES + $500 NO = $1000 volume
+   * // Initial odds: 50/50
+   */
   {
     type: "event",
     name: "SeedInitialLiquidity",
@@ -22,7 +85,28 @@ export const PredictionPariMutuelAbi = [
     ],
   },
 
-  // Betting Event
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BETTING EVENTS (Volume-generating)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * PositionPurchased - User places a bet on YES or NO
+   * 
+   * Flow: User deposits collateral (USDC) → Receives pool shares
+   * Unlike AMM, users cannot sell positions - must hold until resolution.
+   * 
+   * VOLUME: ✅ collateralIn counts as volume
+   * TVL: ➕ increases by collateralIn
+   * 
+   * @param buyer - Bettor's wallet address (indexed)
+   * @param isYes - true=bet on YES, false=bet on NO (indexed)
+   * @param collateralIn - USDC wagered (6 decimals) (uint256)
+   * @param sharesOut - Pool shares received (represents claim on pool)
+   * 
+   * @example
+   * // User bets $100 on YES
+   * // sharesOut determines their % claim on YES pool if YES wins
+   */
   {
     type: "event",
     name: "PositionPurchased",
@@ -34,7 +118,29 @@ export const PredictionPariMutuelAbi = [
     ],
   },
 
-  // Resolution Event
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RESOLUTION EVENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * WinningsRedeemed - Winner claims payout after poll resolution
+   * 
+   * REQUIREMENTS for this event to fire:
+   * 1. Poll must be resolved (status = 1, 2, or 3)
+   * 2. 24-hour finalization period must have passed
+   * 3. No arbitration pending
+   * 4. User must actively call redeem()
+   * 
+   * If status = 3 (Unknown), all bettors get proportional refunds.
+   * 
+   * TVL: ➖ decreases by collateralAmount
+   * PnL: Updates user's totalWinnings and realizedPnL
+   * 
+   * @param user - Winner's wallet address (indexed)
+   * @param collateralAmount - USDC payout (6 decimals, net of fees)
+   * @param outcome - Final poll status: 1=Yes, 2=No, 3=Unknown/Void
+   * @param fee - Platform fee deducted from payout
+   */
   {
     type: "event",
     name: "WinningsRedeemed",
@@ -46,7 +152,13 @@ export const PredictionPariMutuelAbi = [
     ],
   },
 
-  // Protocol Fees
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROTOCOL FEE EVENTS (Not currently indexed)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * ProtocolFeesWithdrawn - Admin withdraws accumulated fees
+   */
   {
     type: "event",
     name: "ProtocolFeesWithdrawn",
@@ -56,7 +168,14 @@ export const PredictionPariMutuelAbi = [
     ],
   },
 
-  // View function for poll address (factory pattern)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VIEW FUNCTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * pollAddress() - Returns the linked poll contract
+   * Used to look up poll status and question for denormalization.
+   */
   {
     type: "function",
     name: "pollAddress",
