@@ -97,6 +97,24 @@ npx tsx verify-platform-stats.ts --onchain
 - Total winnings paid
 - On-chain event counts (with `--onchain` flag)
 
+### TVL (`verify-tvl.ts`)
+Compares each market's indexed `currentTvl` against actual on-chain USDC balance.
+
+```bash
+npx tsx verify-tvl.ts
+```
+
+**TVL flow tracking:**
+| Event | Source | Effect |
+|-------|--------|--------|
+| `LiquidityAdded` | AMM | +collateralAmount |
+| `LiquidityRemoved` | AMM | -collateralToReturn |
+| `BuyTokens` | AMM | +collateralAmount |
+| `SellTokens` | AMM | -collateralAmount |
+| `WinningsRedeemed` | AMM/Pari | -collateralAmount |
+| `SeedInitialLiquidity` | PariMutuel | +(yesAmount + noAmount) |
+| `PositionPurchased` | PariMutuel | +collateralIn |
+
 ## Output
 
 The scripts produce colored terminal output with:

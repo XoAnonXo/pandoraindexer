@@ -140,6 +140,40 @@ ponder.on("PredictionAMM:Sync", async ({ event }) => {
 
 ---
 
+## Complete Event → TVL Mapping
+
+TVL (Total Value Locked) tracks actual USDC balance in each market contract.
+
+| Event | Source | TVL Change | Amount |
+|-------|--------|------------|--------|
+| `LiquidityAdded` | AMM | ➕ INCREASE | `+collateralAmount` |
+| `LiquidityRemoved` | AMM | ➖ DECREASE | `-collateralToReturn` |
+| `BuyTokens` | AMM | ➕ INCREASE | `+collateralAmount` |
+| `SellTokens` | AMM | ➖ DECREASE | `-collateralAmount` |
+| `WinningsRedeemed` | AMM | ➖ DECREASE | `-collateralAmount` |
+| `SeedInitialLiquidity` | PariMutuel | ➕ INCREASE | `+(yesAmount + noAmount)` |
+| `PositionPurchased` | PariMutuel | ➕ INCREASE | `+collateralIn` |
+| `WinningsRedeemed` | PariMutuel | ➖ DECREASE | `-collateralAmount` |
+| `SwapTokens` | AMM | ➡️ NO CHANGE | Token swap only |
+
+### Why TVL Tracking Matters
+
+The indexer's `currentTvl` should match the actual on-chain USDC balance of each market contract. If they don't match, it indicates:
+1. Missing event handlers
+2. Incorrect arithmetic in event handlers
+3. Race conditions during event processing
+
+### Verification
+
+```bash
+# Run TVL verification script
+cd scripts && INDEXER_URL="https://your-indexer.railway.app" npx tsx verify-tvl.ts
+```
+
+This compares each market's indexed `currentTvl` against the actual on-chain USDC balance.
+
+---
+
 ## Verification Steps
 
 After deploying indexer changes:
@@ -306,4 +340,5 @@ curl -s -X POST https://your-indexer.railway.app/graphql \
 |------|-------|-----|
 | 2024-12-02 | Platform volume 14% higher than correct value | Fixed all handlers to only update platform stats if market exists |
 | 2024-12-02 | Volume dropped after redeploy | Added `SeedInitialLiquidity`, `AnswerSet`, `Sync` handlers; fixed `LiquidityAdded` imbalance |
+| 2024-12-02 | TVL 22% lower than on-chain balance (~224K USDC missing) | Added TVL tracking to `BuyTokens` (+), `SellTokens` (-), `WinningsRedeemed` (-) events for both AMM and PariMutuel |
 

@@ -12,6 +12,21 @@
  * - PariMutuel: SeedInitialLiquidity counts as volume (real capital entering)
  * - PariMutuel: PositionPurchased counts as volume
  * 
+ * IMPORTANT: TVL (Total Value Locked) Tracking
+ * TVL tracks actual USDC balance in each market contract.
+ * 
+ * AMM Markets:
+ * - LiquidityAdded: +collateralAmount (LP deposits collateral)
+ * - LiquidityRemoved: -collateralToReturn (LP withdraws collateral)
+ * - BuyTokens: +collateralAmount (trader deposits collateral to buy tokens)
+ * - SellTokens: -collateralAmount (trader receives collateral for tokens)
+ * - WinningsRedeemed: -collateralAmount (winner withdraws collateral)
+ * 
+ * PariMutuel Markets:
+ * - SeedInitialLiquidity: +(yesAmount + noAmount) (initial seed)
+ * - PositionPurchased: +collateralIn (trader deposits collateral)
+ * - WinningsRedeemed: -collateralAmount (winner withdraws collateral)
+ * 
  * @module src/index
  */
 
@@ -606,22 +621,24 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
     },
   });
 
-  // Update market stats
+  // Update market stats (including TVL - collateral flows INTO market on buy)
   await context.db.markets.update({
     id: marketAddress,
     data: {
       totalVolume: market.totalVolume + collateralAmount,
       totalTrades: market.totalTrades + 1,
+      currentTvl: market.currentTvl + collateralAmount,
     },
   });
 
-  // Update platform stats
+  // Update platform stats (including liquidity/TVL)
   const stats = await getOrCreatePlatformStats(context, chain);
   await context.db.platformStats.update({
     id: chain.chainId.toString(),
     data: {
       totalTrades: stats.totalTrades + 1,
       totalVolume: stats.totalVolume + collateralAmount,
+      totalLiquidity: stats.totalLiquidity + collateralAmount,
       totalFees: stats.totalFees + fee,
       totalUsers: isNewUser ? stats.totalUsers + 1 : stats.totalUsers,
       lastUpdatedAt: timestamp,
@@ -651,6 +668,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
 /**
  * Handle SellTokens event from PredictionAMM
  * NOTE: Always update both market AND platform stats together for consistency
+ * NOTE: Collateral flows OUT of market - TVL decreases
  */
 ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
   const { trader, isYes, tokenAmount, collateralAmount, fee } = event.args;
@@ -694,22 +712,30 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
     },
   });
 
-  // Update market stats
+  // Update market stats (TVL decreases - collateral flows OUT on sell)
+  const newMarketTvl = market.currentTvl > collateralAmount 
+    ? market.currentTvl - collateralAmount 
+    : 0n;
   await context.db.markets.update({
     id: marketAddress,
     data: {
       totalVolume: market.totalVolume + collateralAmount,
       totalTrades: market.totalTrades + 1,
+      currentTvl: newMarketTvl,
     },
   });
 
-  // Update platform stats
+  // Update platform stats (liquidity/TVL decreases)
   const stats = await getOrCreatePlatformStats(context, chain);
+  const newPlatformLiquidity = stats.totalLiquidity > collateralAmount
+    ? stats.totalLiquidity - collateralAmount
+    : 0n;
   await context.db.platformStats.update({
     id: chain.chainId.toString(),
     data: {
       totalTrades: stats.totalTrades + 1,
       totalVolume: stats.totalVolume + collateralAmount,
+      totalLiquidity: newPlatformLiquidity,
       totalFees: stats.totalFees + fee,
       lastUpdatedAt: timestamp,
     },
@@ -796,6 +822,7 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
 
 /**
  * Handle WinningsRedeemed event from PredictionAMM
+ * NOTE: Collateral flows OUT of market - TVL decreases
  */
 ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
   const { user, collateralAmount } = event.args;
@@ -825,6 +852,19 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
     },
   });
 
+  // Update market TVL (collateral leaving the market)
+  if (market) {
+    const newMarketTvl = market.currentTvl > collateralAmount 
+      ? market.currentTvl - collateralAmount 
+      : 0n;
+    await context.db.markets.update({
+      id: marketAddress,
+      data: {
+        currentTvl: newMarketTvl,
+      },
+    });
+  }
+
   const userData = await getOrCreateUser(context, user, chain);
   const newStreak = userData.currentStreak >= 0 ? userData.currentStreak + 1 : 1;
   const bestStreak = Math.max(userData.bestStreak, newStreak);
@@ -840,10 +880,14 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
   });
 
   const stats = await getOrCreatePlatformStats(context, chain);
+  const newPlatformLiquidity = stats.totalLiquidity > collateralAmount
+    ? stats.totalLiquidity - collateralAmount
+    : 0n;
   await context.db.platformStats.update({
     id: chain.chainId.toString(),
     data: {
       totalWinningsPaid: stats.totalWinningsPaid + collateralAmount,
+      totalLiquidity: newPlatformLiquidity,
       lastUpdatedAt: timestamp,
     },
   });
@@ -1144,6 +1188,7 @@ ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) =
 
 /**
  * Handle WinningsRedeemed event from PredictionPariMutuel
+ * NOTE: Collateral flows OUT of market - TVL decreases
  */
 ponder.on("PredictionPariMutuel:WinningsRedeemed", async ({ event, context }) => {
   const { user, collateralAmount, outcome, fee } = event.args;
@@ -1174,6 +1219,19 @@ ponder.on("PredictionPariMutuel:WinningsRedeemed", async ({ event, context }) =>
     },
   });
 
+  // Update market TVL (collateral leaving the market)
+  if (market) {
+    const newMarketTvl = market.currentTvl > collateralAmount 
+      ? market.currentTvl - collateralAmount 
+      : 0n;
+    await context.db.markets.update({
+      id: marketAddress,
+      data: {
+        currentTvl: newMarketTvl,
+      },
+    });
+  }
+
   const userData = await getOrCreateUser(context, user, chain);
   const isWin = outcome !== 3;
   const newStreak = isWin 
@@ -1192,10 +1250,14 @@ ponder.on("PredictionPariMutuel:WinningsRedeemed", async ({ event, context }) =>
   });
 
   const stats = await getOrCreatePlatformStats(context, chain);
+  const newPlatformLiquidity = stats.totalLiquidity > collateralAmount
+    ? stats.totalLiquidity - collateralAmount
+    : 0n;
   await context.db.platformStats.update({
     id: chain.chainId.toString(),
     data: {
       totalWinningsPaid: stats.totalWinningsPaid + collateralAmount,
+      totalLiquidity: newPlatformLiquidity,
       totalFees: stats.totalFees + fee,
       lastUpdatedAt: timestamp,
     },
