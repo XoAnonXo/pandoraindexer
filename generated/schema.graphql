@@ -19,6 +19,10 @@ type Query {
   dailyStatss(where: dailyStatsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): dailyStatsPage!
   hourlyStats(id: String!): hourlyStats
   hourlyStatss(where: hourlyStatsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): hourlyStatsPage!
+  dailyActiveUsers(id: String!): dailyActiveUsers
+  dailyActiveUserss(where: dailyActiveUsersFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): dailyActiveUsersPage!
+  userMarketPositions(id: String!): userMarketPositions
+  userMarketPositionss(where: userMarketPositionsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): userMarketPositionsPage!
   _meta: _meta
 }
 
@@ -1424,6 +1428,199 @@ input hourlyStatsFilter {
   uniqueTraders_lt: Int
   uniqueTraders_gte: Int
   uniqueTraders_lte: Int
+}
+
+type dailyActiveUsers {
+  id: String!
+  chainId: Int!
+  dayTimestamp: BigInt!
+  user: String!
+  firstActivityAt: BigInt!
+  tradesCount: Int!
+}
+
+type dailyActiveUsersPage {
+  items: [dailyActiveUsers!]!
+  pageInfo: PageInfo!
+}
+
+input dailyActiveUsersFilter {
+  AND: [dailyActiveUsersFilter]
+  OR: [dailyActiveUsersFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  chainId: Int
+  chainId_not: Int
+  chainId_in: [Int]
+  chainId_not_in: [Int]
+  chainId_gt: Int
+  chainId_lt: Int
+  chainId_gte: Int
+  chainId_lte: Int
+  dayTimestamp: BigInt
+  dayTimestamp_not: BigInt
+  dayTimestamp_in: [BigInt]
+  dayTimestamp_not_in: [BigInt]
+  dayTimestamp_gt: BigInt
+  dayTimestamp_lt: BigInt
+  dayTimestamp_gte: BigInt
+  dayTimestamp_lte: BigInt
+  user: String
+  user_not: String
+  user_in: [String]
+  user_not_in: [String]
+  user_gt: String
+  user_lt: String
+  user_gte: String
+  user_lte: String
+  firstActivityAt: BigInt
+  firstActivityAt_not: BigInt
+  firstActivityAt_in: [BigInt]
+  firstActivityAt_not_in: [BigInt]
+  firstActivityAt_gt: BigInt
+  firstActivityAt_lt: BigInt
+  firstActivityAt_gte: BigInt
+  firstActivityAt_lte: BigInt
+  tradesCount: Int
+  tradesCount_not: Int
+  tradesCount_in: [Int]
+  tradesCount_not_in: [Int]
+  tradesCount_gt: Int
+  tradesCount_lt: Int
+  tradesCount_gte: Int
+  tradesCount_lte: Int
+}
+
+type userMarketPositions {
+  id: String!
+  chainId: Int!
+  marketAddress: String!
+  pollAddress: String!
+  user: String!
+  yesAmount: BigInt!
+  noAmount: BigInt!
+  yesTokens: BigInt!
+  noTokens: BigInt!
+  hasRedeemed: Boolean!
+  lossRecorded: Boolean!
+  firstPositionAt: BigInt!
+  lastUpdatedAt: BigInt!
+}
+
+type userMarketPositionsPage {
+  items: [userMarketPositions!]!
+  pageInfo: PageInfo!
+}
+
+input userMarketPositionsFilter {
+  AND: [userMarketPositionsFilter]
+  OR: [userMarketPositionsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  chainId: Int
+  chainId_not: Int
+  chainId_in: [Int]
+  chainId_not_in: [Int]
+  chainId_gt: Int
+  chainId_lt: Int
+  chainId_gte: Int
+  chainId_lte: Int
+  marketAddress: String
+  marketAddress_not: String
+  marketAddress_in: [String]
+  marketAddress_not_in: [String]
+  marketAddress_gt: String
+  marketAddress_lt: String
+  marketAddress_gte: String
+  marketAddress_lte: String
+  pollAddress: String
+  pollAddress_not: String
+  pollAddress_in: [String]
+  pollAddress_not_in: [String]
+  pollAddress_gt: String
+  pollAddress_lt: String
+  pollAddress_gte: String
+  pollAddress_lte: String
+  user: String
+  user_not: String
+  user_in: [String]
+  user_not_in: [String]
+  user_gt: String
+  user_lt: String
+  user_gte: String
+  user_lte: String
+  yesAmount: BigInt
+  yesAmount_not: BigInt
+  yesAmount_in: [BigInt]
+  yesAmount_not_in: [BigInt]
+  yesAmount_gt: BigInt
+  yesAmount_lt: BigInt
+  yesAmount_gte: BigInt
+  yesAmount_lte: BigInt
+  noAmount: BigInt
+  noAmount_not: BigInt
+  noAmount_in: [BigInt]
+  noAmount_not_in: [BigInt]
+  noAmount_gt: BigInt
+  noAmount_lt: BigInt
+  noAmount_gte: BigInt
+  noAmount_lte: BigInt
+  yesTokens: BigInt
+  yesTokens_not: BigInt
+  yesTokens_in: [BigInt]
+  yesTokens_not_in: [BigInt]
+  yesTokens_gt: BigInt
+  yesTokens_lt: BigInt
+  yesTokens_gte: BigInt
+  yesTokens_lte: BigInt
+  noTokens: BigInt
+  noTokens_not: BigInt
+  noTokens_in: [BigInt]
+  noTokens_not_in: [BigInt]
+  noTokens_gt: BigInt
+  noTokens_lt: BigInt
+  noTokens_gte: BigInt
+  noTokens_lte: BigInt
+  hasRedeemed: Boolean
+  hasRedeemed_not: Boolean
+  hasRedeemed_in: [Boolean]
+  hasRedeemed_not_in: [Boolean]
+  lossRecorded: Boolean
+  lossRecorded_not: Boolean
+  lossRecorded_in: [Boolean]
+  lossRecorded_not_in: [Boolean]
+  firstPositionAt: BigInt
+  firstPositionAt_not: BigInt
+  firstPositionAt_in: [BigInt]
+  firstPositionAt_not_in: [BigInt]
+  firstPositionAt_gt: BigInt
+  firstPositionAt_lt: BigInt
+  firstPositionAt_gte: BigInt
+  firstPositionAt_lte: BigInt
+  lastUpdatedAt: BigInt
+  lastUpdatedAt_not: BigInt
+  lastUpdatedAt_in: [BigInt]
+  lastUpdatedAt_not_in: [BigInt]
+  lastUpdatedAt_gt: BigInt
+  lastUpdatedAt_lt: BigInt
+  lastUpdatedAt_gte: BigInt
+  lastUpdatedAt_lte: BigInt
 }
 
 type _meta {

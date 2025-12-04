@@ -1,5 +1,5 @@
 import { ponder } from "@/generated";
-import { getChainInfo, makeId } from "../utils/helpers";
+import { getChainInfo, makeId, calculateRealizedPnL } from "../utils/helpers";
 import { 
   MIN_TRADE_AMOUNT, 
   TradeType, 
@@ -7,25 +7,10 @@ import {
   MarketType,
   ZERO_ADDRESS,
 } from "../utils/constants";
-import { updateAggregateStats, recordDailyActiveUser } from "../services/stats";
+import { updateAggregateStats, recordDailyActiveUser, recordHourlyActiveUser } from "../services/stats";
 import { getOrCreateUser, getOrCreateMinimalMarket } from "../services/db";
 import { handleBuyTrade, handleWinningsRedeemed } from "../services/trades";
 import { recordPosition } from "../services/positions";
-
-// =============================================================================
-// PNL CALCULATION HELPER
-// =============================================================================
-
-/**
- * Calculate realized PnL for a user.
- */
-function calculateRealizedPnL(
-  totalWithdrawn: bigint,
-  totalWinnings: bigint,
-  totalDeposited: bigint
-): bigint {
-  return totalWithdrawn + totalWinnings - totalDeposited;
-}
 
 // =============================================================================
 // SEED INITIAL LIQUIDITY
@@ -83,8 +68,11 @@ ponder.on("PredictionPariMutuel:SeedInitialLiquidity", async ({ event, context }
 
   const user = await getOrCreateUser(context, market.creator, chain);
   
-  // Track daily active user
+  // Track daily and hourly active user
   const isFirstActivityToday = await recordDailyActiveUser(
+    context, chain, normalizedCreator, timestamp
+  );
+  const isFirstActivityThisHour = await recordHourlyActiveUser(
     context, chain, normalizedCreator, timestamp
   );
 
@@ -118,6 +106,7 @@ ponder.on("PredictionPariMutuel:SeedInitialLiquidity", async ({ event, context }
     tvlChange: totalLiquidity,
     volume: totalLiquidity,
     activeUsers: isFirstActivityToday ? 1 : 0,
+    hourlyUniqueTraders: isFirstActivityThisHour ? 1 : 0,
   });
 
   console.log(`[${chain.chainName}] Seed liquidity (volume): ${marketAddress} - ${totalLiquidity}`);

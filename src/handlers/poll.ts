@@ -33,12 +33,11 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }) => {
   if (pollStatus !== PollStatus.UNKNOWN && pollStatus !== PollStatus.PENDING) {
     const losses = await processLossesForPoll(context, chain, pollAddress, pollStatus);
     
-    // Record loss for each user
-    for (const loss of losses) {
-      await recordUserLoss(context, chain, loss.user);
-    }
-
+    // Record loss for each user in parallel for better performance
     if (losses.length > 0) {
+      await Promise.all(
+        losses.map(loss => recordUserLoss(context, chain, loss.user))
+      );
       console.log(`[${chain.chainName}] Processed ${losses.length} losses for poll ${pollAddress} (status=${pollStatus})`);
     }
   }

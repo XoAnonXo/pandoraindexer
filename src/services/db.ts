@@ -61,7 +61,10 @@ export async function getOrCreateUser(context: PonderContext, address: `0x${stri
  * Check if a trader is new to a specific market and record interaction atomically.
  * Returns true if this is the first interaction for this user on this market.
  * 
- * Uses upsert to avoid TOCTOU race conditions.
+ * Uses try-create-first pattern to avoid TOCTOU race conditions:
+ * - Try to create the record
+ * - If unique constraint fails, record already exists (not new)
+ * - If create succeeds, this is a new trader
  */
 export async function checkAndRecordMarketInteraction(
   context: PonderContext,
@@ -73,68 +76,34 @@ export async function checkAndRecordMarketInteraction(
   const id = makeId(chain.chainId, marketAddress, traderAddress);
   
   return withRetry(async () => {
-    // Check if record exists first
-    const existing = await context.db.marketUsers.findUnique({ id });
-    const isNew = !existing;
-    
-    // Upsert the record
-    await context.db.marketUsers.upsert({
-      id,
-      create: {
-        chainId: chain.chainId,
-        marketAddress,
-        user: traderAddress,
-        lastTradeAt: timestamp,
-      },
-      update: {
-        lastTradeAt: timestamp,
-      },
-    });
-    
-    return isNew;
-  });
-}
-
-/**
- * @deprecated Use checkAndRecordMarketInteraction instead for atomic operation
- */
-export async function isNewTraderForMarket(
-  context: PonderContext,
-  marketAddress: `0x${string}`,
-  traderAddress: `0x${string}`,
-  chain: ChainInfo
-): Promise<boolean> {
-  const id = makeId(chain.chainId, marketAddress, traderAddress);
-  return withRetry(async () => {
-    const record = await context.db.marketUsers.findUnique({ id });
-    return !record;
-  });
-}
-
-/**
- * @deprecated Use checkAndRecordMarketInteraction instead for atomic operation
- */
-export async function recordMarketInteraction(
-  context: PonderContext,
-  marketAddress: `0x${string}`,
-  traderAddress: `0x${string}`,
-  chain: ChainInfo,
-  timestamp: bigint
-) {
-  const id = makeId(chain.chainId, marketAddress, traderAddress);
-  await withRetry(async () => {
-    await context.db.marketUsers.upsert({
-      id,
-      create: {
-        chainId: chain.chainId,
-        marketAddress,
-        user: traderAddress,
-        lastTradeAt: timestamp,
-      },
-      update: {
-        lastTradeAt: timestamp,
-      },
-    });
+    try {
+      // Try to create - if this succeeds, it's a new trader
+      await context.db.marketUsers.create({
+        id,
+        data: {
+          chainId: chain.chainId,
+          marketAddress,
+          user: traderAddress,
+          lastTradeAt: timestamp,
+        },
+      });
+      return true; // New trader
+    } catch (error: unknown) {
+      // Check if it's a unique constraint violation (record already exists)
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+      if (errorMessage.includes('unique constraint') || errorMessage.includes('p2002')) {
+        // Record exists - update timestamp and return false
+        await context.db.marketUsers.update({
+          id,
+          data: {
+            lastTradeAt: timestamp,
+          },
+        });
+        return false; // Existing trader
+      }
+      // Re-throw other errors
+      throw error;
+    }
   });
 }
 
@@ -264,6 +233,11 @@ export async function getOrCreateMinimalMarket(
           
           // Note: feeTier and maxPriceImbalancePerHour are only in the MarketCreated event,
           // not available via RPC. Mark as incomplete so we know to update when we see the event.
+          // Validate required fields exist
+          if (!ammData.yesToken || !ammData.noToken) {
+            throw new Error(`AMM market ${marketAddress} missing yesToken or noToken`);
+          }
+          
           market = await context.db.markets.create({
             id: marketAddress,
             data: {
@@ -274,8 +248,8 @@ export async function getOrCreateMinimalMarket(
               creator: ammData.creator.toLowerCase() as `0x${string}`,
               marketType: MarketType.AMM,
               collateralToken: ammData.collateralToken.toLowerCase() as `0x${string}`,
-              yesToken: ammData.yesToken?.toLowerCase() as `0x${string}`,
-              noToken: ammData.noToken?.toLowerCase() as `0x${string}`,
+              yesToken: ammData.yesToken.toLowerCase() as `0x${string}`,
+              noToken: ammData.noToken.toLowerCase() as `0x${string}`,
               feeTier: 0, // Default - will be set from MarketCreated event
               maxPriceImbalancePerHour: 0, // Default - will be set from MarketCreated event
               // Stats start at zero

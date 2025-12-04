@@ -91,12 +91,61 @@ async function getOrCreateHourlyStats(context: PonderContext, chain: ChainInfo, 
 }
 
 // =============================================================================
-// DAILY ACTIVE USER TRACKING
+// ACTIVE USER TRACKING
 // =============================================================================
+
+/**
+ * Record a user as active for a specific hour.
+ * Returns true if this is the first activity for this user this hour.
+ * 
+ * Note: We reuse the dailyActiveUsers table with hour-based IDs for simplicity.
+ * This avoids adding a new schema table while still tracking hourly uniqueness.
+ */
+export async function recordHourlyActiveUser(
+  context: PonderContext,
+  chain: ChainInfo,
+  userAddress: `0x${string}`,
+  timestamp: bigint
+): Promise<boolean> {
+  const hourTs = getHourTimestamp(timestamp);
+  const normalizedUser = userAddress.toLowerCase() as `0x${string}`;
+  // Use a different prefix to distinguish from daily records
+  const id = makeId(chain.chainId, `hour-${hourTs.toString()}`, normalizedUser);
+
+  return withRetry(async () => {
+    try {
+      // Try to create - if this succeeds, it's the first activity this hour
+      await context.db.dailyActiveUsers.create({
+        id,
+        data: {
+          chainId: chain.chainId,
+          dayTimestamp: hourTs, // Reusing field for hour timestamp
+          user: normalizedUser,
+          firstActivityAt: timestamp,
+          tradesCount: 1,
+        },
+      });
+      return true; // First activity this hour
+    } catch (error: unknown) {
+      // Check if it's a unique constraint violation (record already exists)
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+      if (errorMessage.includes('unique constraint') || errorMessage.includes('p2002')) {
+        return false; // Not first activity this hour
+      }
+      // Re-throw other errors
+      throw error;
+    }
+  });
+}
 
 /**
  * Record a user as active for a specific day.
  * Returns true if this is the first activity for this user today.
+ * 
+ * Uses try-create-first pattern to avoid TOCTOU race conditions:
+ * - Try to create the record
+ * - If unique constraint fails, record already exists (not first activity)
+ * - If create succeeds, this is the first activity today
  */
 export async function recordDailyActiveUser(
   context: PonderContext,
@@ -109,10 +158,8 @@ export async function recordDailyActiveUser(
   const id = makeId(chain.chainId, dayTs.toString(), normalizedUser);
 
   return withRetry(async () => {
-    const existing = await context.db.dailyActiveUsers.findUnique({ id });
-    
-    if (!existing) {
-      // First activity today - create record
+    try {
+      // Try to create - if this succeeds, it's the first activity today
       await context.db.dailyActiveUsers.create({
         id,
         data: {
@@ -123,16 +170,26 @@ export async function recordDailyActiveUser(
           tradesCount: 1,
         },
       });
-      return true;
-    } else {
-      // Already active today - increment trade count
-      await context.db.dailyActiveUsers.update({
-        id,
-        data: {
-          tradesCount: existing.tradesCount + 1,
-        },
-      });
-      return false;
+      return true; // First activity today
+    } catch (error: unknown) {
+      // Check if it's a unique constraint violation (record already exists)
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+      if (errorMessage.includes('unique constraint') || errorMessage.includes('p2002')) {
+        // Already active today - we need to increment trade count
+        // Use findUnique + update since we need the current count
+        const existing = await context.db.dailyActiveUsers.findUnique({ id });
+        if (existing) {
+          await context.db.dailyActiveUsers.update({
+            id,
+            data: {
+              tradesCount: existing.tradesCount + 1,
+            },
+          });
+        }
+        return false; // Not first activity today
+      }
+      // Re-throw other errors
+      throw error;
     }
   });
 }
@@ -219,6 +276,7 @@ export async function updateAggregateStats(
           data: {
             tradesCount: (hourlyStats.tradesCount ?? 0) + (metrics.trades ?? 0),
             volume: (hourlyStats.volume ?? 0n) + (metrics.volume ?? 0n),
+            uniqueTraders: (hourlyStats.uniqueTraders ?? 0) + (metrics.hourlyUniqueTraders ?? 0),
           },
         })
       );

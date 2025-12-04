@@ -1,5 +1,5 @@
 import { ponder } from "@/generated";
-import { getChainInfo, makeId } from "../utils/helpers";
+import { getChainInfo, makeId, calculateRealizedPnL } from "../utils/helpers";
 import { 
   MIN_TRADE_AMOUNT, 
   MIN_TOKEN_AMOUNT, 
@@ -9,25 +9,10 @@ import {
   LiquidityEventType,
   ZERO_ADDRESS,
 } from "../utils/constants";
-import { updateAggregateStats, recordDailyActiveUser } from "../services/stats";
+import { updateAggregateStats, recordDailyActiveUser, recordHourlyActiveUser } from "../services/stats";
 import { getOrCreateUser, getOrCreateMinimalMarket, checkAndRecordMarketInteraction } from "../services/db";
 import { handleBuyTrade, handleSellTrade, handleSwapTrade, handleWinningsRedeemed } from "../services/trades";
 import { recordPosition } from "../services/positions";
-
-// =============================================================================
-// PNL CALCULATION HELPER
-// =============================================================================
-
-/**
- * Calculate realized PnL for a user.
- */
-function calculateRealizedPnL(
-  totalWithdrawn: bigint,
-  totalWinnings: bigint,
-  totalDeposited: bigint
-): bigint {
-  return totalWithdrawn + totalWinnings - totalDeposited;
-}
 
 // =============================================================================
 // BUY TOKENS
@@ -198,8 +183,11 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
     context, marketAddress, normalizedProvider, chain, timestamp
   );
 
-  // Track daily active user
+  // Track daily and hourly active user
   const isFirstActivityToday = await recordDailyActiveUser(
+    context, chain, normalizedProvider, timestamp
+  );
+  const isFirstActivityThisHour = await recordHourlyActiveUser(
     context, chain, normalizedProvider, timestamp
   );
 
@@ -264,6 +252,7 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
     volume: imbalanceVolume > 0n ? imbalanceVolume : 0n,
     users: isNewUser ? 1 : 0,
     activeUsers: isFirstActivityToday ? 1 : 0,
+    hourlyUniqueTraders: isFirstActivityThisHour ? 1 : 0,
   });
 });
 
@@ -315,8 +304,11 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
     context, marketAddress, normalizedProvider, chain, timestamp
   );
 
-  // Track daily active user
+  // Track daily and hourly active user
   const isFirstActivityToday = await recordDailyActiveUser(
+    context, chain, normalizedProvider, timestamp
+  );
+  const isFirstActivityThisHour = await recordHourlyActiveUser(
     context, chain, normalizedProvider, timestamp
   );
 
@@ -329,10 +321,13 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
     },
   });
 
+  // Calculate actual TVL decrease to keep platform TVL consistent with market TVL
+  let actualTvlDecrease: bigint = 0n;
   if (market) {
-    const newTvl = market.currentTvl > collateralToReturn 
-      ? market.currentTvl - collateralToReturn 
-      : 0n;
+    actualTvlDecrease = market.currentTvl > collateralToReturn 
+      ? collateralToReturn 
+      : market.currentTvl;
+    const newTvl = market.currentTvl - actualTvlDecrease;
     await context.db.markets.update({
       id: marketAddress,
       data: {
@@ -344,8 +339,9 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
 
   await updateAggregateStats(context, chain, timestamp, {
     trades: 1,
-    tvlChange: -collateralToReturn,
+    tvlChange: -actualTvlDecrease,
     activeUsers: isFirstActivityToday ? 1 : 0,
+    hourlyUniqueTraders: isFirstActivityThisHour ? 1 : 0,
   });
 });
 

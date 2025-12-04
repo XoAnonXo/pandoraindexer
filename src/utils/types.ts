@@ -31,6 +31,7 @@ export interface StatsUpdate {
   pollsResolved?: number;
   users?: number;
   activeUsers?: number;
+  hourlyUniqueTraders?: number;
   
   // Financials (BigInt)
   volume?: bigint;

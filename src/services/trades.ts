@@ -1,5 +1,5 @@
 import type { PonderContext, ChainInfo } from "../utils/types";
-import { makeId } from "../utils/helpers";
+import { makeId, calculateRealizedPnL } from "../utils/helpers";
 import { 
   TradeType, 
   TradeSide, 
@@ -8,7 +8,7 @@ import {
   type TradeTypeValue, 
   type MarketTypeValue 
 } from "../utils/constants";
-import { updateAggregateStats, recordDailyActiveUser } from "./stats";
+import { updateAggregateStats, recordDailyActiveUser, recordHourlyActiveUser } from "./stats";
 import { getOrCreateUser, getOrCreateMinimalMarket, checkAndRecordMarketInteraction } from "./db";
 import { recordPosition, reducePosition, markPositionRedeemed } from "./positions";
 
@@ -50,22 +50,6 @@ interface SwapTradeParams extends BaseTradeParams {
   tokenAmountIn: bigint;
   tokenAmountOut: bigint;
   feeAmount: bigint;
-}
-
-// =============================================================================
-// PNL CALCULATION HELPER
-// =============================================================================
-
-/**
- * Calculate realized PnL for a user.
- * Formula: realizedPnL = totalWithdrawn + totalWinnings - totalDeposited
- */
-function calculateRealizedPnL(
-  totalWithdrawn: bigint,
-  totalWinnings: bigint,
-  totalDeposited: bigint
-): bigint {
-  return totalWithdrawn + totalWinnings - totalDeposited;
 }
 
 // =============================================================================
@@ -133,8 +117,11 @@ export async function handleBuyTrade(params: BuyTradeParams) {
     context, marketAddress, normalizedTrader, chain, timestamp
   );
 
-  // Track daily active user (returns true if first activity today)
+  // Track daily and hourly active user
   const isFirstActivityToday = await recordDailyActiveUser(
+    context, chain, normalizedTrader, timestamp
+  );
+  const isFirstActivityThisHour = await recordHourlyActiveUser(
     context, chain, normalizedTrader, timestamp
   );
 
@@ -178,6 +165,7 @@ export async function handleBuyTrade(params: BuyTradeParams) {
     fees: feeAmount,
     users: isNewUser ? 1 : 0,
     activeUsers: isFirstActivityToday ? 1 : 0,
+    hourlyUniqueTraders: isFirstActivityThisHour ? 1 : 0,
   });
 }
 
@@ -239,8 +227,11 @@ export async function handleSellTrade(params: SellTradeParams) {
     context, marketAddress, normalizedTrader, chain, timestamp
   );
 
-  // Track daily active user
+  // Track daily and hourly active user
   const isFirstActivityToday = await recordDailyActiveUser(
+    context, chain, normalizedTrader, timestamp
+  );
+  const isFirstActivityThisHour = await recordHourlyActiveUser(
     context, chain, normalizedTrader, timestamp
   );
 
@@ -265,10 +256,12 @@ export async function handleSellTrade(params: SellTradeParams) {
     },
   });
 
-  // Update market stats (TVL decreases by gross amount)
-  const newMarketTvl = market.currentTvl > collateralAmount 
-    ? market.currentTvl - collateralAmount 
-    : 0n;
+  // Update market stats (TVL decreases by gross amount, clamped to 0)
+  // Calculate actual TVL change to keep market and platform TVL consistent
+  const actualTvlDecrease: bigint = market.currentTvl > collateralAmount 
+    ? collateralAmount 
+    : market.currentTvl;
+  const newMarketTvl = market.currentTvl - actualTvlDecrease;
     
   await context.db.markets.update({
     id: marketAddress,
@@ -280,13 +273,14 @@ export async function handleSellTrade(params: SellTradeParams) {
     },
   });
 
-  // Update aggregate stats
+  // Update aggregate stats - use actualTvlDecrease to stay consistent with market TVL
   await updateAggregateStats(context, chain, timestamp, {
     trades: 1,
     volume: collateralAmount,
-    tvlChange: -collateralAmount,
+    tvlChange: -actualTvlDecrease,
     fees: feeAmount,
     activeUsers: isFirstActivityToday ? 1 : 0,
+    hourlyUniqueTraders: isFirstActivityThisHour ? 1 : 0,
   });
 }
 
@@ -351,8 +345,11 @@ export async function handleSwapTrade(params: SwapTradeParams) {
     context, marketAddress, normalizedTrader, chain, timestamp
   );
 
-  // Track daily active user
+  // Track daily and hourly active user
   const isFirstActivityToday = await recordDailyActiveUser(
+    context, chain, normalizedTrader, timestamp
+  );
+  const isFirstActivityThisHour = await recordHourlyActiveUser(
     context, chain, normalizedTrader, timestamp
   );
 
@@ -381,6 +378,7 @@ export async function handleSwapTrade(params: SwapTradeParams) {
     trades: 1,
     fees: feeAmount,
     activeUsers: isFirstActivityToday ? 1 : 0,
+    hourlyUniqueTraders: isFirstActivityThisHour ? 1 : 0,
   });
 }
 
@@ -448,11 +446,13 @@ export async function handleWinningsRedeemed(params: WinningsParams) {
   // Mark position as redeemed
   await markPositionRedeemed(context, chain, marketAddress, normalizedUser);
 
-  // Update market TVL
+  // Update market TVL - calculate actual decrease to keep platform TVL consistent
+  let actualTvlDecrease: bigint = 0n;
   if (market) {
-    const newMarketTvl = market.currentTvl > collateralAmount 
-      ? market.currentTvl - collateralAmount 
-      : 0n;
+    actualTvlDecrease = market.currentTvl > collateralAmount 
+      ? collateralAmount 
+      : market.currentTvl;
+    const newMarketTvl = market.currentTvl - actualTvlDecrease;
     await context.db.markets.update({
       id: marketAddress,
       data: {
@@ -499,10 +499,10 @@ export async function handleWinningsRedeemed(params: WinningsParams) {
     },
   });
 
-  // Update aggregate stats
+  // Update aggregate stats - use actualTvlDecrease to stay consistent with market TVL
   await updateAggregateStats(context, chain, timestamp, {
     winningsPaid: collateralAmount,
-    tvlChange: -collateralAmount,
+    tvlChange: -actualTvlDecrease,
     fees: feeAmount,
   });
 }

@@ -22,16 +22,31 @@ export function makeId(chainId: number, ...parts: (string | number | bigint)[]):
 
 /**
  * Calculate the day boundary timestamp (midnight UTC) for a given timestamp.
+ * Uses BigInt arithmetic to avoid precision loss with large timestamps.
  */
 export function getDayTimestamp(timestamp: bigint): bigint {
-  const day = Number(timestamp) - (Number(timestamp) % 86400);
-  return BigInt(day);
+  return timestamp - (timestamp % 86400n);
 }
 
 /**
  * Calculate the hour boundary timestamp for a given timestamp.
+ * Uses BigInt arithmetic to avoid precision loss with large timestamps.
  */
 export function getHourTimestamp(timestamp: bigint): bigint {
-  const hour = Number(timestamp) - (Number(timestamp) % 3600);
-  return BigInt(hour);
+  return timestamp - (timestamp % 3600n);
+}
+
+/**
+ * Calculate realized PnL for a user.
+ * Formula: realizedPnL = totalWithdrawn + totalWinnings - totalDeposited
+ * 
+ * Positive = net profit, Negative = net loss
+ * Only tracks realized returns (money actually received)
+ */
+export function calculateRealizedPnL(
+  totalWithdrawn: bigint,
+  totalWinnings: bigint,
+  totalDeposited: bigint
+): bigint {
+  return totalWithdrawn + totalWinnings - totalDeposited;
 }
