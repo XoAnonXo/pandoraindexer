@@ -13,6 +13,30 @@ import { handleBuyTrade, handleWinningsRedeemed } from "../services/trades";
 import { recordPosition } from "../services/positions";
 
 // =============================================================================
+// PARI-MUTUEL ODDS CALCULATION
+// =============================================================================
+
+/**
+ * Calculate yesChance from time-weighted shares
+ * Formula: yesChance = totalSharesNo / (totalSharesYes + totalSharesNo) * 1e9
+ * 
+ * Note: Higher NO shares = higher YES probability (because NO bettors think YES is unlikely)
+ * This is the time-weighted odds that accounts for when bets were placed.
+ * 
+ * @param totalSharesYes - Total time-weighted YES shares
+ * @param totalSharesNo - Total time-weighted NO shares
+ * @returns yesChance scaled by 1e9 (e.g., 500_000_000 = 50%)
+ */
+function calculateYesChance(totalSharesYes: bigint, totalSharesNo: bigint): bigint {
+  const totalShares = totalSharesYes + totalSharesNo;
+  if (totalShares === 0n) {
+    return 500_000_000n; // 50% when no shares
+  }
+  // yesChance = noShares / totalShares (inverse because more NO shares = higher YES odds)
+  return (totalSharesNo * 1_000_000_000n) / totalShares;
+}
+
+// =============================================================================
 // SEED INITIAL LIQUIDITY
 // =============================================================================
 
@@ -93,12 +117,26 @@ ponder.on("PredictionPariMutuel:SeedInitialLiquidity", async ({ event, context }
     },
   });
 
+  // For seed liquidity, the initial shares equal the collateral amounts
+  // (shares are 1:1 with collateral at market creation)
+  const newTotalCollateralYes = (market.totalCollateralYes ?? 0n) + yesAmount;
+  const newTotalCollateralNo = (market.totalCollateralNo ?? 0n) + noAmount;
+  const newTotalSharesYes = (market.totalSharesYes ?? 0n) + yesAmount;
+  const newTotalSharesNo = (market.totalSharesNo ?? 0n) + noAmount;
+  const newYesChance = calculateYesChance(newTotalSharesYes, newTotalSharesNo);
+
   await context.db.markets.update({
     id: marketAddress,
     data: {
       currentTvl: market.currentTvl + totalLiquidity,
       totalVolume: market.totalVolume + totalLiquidity,
       initialLiquidity: totalLiquidity,
+      // PariMutuel-specific updates
+      totalCollateralYes: newTotalCollateralYes,
+      totalCollateralNo: newTotalCollateralNo,
+      totalSharesYes: newTotalSharesYes,
+      totalSharesNo: newTotalSharesNo,
+      yesChance: newYesChance,
     },
   });
 
@@ -122,12 +160,13 @@ ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) =
   if (collateralIn < MIN_TRADE_AMOUNT) return;
   
   const chain = getChainInfo(context);
+  const marketAddress = event.log.address;
 
   await handleBuyTrade({
     context,
     chain,
     trader: buyer,
-    marketAddress: event.log.address,
+    marketAddress,
     timestamp: event.block.timestamp,
     blockNumber: event.block.number,
     txHash: event.transaction.hash,
@@ -139,6 +178,27 @@ ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) =
     tokenAmount: sharesOut,
     feeAmount: 0n,
   });
+
+  // Update PariMutuel-specific fields (pools and shares for odds calculation)
+  const market = await context.db.markets.findUnique({ id: marketAddress });
+  if (market) {
+    const newTotalCollateralYes = (market.totalCollateralYes ?? 0n) + (isYes ? collateralIn : 0n);
+    const newTotalCollateralNo = (market.totalCollateralNo ?? 0n) + (isYes ? 0n : collateralIn);
+    const newTotalSharesYes = (market.totalSharesYes ?? 0n) + (isYes ? sharesOut : 0n);
+    const newTotalSharesNo = (market.totalSharesNo ?? 0n) + (isYes ? 0n : sharesOut);
+    const newYesChance = calculateYesChance(newTotalSharesYes, newTotalSharesNo);
+
+    await context.db.markets.update({
+      id: marketAddress,
+      data: {
+        totalCollateralYes: newTotalCollateralYes,
+        totalCollateralNo: newTotalCollateralNo,
+        totalSharesYes: newTotalSharesYes,
+        totalSharesNo: newTotalSharesNo,
+        yesChance: newYesChance,
+      },
+    });
+  }
 });
 
 // =============================================================================

@@ -227,4 +227,56 @@ export const PredictionPariMutuelAbi = [
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // POOL STATE VIEW FUNCTIONS (Used for odds calculation)
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  /**
+   * yesPool() - Total collateral in YES pool
+   * Increases when users buy YES positions or seed liquidity
+   */
+  {
+    type: "function",
+    name: "yesPool",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  
+  /**
+   * noPool() - Total collateral in NO pool
+   * Increases when users buy NO positions or seed liquidity
+   */
+  {
+    type: "function",
+    name: "noPool",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  
+  /**
+   * totalYesShares() - Time-weighted YES shares for odds calculation
+   * Used in the time-weighted odds formula (not just collateral ratio)
+   */
+  {
+    type: "function",
+    name: "totalYesShares",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  
+  /**
+   * totalNoShares() - Time-weighted NO shares for odds calculation
+   * Used in the time-weighted odds formula (not just collateral ratio)
+   */
+  {
+    type: "function",
+    name: "totalNoShares",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
 ] as const;

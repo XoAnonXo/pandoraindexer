@@ -152,6 +152,15 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
     createdTxHash: event.transaction.hash,
   };
 
+  // PariMutuel-specific fields - initialize to zero, will be updated on SeedInitialLiquidity
+  const pariMutuelFields = {
+    totalCollateralYes: 0n,
+    totalCollateralNo: 0n,
+    totalSharesYes: 0n,
+    totalSharesNo: 0n,
+    yesChance: 500_000_000n, // 50% initial (scaled 1e9)
+  };
+
   if (existingMarket) {
     await context.db.markets.update({
       id: marketAddress,
@@ -163,6 +172,12 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
         currentTvl: existingMarket.currentTvl,
         uniqueTraders: existingMarket.uniqueTraders,
         initialLiquidity: existingMarket.initialLiquidity ?? 0n,
+        // Preserve existing PariMutuel fields if already set
+        totalCollateralYes: existingMarket.totalCollateralYes ?? pariMutuelFields.totalCollateralYes,
+        totalCollateralNo: existingMarket.totalCollateralNo ?? pariMutuelFields.totalCollateralNo,
+        totalSharesYes: existingMarket.totalSharesYes ?? pariMutuelFields.totalSharesYes,
+        totalSharesNo: existingMarket.totalSharesNo ?? pariMutuelFields.totalSharesNo,
+        yesChance: existingMarket.yesChance ?? pariMutuelFields.yesChance,
       },
     });
   } else {
@@ -175,6 +190,7 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
         currentTvl: 0n,
         uniqueTraders: 0,
         initialLiquidity: 0n,
+        ...pariMutuelFields,
       },
     });
   }

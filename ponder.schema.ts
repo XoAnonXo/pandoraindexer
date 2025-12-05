@@ -144,6 +144,25 @@ export default createSchema((p) => ({
     reserveYes: p.bigint().optional(),
     /** AMM reserve NO tokens */
     reserveNo: p.bigint().optional(),
+    
+    // ─────────────────────────────────────────────────────────────────────────
+    // PARI-MUTUEL SPECIFIC FIELDS
+    // ─────────────────────────────────────────────────────────────────────────
+    /** PariMutuel: Total collateral in YES pool (6 decimals) */
+    totalCollateralYes: p.bigint().optional(),
+    /** PariMutuel: Total collateral in NO pool (6 decimals) */
+    totalCollateralNo: p.bigint().optional(),
+    /** PariMutuel: Time-weighted YES shares for odds calculation */
+    totalSharesYes: p.bigint().optional(),
+    /** PariMutuel: Time-weighted NO shares for odds calculation */
+    totalSharesNo: p.bigint().optional(),
+    /** 
+     * PariMutuel: Current YES probability (scaled 1e9)
+     * Formula: yesChance = totalSharesNo / (totalSharesYes + totalSharesNo) * 1e9
+     * Example: 500_000_000 = 50%
+     */
+    yesChance: p.bigint().optional(),
+    
     /** Block when created */
     createdAtBlock: p.bigint(),
     /** Timestamp when created */
