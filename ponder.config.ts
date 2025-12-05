@@ -14,7 +14,7 @@
  */
 
 import { createConfig } from "@ponder/core";
-import { http, fallback } from "viem";
+import { http } from "viem";
 
 // =============================================================================
 // CONTRACT ABIS
@@ -45,33 +45,10 @@ export default createConfig({
   // ---------------------------------------------------------------------------
   networks: {
     // Sonic Mainnet (Chain ID: 146)
-    // Uses fallback transport for automatic RPC switching on failures
     sonic: {
       chainId: 146,
-      // Fallback transport: tries each RPC in order, switches on errors
-      // Rank option enables automatic latency-based ranking after initial requests
-      transport: fallback(
-        sonic.rpcUrls.map(url => http(url, {
-          // Timeout per request - fail fast to try next RPC
-          timeout: 10_000,
-          // Retry each RPC 2 times before moving to next
-          retryCount: 2,
-          retryDelay: 500,
-        })),
-        {
-          // Rank RPCs by latency after seeing responses
-          rank: true,
-          // Re-rank every 30 seconds
-          rankOptions: {
-            interval: 30_000,
-            sampleCount: 5,
-          },
-        }
-      ),
-      // Poll every 1 second for faster updates
-      pollingInterval: 1_000,
-      // Process blocks in bulk for faster historical sync
-      maxBlockRange: 10_000,
+      transport: http(sonic.rpcUrls[0]),
+      pollingInterval: 2_000,
     },
     
     // Add more networks here when deploying to other chains:
