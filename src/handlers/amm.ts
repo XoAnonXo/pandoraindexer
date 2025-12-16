@@ -3,6 +3,7 @@ import { getChainInfo, makeId } from "../utils/helpers";
 import { MIN_TRADE_AMOUNT, MIN_TOKEN_AMOUNT } from "../utils/constants";
 import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser, getOrCreateMinimalMarket, isNewTraderForMarket, recordMarketInteraction } from "../services/db";
+import { updateReferralVolume } from "../services/referral";
 
 ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
   const { trader, isYes, tokenAmount, collateralAmount, fee } = event.args;
@@ -72,6 +73,9 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
     users: isNewUser ? 1 : 0, // NEW users
     activeUsers: 1,
   });
+  
+  // Track referral volume if trader has a referrer
+  await updateReferralVolume(context, trader, collateralAmount, fee, timestamp, chain);
 });
 
 ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
@@ -150,6 +154,9 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
     fees: fee,
     activeUsers: 1,
   });
+  
+  // Track referral volume if trader has a referrer
+  await updateReferralVolume(context, trader, collateralAmount, fee, timestamp, chain);
 });
 
 ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
@@ -367,8 +374,8 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
   });
 
   // Use centralized stats update
+  // NOTE: Liquidity adds are NOT trades - they're LP actions
   await updateAggregateStats(context, chain, timestamp, {
-    trades: 1, // Treat LP add as an activity/trade
     tvlChange: collateralAmount,
     volume: imbalanceVolume > 0n ? imbalanceVolume : 0n,
     users: isNewUser ? 1 : 0, // Count LPs as users
@@ -437,8 +444,8 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
   }
 
   // Use centralized stats update
+  // NOTE: Liquidity removes are NOT trades - they're LP actions
   await updateAggregateStats(context, chain, timestamp, {
-    trades: 1, // Treat LP remove as an activity/trade
     tvlChange: -collateralToReturn,
     activeUsers: 1,
   });

@@ -83,6 +83,11 @@ export async function getOrCreateUser(context: any, address: `0x${string}`, chai
           // Creator stats
           marketsCreated: 0,
           pollsCreated: 0,
+          // Referral stats (all start at zero/null)
+          totalReferrals: 0,
+          totalReferralVolume: 0n,
+          totalReferralFees: 0n,
+          totalReferralRewards: 0n,
           // Timestamps left null until first trade
         },
       });
@@ -109,54 +114,22 @@ export async function getOrCreateMinimalMarket(
     let market = await context.db.markets.findUnique({ id: marketAddress });
     
     if (!market) {
-      // Strategy B: Fetch real data from chain immediately
-      console.log(`[${chain.chainName}] Fetching on-chain data for missing market ${marketAddress}...`);
+      // Create incomplete market record immediately without on-chain fetches
+      // This avoids blocking the indexer when contracts don't exist at historical blocks
+      // The MarketFactory events will create complete records for valid markets
+      console.log(`[${chain.chainName}] Creating incomplete market record for ${marketAddress} (no factory event found)`);
       
-      let pollAddress: `0x${string}`;
-      let creator: `0x${string}`;
-      let collateralToken: `0x${string}`;
-      let yesToken: `0x${string}` | undefined;
-      let noToken: `0x${string}` | undefined;
-      let feeTier: number | undefined;
-      let maxPriceImbalancePerHour: number | undefined;
-      let curveFlattener: number | undefined;
-      let curveOffset: number | undefined;
-
-      try {
-        if (marketType === "amm") {
-          // Read AMM specific data
-          const [poll, cr, col, yes, no, fee, imb] = await context.client.readContract({
-            address: marketAddress,
-            abi: PredictionAMMAbi,
-            functionName: "getMarketData", // Assuming a helper exists or reading individually? 
-            // The ABI doesn't have a single getter usually. Let's read individual fields.
-            // Ponder client supports multicall implicitly if we await parallel promises?
-            // Actually, we must check what functions exist in ABI.
-            // ABI usually has public getters for public variables.
-          }).catch(() => null) || []; 
-          
-          // Fallback to individual reads if getMarketData doesn't exist (it likely doesn't)
-          // Let's use individual reads based on standard public variable getters
-          pollAddress = await context.client.readContract({ address: marketAddress, abi: PredictionAMMAbi, functionName: "pollAddress" });
-          creator = await context.client.readContract({ address: marketAddress, abi: PredictionAMMAbi, functionName: "creator" });
-          collateralToken = await context.client.readContract({ address: marketAddress, abi: PredictionAMMAbi, functionName: "collateral" });
-          yesToken = await context.client.readContract({ address: marketAddress, abi: PredictionAMMAbi, functionName: "yesToken" });
-          noToken = await context.client.readContract({ address: marketAddress, abi: PredictionAMMAbi, functionName: "noToken" });
-          feeTier = Number(await context.client.readContract({ address: marketAddress, abi: PredictionAMMAbi, functionName: "feeTier" }));
-          maxPriceImbalancePerHour = Number(await context.client.readContract({ address: marketAddress, abi: PredictionAMMAbi, functionName: "maxPriceImbalancePerHour" }));
-          
-        } else {
-          // PariMutuel
-          pollAddress = await context.client.readContract({ address: marketAddress, abi: PredictionPariMutuelAbi, functionName: "pollAddress" });
-          creator = await context.client.readContract({ address: marketAddress, abi: PredictionPariMutuelAbi, functionName: "creator" });
-          collateralToken = await context.client.readContract({ address: marketAddress, abi: PredictionPariMutuelAbi, functionName: "collateral" });
-          curveFlattener = Number(await context.client.readContract({ address: marketAddress, abi: PredictionPariMutuelAbi, functionName: "curveFlattener" }));
-          curveOffset = Number(await context.client.readContract({ address: marketAddress, abi: PredictionPariMutuelAbi, functionName: "curveOffset" }));
-        }
-      } catch (err: any) {
-        console.error(`Failed to fetch market data for ${marketAddress}: ${err.message}`);
-        throw err; // Retry will handle transient issues. Persistent issues will crash block (good, don't index garbage).
-      }
+      const zeroAddr = "0x0000000000000000000000000000000000000000" as `0x${string}`;
+      const pollAddress = zeroAddr;
+      const creator = zeroAddr;
+      const collateralToken = zeroAddr;
+      const yesToken: `0x${string}` | undefined = undefined;
+      const noToken: `0x${string}` | undefined = undefined;
+      const feeTier: number | undefined = undefined;
+      const maxPriceImbalancePerHour: number | undefined = undefined;
+      const curveFlattener: number | undefined = undefined;
+      const curveOffset: number | undefined = undefined;
+      const fetchFailed = true;
 
       try {
         market = await context.db.markets.create({
@@ -164,10 +137,8 @@ export async function getOrCreateMinimalMarket(
           data: {
             chainId: chain.chainId,
             chainName: chain.chainName,
-            // Flag as incomplete if we want (though we have full data now, maybe we lack factory timestamp?)
-            // We use the timestamp of the first trade as creation time if we missed factory.
-            // Technically it's complete enough for queries.
-            isIncomplete: false, 
+            // Flag as incomplete if on-chain fetch failed
+            isIncomplete: fetchFailed, 
             pollAddress: pollAddress.toLowerCase() as `0x${string}`,
             creator: creator.toLowerCase() as `0x${string}`,
             marketType,
@@ -189,7 +160,11 @@ export async function getOrCreateMinimalMarket(
             createdTxHash: txHash ?? "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
           },
         });
-        console.log(`[${chain.chainName}] Successfully backfilled market ${marketAddress} from on-chain data.`);
+        if (fetchFailed) {
+          console.log(`[${chain.chainName}] Created incomplete market record for ${marketAddress}.`);
+        } else {
+          console.log(`[${chain.chainName}] Successfully backfilled market ${marketAddress} from on-chain data.`);
+        }
       } catch (e: any) {
         // Handle race condition: another handler created the market first (e.g. factory event processed in parallel?)
         if (e.message?.includes("unique constraint") || e.code === "P2002") {

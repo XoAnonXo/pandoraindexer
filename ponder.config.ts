@@ -25,6 +25,8 @@ import { PredictionPollAbi } from "./abis/PredictionPoll";
 import { MarketFactoryAbi } from "./abis/MarketFactory";
 import { PredictionAMMAbi } from "./abis/PredictionAMM";
 import { PredictionPariMutuelAbi } from "./abis/PredictionPariMutuel";
+import { ReferralRegistryAbi } from "./abis/ReferralRegistry";
+import { CampaignFactoryAbi } from "./abis/CampaignFactory";
 
 // =============================================================================
 // CHAIN CONFIGURATION
@@ -149,6 +151,28 @@ export default createConfig({
         event: MarketFactoryAbi.find((e) => e.type === "event" && e.name === "PariMutuelCreated")!,
         parameter: "marketAddress",
       },
+      startBlock: sonic.startBlock,
+    },
+
+    /**
+     * ReferralRegistry (Sonic) - Static contract
+     * Tracks referral codes and referrer-referee relationships
+     */
+    ReferralRegistry: {
+      network: "sonic",
+      abi: ReferralRegistryAbi,
+      address: "0xF3a3930B0FA5D0a53d1204Be1Deea638d939f04f",
+      startBlock: sonic.startBlock,
+    },
+
+    /**
+     * CampaignFactory (Sonic) - Static contract
+     * Creates and manages reward campaigns for referrals
+     */
+    CampaignFactory: {
+      network: "sonic",
+      abi: CampaignFactoryAbi,
+      address: "0xcc83403203607Ba4DfbeC42d6Af0606363F80617",
       startBlock: sonic.startBlock,
     },
 

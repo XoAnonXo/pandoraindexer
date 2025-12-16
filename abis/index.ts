@@ -51,3 +51,9 @@ export { PredictionAMMAbi } from "./PredictionAMM";
 
 // PariMutuel Market - Pool-based betting with shared winnings
 export { PredictionPariMutuelAbi } from "./PredictionPariMutuel";
+
+// Referral Registry - Tracks referral codes and relationships
+export { ReferralRegistryAbi } from "./ReferralRegistry";
+
+// Campaign Factory - Creates and manages reward campaigns
+export { CampaignFactoryAbi } from "./CampaignFactory";

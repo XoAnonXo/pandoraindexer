@@ -9,6 +9,9 @@ export const CONTRACTS = {
   oracle: "0x9492a0c32Fb22d1b8940e44C4D69f82B6C3cb298" as const,
   marketFactory: "0x017277d36f80422a5d0aA5B8C93f5ae57BA2A317" as const,
   usdc: "0xc6020e5492c2892fD63489797ce3d431ae101d5e" as const,
+  referralRegistry: "0xF3a3930B0FA5D0a53d1204Be1Deea638d939f04f" as const,
+  campaignFactory: "0xcc83403203607Ba4DfbeC42d6Af0606363F80617" as const,
+  referralRewards: "0x9a3c55c9d3929B37C817F261e42DcE619aa7d605" as const,
   startBlock: 5507800, // Block where contracts were deployed
 };
 
@@ -370,6 +373,120 @@ export const ERC20Abi = [
     name: "symbol",
     inputs: [],
     outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
+  },
+] as const;
+
+// ReferralRegistry ABI (View Functions & Events)
+export const ReferralRegistryAbi = [
+  // Events
+  {
+    type: "event",
+    name: "CodeRegistered",
+    inputs: [
+      { name: "owner", type: "address", indexed: true },
+      { name: "codeHash", type: "bytes32", indexed: true },
+    ],
+  },
+  {
+    type: "event",
+    name: "ReferralRegistered",
+    inputs: [
+      { name: "referee", type: "address", indexed: true },
+      { name: "referrer", type: "address", indexed: true },
+      { name: "codeHash", type: "bytes32", indexed: true },
+    ],
+  },
+  // View functions
+  {
+    type: "function",
+    name: "getReferrer",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getUserCode",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "bytes32" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getCodeOwner",
+    inputs: [{ name: "codeHash", type: "bytes32" }],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "hasReferrer",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
+] as const;
+
+// CampaignFactory ABI (View Functions & Events)
+export const CampaignFactoryAbi = [
+  // Events
+  {
+    type: "event",
+    name: "CampaignCreated",
+    inputs: [
+      { name: "campaignId", type: "uint256", indexed: true },
+      { name: "creator", type: "address", indexed: true },
+      { name: "rewardAsset", type: "address", indexed: true },
+      { name: "assetKind", type: "uint8", indexed: false },
+      { name: "rewardPool", type: "uint256", indexed: false },
+      { name: "startTime", type: "uint256", indexed: false },
+      { name: "endTime", type: "uint256", indexed: false },
+      { name: "rewardType", type: "uint8", indexed: false },
+      { name: "rewardConfig", type: "bytes", indexed: false },
+      { name: "name", type: "string", indexed: false },
+      { name: "description", type: "string", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "CampaignStatusChanged",
+    inputs: [
+      { name: "campaignId", type: "uint256", indexed: true },
+      { name: "status", type: "uint8", indexed: false },
+    ],
+  },
+  // View functions
+  {
+    type: "function",
+    name: "campaignCount",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getCampaign",
+    inputs: [{ name: "campaignId", type: "uint256" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "creator", type: "address" },
+          { name: "updater", type: "address" },
+          { name: "rewardAsset", type: "address" },
+          { name: "assetKind", type: "uint8" },
+          { name: "rewardPool", type: "uint256" },
+          { name: "rewardsPaid", type: "uint256" },
+          { name: "startTime", type: "uint256" },
+          { name: "endTime", type: "uint256" },
+          { name: "rewardType", type: "uint8" },
+          { name: "rewardConfig", type: "bytes" },
+          { name: "status", type: "uint8" },
+        ],
+      },
+    ],
     stateMutability: "view",
   },
 ] as const;

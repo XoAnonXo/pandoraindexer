@@ -13,7 +13,7 @@ export const client = createPublicClient({
 });
 
 // Indexer GraphQL endpoint (adjust if different)
-export const INDEXER_URL = process.env.INDEXER_URL ?? "http://localhost:42069";
+export const INDEXER_URL = process.env.INDEXER_URL ?? "http://localhost:5009";
 
 /**
  * Query the indexer GraphQL API

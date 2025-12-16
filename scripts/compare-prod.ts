@@ -7,8 +7,8 @@
 import { request, gql } from 'graphql-request';
 import { formatUnits } from 'viem';
 
-const LOCAL_URL = "http://localhost:42069";
-const PROD_URL = "https://sonicmarketindexer-production.up.railway.app";
+const LOCAL_URL = process.env.LOCAL_URL ?? "http://localhost:5009";
+const PROD_URL = process.env.PROD_URL ?? "https://sonicmarketindexer-production.up.railway.app";
 
 const STATS_QUERY = gql`
   query GetStats {
@@ -107,6 +107,8 @@ async function main() {
 }
 
 main();
+
+
 
 
 

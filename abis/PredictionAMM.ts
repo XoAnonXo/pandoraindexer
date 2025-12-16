@@ -308,4 +308,70 @@ export const PredictionAMMAbi = [
     stateMutability: "view",
     type: "function",
   },
+  
+  /**
+   * creator() - Returns the market creator address
+   */
+  {
+    inputs: [],
+    name: "creator",
+    outputs: [{ type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  
+  /**
+   * collateral() - Returns the collateral token address (USDC)
+   */
+  {
+    inputs: [],
+    name: "collateral",
+    outputs: [{ type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  
+  /**
+   * yesToken() - Returns the YES token address
+   */
+  {
+    inputs: [],
+    name: "yesToken",
+    outputs: [{ type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  
+  /**
+   * noToken() - Returns the NO token address
+   */
+  {
+    inputs: [],
+    name: "noToken",
+    outputs: [{ type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  
+  /**
+   * feeTier() - Returns the trading fee tier
+   */
+  {
+    inputs: [],
+    name: "feeTier",
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  
+  /**
+   * maxPriceImbalancePerHour() - Returns max price imbalance setting
+   */
+  {
+    inputs: [],
+    name: "maxPriceImbalancePerHour",
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;

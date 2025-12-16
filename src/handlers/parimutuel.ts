@@ -3,6 +3,7 @@ import { getChainInfo, makeId } from "../utils/helpers";
 import { MIN_TRADE_AMOUNT } from "../utils/constants";
 import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser, getOrCreateMinimalMarket, isNewTraderForMarket, recordMarketInteraction } from "../services/db";
+import { updateReferralVolume } from "../services/referral";
 
 ponder.on("PredictionPariMutuel:SeedInitialLiquidity", async ({ event, context }) => {
   const { yesAmount, noAmount } = event.args;
@@ -60,6 +61,9 @@ ponder.on("PredictionPariMutuel:SeedInitialLiquidity", async ({ event, context }
     tvlChange: totalLiquidity,
     volume: totalLiquidity
   });
+  
+  // Track referral volume if creator has a referrer
+  await updateReferralVolume(context, market.creator, totalLiquidity, 0n, timestamp, chain);
 
   console.log(`[${chain.chainName}] Seed liquidity (volume): ${marketAddress} - ${totalLiquidity}`);
 });
@@ -131,6 +135,9 @@ ponder.on("PredictionPariMutuel:PositionPurchased", async ({ event, context }) =
     users: isNewUser ? 1 : 0,
     activeUsers: 1,
   });
+  
+  // Track referral volume if buyer has a referrer
+  await updateReferralVolume(context, buyer, collateralIn, 0n, timestamp, chain);
 });
 
 ponder.on("PredictionPariMutuel:WinningsRedeemed", async ({ event, context }) => {
@@ -202,6 +209,8 @@ ponder.on("PredictionPariMutuel:WinningsRedeemed", async ({ event, context }) =>
     fees: fee
   });
 });
+
+
 
 
 

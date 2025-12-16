@@ -14,6 +14,8 @@
  * 3. FACTORY HANDLERS     - Market deployment events (src/handlers/factory.ts)
  * 4. AMM HANDLERS         - Trading and liquidity for AMM markets (src/handlers/amm.ts)
  * 5. PARIMUTUEL HANDLERS  - Betting for pool-based markets (src/handlers/parimutuel.ts)
+ * 6. REFERRAL HANDLERS    - Referral code registration and tracking (src/handlers/referral.ts)
+ * 7. CAMPAIGN HANDLERS    - Reward campaign creation and management (src/handlers/campaign.ts)
  * 
  * @module src/index
  */
@@ -23,3 +25,5 @@ import "./handlers/poll";
 import "./handlers/factory";
 import "./handlers/amm";
 import "./handlers/parimutuel";
+import "./handlers/referral";
+import "./handlers/campaign";

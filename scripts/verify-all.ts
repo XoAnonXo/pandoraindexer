@@ -32,6 +32,7 @@ import { verifyMarkets } from "./verify-markets.js";
 import { verifyVolume } from "./verify-volume.js";
 import { verifyPlatformStats } from "./verify-platform-stats.js";
 import { verifyPnL } from "./verify-pnl.js";
+import { verifyReferrals } from "./verify-referrals.js";
 
 /**
  * Merge multiple summaries
@@ -96,6 +97,7 @@ async function main(): Promise<void> {
   const runVolume = runAll || args.includes("--volume");
   const runStats = runAll || args.includes("--stats");
   const runPnL = runAll || args.includes("--pnl");
+  const runReferrals = runAll || args.includes("--referrals");
   
   try {
     // 1. Verify Platform Stats (quick internal consistency check)
@@ -131,6 +133,13 @@ async function main(): Promise<void> {
       logInfo("Starting PnL verification...");
       const pnlSummary = await verifyPnL();
       summaries.push(pnlSummary);
+    }
+
+    // 6. Verify Referrals & Campaigns
+    if (runReferrals) {
+      logInfo("Starting Referrals & Campaigns verification...");
+      const referralsSummary = await verifyReferrals();
+      summaries.push(referralsSummary);
     }
     
   } catch (error) {
