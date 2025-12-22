@@ -29,7 +29,7 @@ ponder.on("PredictionOracle:PollCreated", async ({ event, context }) => {
 		category = Number(pollData.category);
 		rules = (pollData.rules || "").slice(0, 4096);
 		sources = JSON.stringify(pollData.sources || []);
-		checkEpoch = Number(pollData.checkEpoch);
+		checkEpoch = Number(pollData.finalizationEpoch);
 	} catch (err) {
 		console.error(`Error getting poll data for ${pollAddress}:`, err);
 	}

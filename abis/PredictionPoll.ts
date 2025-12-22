@@ -105,34 +105,33 @@ export const PredictionPollAbi = [
 	 * - creator (address)
 	 * - arbiter (address)
 	 * - category (uint8)
-	 * - pollType (uint8)
 	 * - deadlineEpoch (uint32)
-	 * - checkEpoch (uint32)
+	 * - finalizationEpoch (uint32)
+	 * - status (uint8) - PollStatus enum
 	 * - resolutionReason (string)
 	 */
 	{
-		type: "function",
-		name: "getPollData",
 		inputs: [],
+		name: "getPollData",
 		outputs: [
 			{
-				name: "",
-				type: "tuple",
 				components: [
 					{ name: "question", type: "string" },
 					{ name: "rules", type: "string" },
 					{ name: "sources", type: "string[]" },
 					{ name: "creator", type: "address" },
 					{ name: "arbiter", type: "address" },
+					{ name: "status", type: "uint8" },
 					{ name: "category", type: "uint8" },
-					{ name: "pollType", type: "uint8" },
+					{ name: "finalizationEpoch", type: "uint32" },
 					{ name: "deadlineEpoch", type: "uint32" },
-					{ name: "checkEpoch", type: "uint32" },
 					{ name: "resolutionReason", type: "string" },
 				],
+				type: "tuple",
 			},
 		],
 		stateMutability: "view",
+		type: "function",
 	},
 
 	/**

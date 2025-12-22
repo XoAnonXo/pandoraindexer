@@ -9,6 +9,7 @@
 		"start": "ponder start",
 		"serve": "ponder serve",
 		"codegen": "ponder codegen",
+		"test:poll": "tsx scripts/test-poll-data.ts",
 		"verify": "tsx scripts/verify-all.ts",
 		"verify:polls": "tsx scripts/verify-polls.ts",
 		"verify:markets": "tsx scripts/verify-markets.ts",
