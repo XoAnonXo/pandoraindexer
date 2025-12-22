@@ -161,20 +161,21 @@ export async function getOrCreateMinimalMarket(
 						maxPriceImbalancePerHour,
 						curveFlattener,
 						curveOffset,
-						// Stats start at zero
-						totalVolume: 0n,
-						totalTrades: 0,
-						currentTvl: 0n,
-						uniqueTraders: 0,
-						initialLiquidity: 0n,
+					// Stats start at zero
+					totalVolume: 0n,
+					totalTrades: 0,
+					currentTvl: 0n,
+					uniqueTraders: 0,
+					initialLiquidity: 0n,
+					// Initialize yesChance for all market types (50% default)
+					yesChance: 500_000_000n,
 
-						...(marketType === "pari"
-							? {
-									totalCollateralYes: 0n,
-									totalCollateralNo: 0n,
-									yesChance: 500_000_000n,
-							  }
-							: {}),
+					...(marketType === "pari"
+						? {
+								totalCollateralYes: 0n,
+								totalCollateralNo: 0n,
+						  }
+						: {}),
 						createdAtBlock: blockNumber,
 						createdAt: timestamp,
 						createdTxHash:

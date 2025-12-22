@@ -461,17 +461,26 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
 });
 
 ponder.on("PredictionAMM:Sync", async ({ event, context }) => {
-  const { rYes, rNo } = event.args;
-  const marketAddress = event.log.address;
+	const { rYes, rNo } = event.args;
+	const marketAddress = event.log.address;
 
-  const market = await context.db.markets.findUnique({ id: marketAddress });
-  if (market) {
-    await context.db.markets.update({
-      id: marketAddress,
-      data: {
-        reserveYes: BigInt(rYes),
-        reserveNo: BigInt(rNo),
-      },
-    });
-  }
+	const market = await context.db.markets.findUnique({ id: marketAddress });
+	if (market) {
+		const reserveYes = BigInt(rYes);
+		const reserveNo = BigInt(rNo);
+		const totalReserves = reserveYes + reserveNo;
+		const yesChance =
+			totalReserves > 0n
+				? (reserveNo * 1_000_000_000n) / totalReserves
+				: 500_000_000n; // Default 50% if no reserves
+
+		await context.db.markets.update({
+			id: marketAddress,
+			data: {
+				reserveYes,
+				reserveNo,
+				yesChance,
+			},
+		});
+	}
 });
