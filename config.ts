@@ -37,11 +37,11 @@ export const CHAINS: Record<number, ChainConfig> = {
     ],
     explorerUrl: "https://sonicscan.org",
     contracts: {
-      oracle: "0x9492a0c32Fb22d1b8940e44C4D69f82B6C3cb298",
-      marketFactory: "0x017277d36f80422a5d0aA5B8C93f5ae57BA2A317",
+      oracle: "0x495B372311e3f9647685de3cbc90194915F3BdFE",
+      marketFactory: "0x38Df1d849904b58103D39407e0F526A89235f534",
       usdc: "0xc6020e5492c2892fD63489797ce3d431ae101d5e",
     },
-    startBlock: 55_820_000, // First Oracle event at block 55,820,252 (was 56,000,000 - missing early polls!)
+    startBlock: 18_190_000,
     enabled: true,
   },
 };
