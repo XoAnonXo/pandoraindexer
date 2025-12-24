@@ -46,7 +46,21 @@ const ONE = 10n ** 18n;
 const YESCHANCE_SCALE = 1_000_000_000n; // 1e9 scale for yesChance
 
 /**
+ * Calculate bigint power: base^exponent
+ * Safe for large values unlike JavaScript Number
+ */
+function bigIntPow(base: bigint, exponent: number): bigint {
+  let result = 1n;
+  for (let i = 0; i < exponent; i++) {
+    result *= base;
+  }
+  return result;
+}
+
+/**
  * Calculate time weight for pari-mutuel odds curve
+ * Matches contract: PariMutuelStrategy._calcTimeWeight()
+ *
  * Formula: wTime = offset + (BPS - offset) * (progress^k / BPS^(k-1)) / BPS
  * 
  * @param currentTs Current timestamp
@@ -74,17 +88,13 @@ function calculateTimeWeight(
   const progress = (elapsed * BPS_DENOMINATOR) / duration;
 
   // Power curve: progress^k / BPS^(k-1)
-  // For k=1, just use progress
+  // Using pure bigint arithmetic to match contract exactly
   let curveValue: bigint;
   if (k === 1) {
     curveValue = progress;
   } else {
-    // Calculate progress^k (use Number for exponentiation, then back to bigint)
-    // This is safe because progress is always <= BPS_DENOMINATOR (1e6)
-    const progressNum = Number(progress);
-    const bpsNum = Number(BPS_DENOMINATOR);
-    const powered = Math.pow(progressNum, k) / Math.pow(bpsNum, k - 1);
-    curveValue = BigInt(Math.floor(powered));
+    // progress^k / BPS^(k-1) - same as Solidity
+    curveValue = bigIntPow(progress, k) / bigIntPow(BPS_DENOMINATOR, k - 1);
   }
 
   // Scale to [offset, BPS]

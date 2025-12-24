@@ -138,7 +138,7 @@ export default createConfig({
     ReferralRegistry: {
       network: "sonic",
       abi: ReferralRegistryAbi,
-      address: "0xF3a3930B0FA5D0a53d1204Be1Deea638d939f04f",
+      address: "0x28242629493e6611c764e68352186a3E0639CA30",
       startBlock: sonic.startBlock,
     },
 
@@ -149,7 +149,7 @@ export default createConfig({
     CampaignFactory: {
       network: "sonic",
       abi: CampaignFactoryAbi,
-      address: "0xcc83403203607Ba4DfbeC42d6Af0606363F80617",
+      address: "0x616196B4643a2FD597DBeA1315c23D949aE80f9C",
       startBlock: sonic.startBlock,
     },
 

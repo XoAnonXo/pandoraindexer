@@ -9,9 +9,9 @@ export const CONTRACTS = {
   oracle: "0x9492a0c32Fb22d1b8940e44C4D69f82B6C3cb298" as const,
   marketFactory: "0x017277d36f80422a5d0aA5B8C93f5ae57BA2A317" as const,
   usdc: "0xc6020e5492c2892fD63489797ce3d431ae101d5e" as const,
-  referralRegistry: "0xF3a3930B0FA5D0a53d1204Be1Deea638d939f04f" as const,
-  campaignFactory: "0xcc83403203607Ba4DfbeC42d6Af0606363F80617" as const,
-  referralRewards: "0x9a3c55c9d3929B37C817F261e42DcE619aa7d605" as const,
+  referralRegistry: "0x28242629493e6611c764e68352186a3E0639CA30" as const,
+  campaignFactory: "0x616196B4643a2FD597DBeA1315c23D949aE80f9C" as const,
+  referralRewards: "0xC1528B89345460eC1eF2fb6809F874384491dDfe" as const,
   startBlock: 5507800, // Block where contracts were deployed
 };
 
