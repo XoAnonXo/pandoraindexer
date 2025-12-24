@@ -230,6 +230,94 @@ export default createSchema((p) => ({
   }),
 
   // ===========================================================================
+  // PRICE TICKS TABLE
+  // ===========================================================================
+  /**
+   * Execution price points derived from indexed AMM buy/sell trades.
+   * These are the underlying points used to build OHLC candles.
+   *
+   * yesPriceScaled is scaled by 1e9 (same as frontend CANDLE_PRICE_SCALE).
+   */
+  priceTicks: p.createTable({
+    /** Unique ID: marketAddress-txHash-logIndex */
+    id: p.string(),
+    marketAddress: p.hex(),
+    /** Timestamp (unix seconds) */
+    timestamp: p.bigint(),
+    /** Ordering helper: seq = blockNumber * 1_000_000 + logIndex */
+    seq: p.bigint(),
+    /** YES execution price scaled 1e9 */
+    yesPrice: p.bigint(),
+    /** Collateral volume for this trade (6 decimals) */
+    volume: p.bigint(),
+    /** Side of the trade ("yes"|"no") */
+    side: p.string(),
+    /** Trade type ("buy"|"sell") */
+    tradeType: p.string(),
+    /** Tx hash (for debugging) */
+    txHash: p.hex(),
+    /** Block number (for debugging) */
+    blockNumber: p.bigint(),
+  }),
+
+  // ===========================================================================
+  // CANDLES TABLES (per timeframe)
+  // ===========================================================================
+  /**
+   * 1-minute candles derived from priceTicks.
+   */
+  candles1m: p.createTable({
+    /** Unique ID: marketAddress-bucketStart */
+    id: p.string(),
+    marketAddress: p.hex(),
+    bucketStart: p.bigint(),
+    open: p.bigint(),
+    high: p.bigint(),
+    low: p.bigint(),
+    close: p.bigint(),
+    volume: p.bigint(),
+    trades: p.int(),
+    firstSeq: p.bigint(),
+    lastSeq: p.bigint(),
+  }),
+
+  /**
+   * 5-minute candles derived from priceTicks.
+   */
+  candles5m: p.createTable({
+    /** Unique ID: marketAddress-bucketStart */
+    id: p.string(),
+    marketAddress: p.hex(),
+    bucketStart: p.bigint(),
+    open: p.bigint(),
+    high: p.bigint(),
+    low: p.bigint(),
+    close: p.bigint(),
+    volume: p.bigint(),
+    trades: p.int(),
+    firstSeq: p.bigint(),
+    lastSeq: p.bigint(),
+  }),
+
+  /**
+   * 1-hour candles derived from priceTicks.
+   */
+  candles1h: p.createTable({
+    /** Unique ID: marketAddress-bucketStart */
+    id: p.string(),
+    marketAddress: p.hex(),
+    bucketStart: p.bigint(),
+    open: p.bigint(),
+    high: p.bigint(),
+    low: p.bigint(),
+    close: p.bigint(),
+    volume: p.bigint(),
+    trades: p.int(),
+    firstSeq: p.bigint(),
+    lastSeq: p.bigint(),
+  }),
+
+  // ===========================================================================
   // USERS TABLE
   // ===========================================================================
   /**

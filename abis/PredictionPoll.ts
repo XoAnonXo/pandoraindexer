@@ -81,14 +81,14 @@ export const PredictionPollAbi = [
 	 * @param stake - Amount staked for the dispute (uint256)
 	 */
 	{
-		type: "event",
-		name: "ArbitrationStarted",
-		inputs: [
-			{ name: "requester", type: "address", indexed: true },
-			{ name: "reason", type: "string", indexed: false },
-			{ name: "stake", type: "uint256", indexed: false },
-		],
-	},
+    type: "event",
+    name: "ArbitrationStarted",
+    inputs: [
+      { name: "arbiter", type: "address", indexed: true },
+      { name: "oldFinalizationEpoch", type: "uint32", indexed: false },
+      { name: "newFinalizationEpoch", type: "uint32", indexed: false },
+    ],
+  },
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// VIEW FUNCTIONS (verified from bytecode extraction)

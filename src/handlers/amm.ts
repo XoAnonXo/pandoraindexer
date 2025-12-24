@@ -5,6 +5,7 @@ import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser, getOrCreateMinimalMarket, isNewTraderForMarket, recordMarketInteraction } from "../services/db";
 import { updateReferralVolume } from "../services/referral";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
+import { recordAmmPriceTickAndCandles } from "../services/candles";
 
 /**
  * Helper function to read reserves from contract and update market
@@ -72,6 +73,20 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
       blockNumber: event.block.number,
       timestamp,
     },
+  });
+
+  // Record underlying execution price point + update candles tables
+  await recordAmmPriceTickAndCandles({
+    context,
+    marketAddress,
+    timestamp,
+    blockNumber: BigInt(event.block.number),
+    logIndex: event.log.logIndex,
+    isYesSide: isYes,
+    collateralAmount,
+    tokenAmount,
+    tradeType: "buy",
+    txHash: event.transaction.hash,
   });
 
   const user = await getOrCreateUser(context, trader, chain);
@@ -150,6 +165,20 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
     },
   });
 
+  // Record underlying execution price point + update candles tables
+  await recordAmmPriceTickAndCandles({
+    context,
+    marketAddress,
+    timestamp,
+    blockNumber: BigInt(event.block.number),
+    logIndex: event.log.logIndex,
+    isYesSide: isYes,
+    collateralAmount,
+    tokenAmount,
+    tradeType: "sell",
+    txHash: event.transaction.hash,
+  });
+
   const user = await getOrCreateUser(context, trader, chain);
   const isNewTrader = await isNewTraderForMarket(context, marketAddress, trader, chain);
   
@@ -193,7 +222,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
   await updateAggregateStats(context, chain, timestamp, {
     trades: 1,
     volume: collateralAmount,
-    tvlChange: -collateralAmount,
+    tvlChange: 0n - collateralAmount,
     fees: fee,
     activeUsers: 1,
   });
@@ -335,7 +364,7 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
   // Use centralized stats update
   await updateAggregateStats(context, chain, timestamp, {
     winningsPaid: collateralAmount,
-    tvlChange: -collateralAmount // Money leaves the system
+    tvlChange: 0n - collateralAmount // Money leaves the system
   });
 });
 
@@ -510,7 +539,7 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
   // Use centralized stats update
   // NOTE: Liquidity removes are NOT trades - they're LP actions
   await updateAggregateStats(context, chain, timestamp, {
-    tvlChange: -collateralToReturn,
+    tvlChange: 0n - collateralToReturn,
     activeUsers: 1,
   });
 });

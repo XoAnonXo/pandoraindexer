@@ -30,25 +30,18 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }) => {
 });
 
 ponder.on("PredictionPoll:ArbitrationStarted", async ({ event, context }) => {
-  const { requester, reason, stake } = event.args;
+  const { arbiter, oldFinalizationEpoch, newFinalizationEpoch } = event.args;
   const pollAddress = event.log.address;
   const timestamp = event.block.timestamp;
-  const chain = getChainInfo(context);
 
-  const poll = await context.db.polls.findUnique({ id: pollAddress });
-  if (poll) {
-    await context.db.polls.update({
-      id: pollAddress,
-      data: {
-        arbitrationStarted: true,
-        disputedBy: requester.toLowerCase() as `0x${string}`,
-        disputeReason: reason.slice(0, 4096),
-        disputeStake: stake,
-        disputedAt: timestamp,
-      },
-    });
-  }
-
-  console.log(`[${chain.chainName}] Arbitration started for poll: ${pollAddress} by ${requester}`);
+  await context.db.polls.update({
+    id: pollAddress,
+    data: {
+      arbitrationStarted: true,
+      disputedBy: arbiter.toLowerCase(),
+      disputedAt: timestamp,
+      finalizationEpoch: Number(newFinalizationEpoch),
+    },
+  });
 });
 
