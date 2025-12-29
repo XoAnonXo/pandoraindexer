@@ -49,6 +49,27 @@ export async function recordMarketInteraction(
 }
 
 /**
+ * Convenience helper used by some services: returns whether this is a user's
+ * first interaction with a market, and records the interaction.
+ */
+export async function checkAndRecordMarketInteraction(
+	context: any,
+	marketAddress: `0x${string}`,
+	traderAddress: `0x${string}`,
+	chain: ChainInfo,
+	timestamp: bigint
+): Promise<boolean> {
+	const isNewTrader = await isNewTraderForMarket(
+		context,
+		marketAddress,
+		traderAddress,
+		chain
+	);
+	await recordMarketInteraction(context, marketAddress, traderAddress, chain, timestamp);
+	return isNewTrader;
+}
+
+/**
  * Get existing user record or create a new one with default values.
  */
 export async function getOrCreateUser(

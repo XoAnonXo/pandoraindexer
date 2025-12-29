@@ -22,6 +22,18 @@ export function makeId(chainId: number, ...parts: (string | number | bigint)[]):
 }
 
 /**
+ * Realized PnL definition used across the indexer:
+ * realizedPnL = totalWithdrawn + totalWinnings - totalDeposited
+ */
+export function calculateRealizedPnL(
+  totalWithdrawn: bigint,
+  totalWinnings: bigint,
+  totalDeposited: bigint
+): bigint {
+  return totalWithdrawn + totalWinnings - totalDeposited;
+}
+
+/**
  * Calculate the day boundary timestamp (midnight UTC) for a given timestamp.
  */
 export function getDayTimestamp(timestamp: bigint): bigint {

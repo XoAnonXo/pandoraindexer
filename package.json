@@ -1,36 +1,36 @@
 {
-	"name": "anymarket-indexer",
-	"version": "1.0.0",
-	"description": "Ponder indexer for Anymarket prediction markets on Sonic Chain",
-	"private": true,
-	"type": "module",
-	"scripts": {
-		"dev": "ponder dev",
-		"start": "ponder start",
-		"serve": "ponder serve",
-		"codegen": "ponder codegen",
+  "name": "anymarket-indexer",
+  "version": "1.0.0",
+  "description": "Ponder indexer for Anymarket prediction markets on Sonic Chain",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "serve": "ponder serve",
+    "codegen": "ponder codegen",
 		"test:candles": "tsx scripts/test-candles.ts",
 		"test:poll": "tsx scripts/test-poll-data.ts",
-		"verify": "tsx scripts/verify-all.ts",
-		"verify:polls": "tsx scripts/verify-polls.ts",
-		"verify:markets": "tsx scripts/verify-markets.ts",
-		"verify:volume": "tsx scripts/verify-volume.ts",
-		"verify:stats": "tsx scripts/verify-platform-stats.ts",
-		"verify:pnl": "tsx scripts/verify-pnl.ts"
-	},
-	"dependencies": {
-		"@ponder/core": "^0.6.0",
+    "verify": "tsx scripts/verify-all.ts",
+    "verify:polls": "tsx scripts/verify-polls.ts",
+    "verify:markets": "tsx scripts/verify-markets.ts",
+    "verify:volume": "tsx scripts/verify-volume.ts",
+    "verify:stats": "tsx scripts/verify-platform-stats.ts",
+    "verify:pnl": "tsx scripts/verify-pnl.ts"
+  },
+  "dependencies": {
+    "@ponder/core": "^0.6.0",
 		"@shazow/whatsabi": "^0.25.0",
-		"graphql": "^16.12.0",
-		"graphql-request": "^7.3.5",
-		"hono": "^4.0.0",
-		"viem": "^2.0.0"
-	},
-	"devDependencies": {
-		"tsx": "^4.21.0",
-		"typescript": "^5.0.0"
-	},
-	"engines": {
-		"node": ">=18.0.0"
-	}
+    "graphql": "^16.12.0",
+    "graphql-request": "^7.3.5",
+    "hono": "^4.0.0",
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

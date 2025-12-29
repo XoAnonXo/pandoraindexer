@@ -177,9 +177,13 @@ export async function handleBuyTrade(params: BuyTradeParams) {
  * Handle sell trades (AMM only).
  * 
  * NOTE ON FEE HANDLING:
- * The `collateralAmount` from SellTokens event is the GROSS amount before fees.
- * The `fee` parameter is the fee deducted.
- * Net proceeds = collateralAmount - fee (what user receives)
+ * In the current AMM contract, SellTokens emits:
+ * - collateralAmount = NET collateral returned to the user (after protocol fee)
+ * - fee = protocol fee amount withheld
+ *
+ * So:
+ * - user proceeds = collateralAmount
+ * - gross before fee = collateralAmount + feeAmount
  */
 export async function handleSellTrade(params: SellTradeParams) {
   const { 
@@ -235,9 +239,9 @@ export async function handleSellTrade(params: SellTradeParams) {
     context, chain, normalizedTrader, timestamp
   );
 
-  // Calculate PnL - user receives collateralAmount - feeAmount
-  const netProceeds = collateralAmount - feeAmount;
-  const newTotalWithdrawn = (user.totalWithdrawn ?? 0n) + netProceeds;
+  // User receives collateralAmount (already net-of-fee)
+  const netProceeds = collateralAmount;
+  const newTotalWithdrawn = (user.totalWithdrawn ?? 0n) + collateralAmount;
   const newRealizedPnL = calculateRealizedPnL(
     newTotalWithdrawn,
     user.totalWinnings ?? 0n,

@@ -14,13 +14,15 @@ import { recordAmmPriceTickAndCandles } from "../services/candles";
 async function updateMarketReserves(
   context: any,
   marketAddress: `0x${string}`,
-  chainName: string
-): Promise<void> {
+  chainName: string,
+  blockNumber?: bigint
+): Promise<bigint | null> {
   try {
     const reserves = await context.client.readContract({
       address: marketAddress,
       abi: PredictionAMMAbi,
       functionName: "getReserves",
+      ...(blockNumber !== undefined ? { blockNumber } : {}),
     });
 
     const reserveYes = BigInt(reserves[0]);
@@ -38,12 +40,15 @@ async function updateMarketReserves(
         yesChance,
       },
     });
+
+    return yesChance;
   } catch (err) {
     console.warn(`[${chainName}] Failed to read reserves for ${marketAddress}:`, err);
+    return null;
   }
 }
 
-ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
+ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
   const { trader, isYes, tokenAmount, collateralAmount, fee } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -75,7 +80,14 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
     },
   });
 
-  // Record underlying execution price point + update candles tables
+  // Read reserves (spot price) pinned to this block, update market, and record spot-price tick/candles.
+  const spotYesChance = await updateMarketReserves(
+    context,
+    marketAddress,
+    chain.chainName,
+    BigInt(event.block.number)
+  );
+
   await recordAmmPriceTickAndCandles({
     context,
     marketAddress,
@@ -87,6 +99,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
     tokenAmount,
     tradeType: "buy",
     txHash: event.transaction.hash,
+    yesPriceOverride: spotYesChance ?? undefined,
   });
 
   const user = await getOrCreateUser(context, trader, chain);
@@ -116,8 +129,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
     },
   });
 
-  // Update reserves from contract
-  await updateMarketReserves(context, marketAddress, chain.chainName);
+  // Market reserves already updated above (spotYesChance).
 
   // Use centralized stats update
   await updateAggregateStats(context, chain, timestamp, {
@@ -133,7 +145,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }) => {
   await updateReferralVolume(context, trader, collateralAmount, fee, timestamp, chain);
 });
 
-ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
+ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
   const { trader, isYes, tokenAmount, collateralAmount, fee } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -165,7 +177,14 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
     },
   });
 
-  // Record underlying execution price point + update candles tables
+  // Read reserves (spot price) pinned to this block, update market, and record spot-price tick/candles.
+  const spotYesChance = await updateMarketReserves(
+    context,
+    marketAddress,
+    chain.chainName,
+    BigInt(event.block.number)
+  );
+
   await recordAmmPriceTickAndCandles({
     context,
     marketAddress,
@@ -177,6 +196,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
     tokenAmount,
     tradeType: "sell",
     txHash: event.transaction.hash,
+    yesPriceOverride: spotYesChance ?? undefined,
   });
 
   const user = await getOrCreateUser(context, trader, chain);
@@ -184,9 +204,9 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
   
   await recordMarketInteraction(context, marketAddress, trader, chain, timestamp);
   
-  // NOTE: Assuming collateralAmount is NET of fees based on logic in original code
-  const netProceeds = collateralAmount > fee ? collateralAmount - fee : 0n;
-  const newTotalWithdrawn = (user.totalWithdrawn ?? 0n) + netProceeds;
+  // NOTE: SellTokens collateralAmount is already net-of-protocol-fee (what the user receives).
+  const netProceeds = collateralAmount;
+  const newTotalWithdrawn = (user.totalWithdrawn ?? 0n) + collateralAmount;
   const newRealizedPnL = newTotalWithdrawn + (user.totalWinnings ?? 0n) - (user.totalDeposited ?? 0n);
   
   await context.db.users.update({
@@ -214,8 +234,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
     },
   });
 
-  // Update reserves from contract
-  await updateMarketReserves(context, marketAddress, chain.chainName);
+  // Market reserves already updated above (spotYesChance).
 
   // Use centralized stats update
   // TVL decreases by collateralAmount (money flowing out)
@@ -231,7 +250,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }) => {
   await updateReferralVolume(context, trader, collateralAmount, fee, timestamp, chain);
 });
 
-ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
+ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
   const { trader, yesToNo, amountIn, amountOut, fee } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -287,8 +306,31 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
       },
     });
 
-    // Update reserves from contract
-    await updateMarketReserves(context, marketAddress, chain.chainName);
+    // Update reserves and record a 0-volume spot-price tick so candles match yesChance.
+    const spotYesChance = await updateMarketReserves(
+      context,
+      marketAddress,
+      chain.chainName,
+      BigInt(event.block.number)
+    );
+
+    if (spotYesChance !== null) {
+      await recordAmmPriceTickAndCandles({
+        context,
+        marketAddress,
+        timestamp,
+        blockNumber: BigInt(event.block.number),
+        logIndex: event.log.logIndex,
+        isYesSide: true,
+        collateralAmount: 0n,
+        tokenAmount: 1n,
+        tradeType: "swap",
+        txHash: event.transaction.hash,
+        yesPriceOverride: spotYesChance,
+        volumeOverride: 0n,
+        sideOverride: "swap",
+      });
+    }
   }
 
   // Use centralized stats update
@@ -299,7 +341,7 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }) => {
   });
 });
 
-ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
+ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
   const { user, yesAmount, noAmount, collateralAmount } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -368,7 +410,7 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }) => {
   });
 });
 
-ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
+ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
   const { provider, collateralAmount, lpTokens, amounts } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -471,7 +513,7 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }) => {
   });
 });
 
-ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
+ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
   const { provider, lpTokens, yesAmount, noAmount, collateralToReturn } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -546,7 +588,7 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }) => {
 
 // Sync event is a fallback - only fires when sync() is called manually
 // Reserve updates are now done via contract reads in trade handlers
-ponder.on("PredictionAMM:Sync", async ({ event, context }) => {
+ponder.on("PredictionAMM:Sync", async ({ event, context }: any) => {
 	const { rYes, rNo } = event.args;
 	const marketAddress = event.log.address;
 

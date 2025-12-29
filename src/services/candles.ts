@@ -148,8 +148,23 @@ export async function recordAmmPriceTickAndCandles(params: {
   isYesSide: boolean;
   collateralAmount: bigint;
   tokenAmount: bigint;
-  tradeType: "buy" | "sell";
+  tradeType: "buy" | "sell" | "swap";
   txHash: `0x${string}`;
+  /**
+   * Optional override to record a spot price (e.g. markets.yesChance) instead
+   * of an execution price derived from collateralAmount/tokenAmount.
+   * Must be scaled 1e9, same as yesChance.
+   */
+  yesPriceOverride?: bigint;
+  /**
+   * Optional override for the candle volume increment (defaults to collateralAmount).
+   * Useful for swaps (0) or synthetic ticks.
+   */
+  volumeOverride?: bigint;
+  /**
+   * Optional side override (defaults to "yes"/"no" based on isYesSide).
+   */
+  sideOverride?: "yes" | "no" | "swap";
 }): Promise<void> {
   const {
     context,
@@ -162,15 +177,22 @@ export async function recordAmmPriceTickAndCandles(params: {
     tokenAmount,
     tradeType,
     txHash,
+    yesPriceOverride,
+    volumeOverride,
+    sideOverride,
   } = params;
 
   const seq = tradeSeq(blockNumber, logIndex);
-  const yesPrice = computeYesExecutionPriceScaled({
-    isYesSide,
-    collateralAmount,
-    tokenAmount,
-  });
+  const yesPrice =
+    yesPriceOverride ??
+    computeYesExecutionPriceScaled({
+      isYesSide,
+      collateralAmount,
+      tokenAmount,
+    });
 
+  const volume = volumeOverride ?? collateralAmount;
+  const side = sideOverride ?? (isYesSide ? "yes" : "no");
 
   await context.db.priceTicks.create({
     id: makeTickId(marketAddress, txHash, logIndex),
@@ -179,8 +201,8 @@ export async function recordAmmPriceTickAndCandles(params: {
       timestamp,
       seq,
       yesPrice,
-      volume: collateralAmount,
-      side: isYesSide ? "yes" : "no",
+      volume,
+      side,
       tradeType,
       txHash,
       blockNumber,
@@ -195,7 +217,7 @@ export async function recordAmmPriceTickAndCandles(params: {
       timestamp,
       seq,
       priceScaled: yesPrice,
-      volume: collateralAmount,
+      volume,
     });
   }
 }
