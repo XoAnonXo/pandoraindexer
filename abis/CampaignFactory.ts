@@ -35,6 +35,15 @@ export const CampaignFactoryAbi = [
       { name: "status", type: "uint8", indexed: false, internalType: "uint8" },
     ],
   },
+  {
+    type: "event",
+    anonymous: false,
+    name: "CampaignUpdaterChanged",
+    inputs: [
+      { name: "campaignId", type: "uint256", indexed: true, internalType: "uint256" },
+      { name: "updater", type: "address", indexed: true, internalType: "address" },
+    ],
+  },
   // View functions
   {
     type: "function",

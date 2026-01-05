@@ -126,5 +126,40 @@ export const MarketFactoryAbi = [
     name: "CollateralWhitelisted",
     type: "event",
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ADDITIONAL ADMIN EVENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: false, name: "oldRate", type: "uint256" },
+      { indexed: false, name: "newRate", type: "uint256" },
+    ],
+    name: "ProtocolFeeRateUpdated",
+    type: "event",
+  },
+
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "contractType", type: "string" },
+      { indexed: false, name: "oldImplementation", type: "address" },
+      { indexed: false, name: "newImplementation", type: "address" },
+    ],
+    name: "ImplementationUpdated",
+    type: "event",
+  },
+
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: false, name: "oldBuffer", type: "uint32" },
+      { indexed: false, name: "newBuffer", type: "uint32" },
+    ],
+    name: "MarketCloseBufferUpdated",
+    type: "event",
+  },
 ] as const;
 

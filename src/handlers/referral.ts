@@ -11,19 +11,9 @@ import { getChainInfo, makeId } from "../utils/helpers";
 import { getOrCreateUser } from "../services/db";
 
 /**
- * Decode a bytes32 code hash to a human-readable string.
- * The code is packed as UTF-8 bytes, null-terminated.
+ * NOTE: `codeHash` is a bytes32 value emitted by the contract.
+ * It is not guaranteed to be a UTF-8 packed string, so we treat it as an identifier (hex).
  */
-function decodeCodeBytes32(codeHash: `0x${string}`): string {
-  const hex = codeHash.slice(2); // Remove 0x prefix
-  let str = '';
-  for (let i = 0; i < hex.length; i += 2) {
-    const charCode = parseInt(hex.slice(i, i + 2), 16);
-    if (charCode === 0) break; // Stop at null terminator
-    str += String.fromCharCode(charCode);
-  }
-  return str;
-}
 
 // =============================================================================
 // CODE REGISTERED EVENT
@@ -32,23 +22,23 @@ function decodeCodeBytes32(codeHash: `0x${string}`): string {
  * Handles when a user registers a new referral code.
  * Creates a referralCodes record and updates user's referralCodeHash.
  */
-ponder.on("ReferralRegistry:CodeRegistered", async ({ event, context }) => {
+ponder.on("ReferralRegistry:CodeRegistered", async ({ event, context }: any) => {
   const { owner, codeHash } = event.args;
   const timestamp = event.block.timestamp;
   const blockNumber = event.block.number;
   const chain = getChainInfo(context);
-  
-  const code = decodeCodeBytes32(codeHash);
+
+  const code = codeHash as `0x${string}`;
   const normalizedUser = owner.toLowerCase() as `0x${string}`;
   
-  console.log(`[${chain.chainName}] Referral code registered: ${code} by ${normalizedUser}`);
+  console.log(`[${chain.chainName}] Referral code registered: ${codeHash} by ${normalizedUser}`);
   
   // Create referral code record
   await context.db.referralCodes.create({
     id: codeHash,
     data: {
       ownerAddress: normalizedUser,
-      code: code,
+      code,
       totalReferrals: 0,
       totalVolumeGenerated: 0n,
       totalFeesGenerated: 0n,
@@ -77,7 +67,7 @@ ponder.on("ReferralRegistry:CodeRegistered", async ({ event, context }) => {
       totalRewardsDistributed: 0n,
       updatedAt: timestamp,
     },
-    update: ({ current }) => ({
+    update: ({ current }: any) => ({
       totalCodes: current.totalCodes + 1,
       updatedAt: timestamp,
     }),
@@ -91,7 +81,7 @@ ponder.on("ReferralRegistry:CodeRegistered", async ({ event, context }) => {
  * Handles when a new user registers under a referrer.
  * Creates a referrals record and updates both user and referrer stats.
  */
-ponder.on("ReferralRegistry:ReferralRegistered", async ({ event, context }) => {
+ponder.on("ReferralRegistry:ReferralRegistered", async ({ event, context }: any) => {
   const { referee, referrer, codeHash } = event.args;
   const timestamp = event.block.timestamp;
   const blockNumber = event.block.number;
@@ -161,7 +151,7 @@ ponder.on("ReferralRegistry:ReferralRegistered", async ({ event, context }) => {
       totalRewardsDistributed: 0n,
       updatedAt: timestamp,
     },
-    update: ({ current }) => ({
+    update: ({ current }: any) => ({
       totalReferrals: current.totalReferrals + 1,
       updatedAt: timestamp,
     }),

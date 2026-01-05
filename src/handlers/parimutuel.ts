@@ -1,6 +1,5 @@
 import { ponder } from "@/generated";
 import { getChainInfo, makeId, calculatePariMutuelYesChance } from "../utils/helpers";
-import { MIN_TRADE_AMOUNT } from "../utils/constants";
 import { updateAggregateStats } from "../services/stats";
 import {
 	getOrCreateUser,
@@ -9,10 +8,12 @@ import {
 	recordMarketInteraction,
 } from "../services/db";
 import { updateReferralVolume } from "../services/referral";
+import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
+import { recordPriceTickAndCandles } from "../services/candles";
 
 ponder.on(
 	"PredictionPariMutuel:SeedInitialLiquidity",
-	async ({ event, context }) => {
+	async ({ event, context }: any) => {
 		const { yesAmount, noAmount } = event.args;
 		const timestamp = event.block.timestamp;
 		const marketAddress = event.log.address;
@@ -29,8 +30,7 @@ ponder.on(
 			event.block.number,
 			event.transaction.hash
 		);
-		const pollAddress =
-			market.pollAddress ?? (("0x" + "0".repeat(40)) as `0x${string}`);
+		const pollAddress = market.pollAddress;
 
 		const tradeId = makeId(
 			chain.chainId,
@@ -67,26 +67,15 @@ ponder.on(
 			},
 		});
 
-		// Calculate yesChance using time-weighted curve
-		// Note: At seed time, we may not have timestamps yet if PariMutuelCreated fires after
-		// In that case, use simple collateral ratio as fallback
-		let yesChance: bigint;
-		if (market.marketStartTimestamp && market.marketCloseTimestamp && market.curveFlattener) {
-			yesChance = calculatePariMutuelYesChance({
-				curveFlattener: market.curveFlattener,
-				curveOffset: market.curveOffset ?? 0,
-				totalCollateralYes: yesAmount,
-				totalCollateralNo: noAmount,
-				currentTimestamp: timestamp,
-				marketStartTimestamp: market.marketStartTimestamp,
-				marketCloseTimestamp: market.marketCloseTimestamp,
-			});
-		} else {
-			// Fallback: simple collateral ratio
-			yesChance = totalLiquidity > 0n
-				? (noAmount * 1_000_000_000n) / totalLiquidity
-				: 500_000_000n;
-		}
+		const yesChance = calculatePariMutuelYesChance({
+			curveFlattener: market.curveFlattener,
+			curveOffset: market.curveOffset ?? 0,
+			totalCollateralYes: yesAmount,
+			totalCollateralNo: noAmount,
+			currentTimestamp: timestamp,
+			marketStartTimestamp: market.marketStartTimestamp!,
+			marketCloseTimestamp: market.marketCloseTimestamp!,
+		});
 
 		await context.db.markets.update({
 			id: marketAddress,
@@ -94,14 +83,27 @@ ponder.on(
 				currentTvl: market.currentTvl + totalLiquidity,
 				totalVolume: market.totalVolume + totalLiquidity,
 				initialLiquidity: totalLiquidity,
-				// Track PariMutuel pool state
+
 				totalCollateralYes: yesAmount,
 				totalCollateralNo: noAmount,
-				// Initialize shares tracking (same as collateral for seed)
 				totalSharesYes: yesAmount,
 				totalSharesNo: noAmount,
 				yesChance: yesChance,
 			},
+		});
+
+		// Record price tick + candles for PariMutuel using computed yesChance (scaled 1e9).
+		await recordPriceTickAndCandles({
+			context,
+			marketAddress,
+			timestamp,
+			blockNumber: BigInt(event.block.number),
+			logIndex: event.log.logIndex,
+			yesPrice: yesChance,
+			volume: totalLiquidity,
+			side: "both",
+			tradeType: "seed",
+			txHash: event.transaction.hash,
 		});
 
 		// Use centralized stats update
@@ -117,6 +119,7 @@ ponder.on(
 			totalLiquidity,
 			0n,
 			timestamp,
+			event.block.number,
 			chain
 		);
 
@@ -128,13 +131,11 @@ ponder.on(
 
 ponder.on(
 	"PredictionPariMutuel:PositionPurchased",
-	async ({ event, context }) => {
+	async ({ event, context }: any) => {
 		const { buyer, isYes, collateralIn, sharesOut } = event.args;
 		const timestamp = event.block.timestamp;
 		const marketAddress = event.log.address;
 		const chain = getChainInfo(context);
-
-		if (collateralIn < MIN_TRADE_AMOUNT) return;
 
 		const tradeId = makeId(
 			chain.chainId,
@@ -151,8 +152,7 @@ ponder.on(
 			event.block.number,
 			event.transaction.hash
 		);
-		const pollAddress =
-			market.pollAddress ?? (("0x" + "0".repeat(40)) as `0x${string}`);
+		const pollAddress = market.pollAddress;
 
 		await context.db.trades.create({
 			id: tradeId,
@@ -223,24 +223,15 @@ ponder.on(
 			: currentNoShares + sharesOut;
 
 		// Recalculate yesChance using time-weighted curve
-		let newYesChance: bigint;
-		if (market.marketStartTimestamp && market.marketCloseTimestamp && market.curveFlattener) {
-			newYesChance = calculatePariMutuelYesChance({
-				curveFlattener: market.curveFlattener,
-				curveOffset: market.curveOffset ?? 0,
-				totalCollateralYes: newYesCollateral,
-				totalCollateralNo: newNoCollateral,
-				currentTimestamp: timestamp,
-				marketStartTimestamp: market.marketStartTimestamp,
-				marketCloseTimestamp: market.marketCloseTimestamp,
-			});
-		} else {
-			// Fallback: simple collateral ratio
-			const totalPool = newYesCollateral + newNoCollateral;
-			newYesChance = totalPool > 0n
-				? (newNoCollateral * 1_000_000_000n) / totalPool
-				: 500_000_000n;
-		}
+		const newYesChance = calculatePariMutuelYesChance({
+			curveFlattener: market.curveFlattener!,
+			curveOffset: market.curveOffset ?? 0,
+			totalCollateralYes: newYesCollateral,
+			totalCollateralNo: newNoCollateral,
+			currentTimestamp: timestamp,
+			marketStartTimestamp: market.marketStartTimestamp!,
+			marketCloseTimestamp: market.marketCloseTimestamp!,
+		});
 
 		await context.db.markets.update({
 			id: marketAddress,
@@ -261,6 +252,20 @@ ponder.on(
 			},
 		});
 
+		// Record price tick + candles for PariMutuel using computed yesChance (scaled 1e9).
+		await recordPriceTickAndCandles({
+			context,
+			marketAddress,
+			timestamp,
+			blockNumber: BigInt(event.block.number),
+			logIndex: event.log.logIndex,
+			yesPrice: newYesChance,
+			volume: collateralIn,
+			side: isYes ? "yes" : "no",
+			tradeType: "bet",
+			txHash: event.transaction.hash,
+		});
+
 		// Use centralized stats update
 		await updateAggregateStats(context, chain, timestamp, {
 			trades: 1,
@@ -277,6 +282,7 @@ ponder.on(
 			collateralIn,
 			0n,
 			timestamp,
+			event.block.number,
 			chain
 		);
 	}
@@ -284,7 +290,7 @@ ponder.on(
 
 ponder.on(
 	"PredictionPariMutuel:WinningsRedeemed",
-	async ({ event, context }) => {
+	async ({ event, context }: any) => {
 		const { user, collateralAmount, outcome, fee } = event.args;
 		const timestamp = event.block.timestamp;
 		const marketAddress = event.log.address;
@@ -367,8 +373,64 @@ ponder.on(
 		// Use centralized stats update
 		await updateAggregateStats(context, chain, timestamp, {
 			winningsPaid: collateralAmount,
-			tvlChange: -collateralAmount,
+			tvlChange: 0n - collateralAmount,
 			fees: fee,
 		});
 	}
+);
+
+ponder.on(
+  "PredictionPariMutuel:ProtocolFeesWithdrawn",
+  async ({ event, context }: any) => {
+    try {
+      const timestamp = event.block.timestamp;
+      const marketAddress = event.log.address;
+      const chain = getChainInfo(context);
+
+      // 1) Read on-chain state first (no DB writes before this succeeds)
+      const marketState = await context.client.readContract({
+        address: marketAddress,
+        abi: PredictionPariMutuelAbi,
+        functionName: "marketState",
+        blockNumber: event.block.number,
+      });
+
+      // marketState returns: (isLive, collateralTvl, yesChance, collateral)
+      const tvlNow = BigInt(marketState[1]);
+
+      // 2) Load (or create) market after successful reads
+      const market =
+        (await context.db.markets.findUnique({ id: marketAddress })) ??
+        (await getOrCreateMinimalMarket(
+          context,
+          marketAddress,
+          chain,
+          "pari",
+          timestamp,
+          event.block.number,
+          event.transaction.hash
+        ));
+
+      const oldTvl = market.currentTvl ?? 0n;
+      const delta = tvlNow - oldTvl;
+
+      // 3) Apply DB writes last
+      await context.db.markets.update({
+        id: marketAddress,
+        data: {
+          currentTvl: tvlNow,
+        },
+      });
+
+      if (delta !== 0n) {
+        await updateAggregateStats(context, chain, timestamp, { tvlChange: delta });
+      }
+    } catch (err) {
+      console.error(
+        `[PredictionPariMutuel:ProtocolFeesWithdrawn] Failed tx=${event.transaction.hash} logIndex=${event.log.logIndex}:`,
+        err
+      );
+      return;
+    }
+  }
 );

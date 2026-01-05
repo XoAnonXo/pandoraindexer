@@ -55,6 +55,9 @@ function clampPriceScaled(priceScaled: bigint): bigint {
   return priceScaled;
 }
 
+export type TickSide = "yes" | "no" | "swap" | "both";
+export type TickTradeType = "buy" | "sell" | "swap" | "seed" | "bet";
+
 function makeTickId(
   marketAddress: `0x${string}`,
   txHash: `0x${string}`,
@@ -139,6 +142,63 @@ async function upsertCandleBucket(params: {
   });
 }
 
+export async function recordPriceTickAndCandles(params: {
+  context: PonderContext;
+  marketAddress: `0x${string}`;
+  timestamp: bigint;
+  blockNumber: bigint;
+  logIndex: number;
+  yesPrice: bigint;
+  volume: bigint;
+  side: TickSide;
+  tradeType: TickTradeType;
+  txHash: `0x${string}`;
+}): Promise<void> {
+  const {
+    context,
+    marketAddress,
+    timestamp,
+    blockNumber,
+    logIndex,
+    tradeType,
+    txHash,
+    yesPrice,
+    volume,
+    side,
+  } = params;
+
+  const seq = tradeSeq(blockNumber, logIndex);
+
+  await context.db.priceTicks.create({
+    id: makeTickId(marketAddress, txHash, logIndex),
+    data: {
+      marketAddress,
+      timestamp,
+      seq,
+      yesPrice,
+      volume,
+      side,
+      tradeType,
+      txHash,
+      blockNumber,
+    },
+  });
+
+
+  await Promise.all(CANDLE_INTERVALS.map((interval) => {
+     upsertCandleBucket({
+      context,
+      marketAddress,
+      interval,
+      timestamp,
+      seq,
+      priceScaled: yesPrice,
+      volume,
+    });
+  }));
+
+}
+
 export async function recordAmmPriceTickAndCandles(params: {
   context: PonderContext;
   marketAddress: `0x${string}`;
@@ -182,7 +242,6 @@ export async function recordAmmPriceTickAndCandles(params: {
     sideOverride,
   } = params;
 
-  const seq = tradeSeq(blockNumber, logIndex);
   const yesPrice =
     yesPriceOverride ??
     computeYesExecutionPriceScaled({
@@ -192,34 +251,20 @@ export async function recordAmmPriceTickAndCandles(params: {
     });
 
   const volume = volumeOverride ?? collateralAmount;
-  const side = sideOverride ?? (isYesSide ? "yes" : "no");
+  const side: TickSide = (sideOverride ?? (isYesSide ? "yes" : "no")) as TickSide;
 
-  await context.db.priceTicks.create({
-    id: makeTickId(marketAddress, txHash, logIndex),
-    data: {
-      marketAddress,
-      timestamp,
-      seq,
-      yesPrice,
-      volume,
-      side,
-      tradeType,
-      txHash,
-      blockNumber,
-    },
+  await recordPriceTickAndCandles({
+    context,
+    marketAddress,
+    timestamp,
+    blockNumber,
+    logIndex,
+    yesPrice,
+    volume,
+    side,
+    tradeType,
+    txHash,
   });
-
-  for (const interval of CANDLE_INTERVALS) {
-    await upsertCandleBucket({
-      context,
-      marketAddress,
-      interval,
-      timestamp,
-      seq,
-      priceScaled: yesPrice,
-      volume,
-    });
-  }
 }
 
 

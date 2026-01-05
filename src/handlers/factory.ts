@@ -4,7 +4,8 @@ import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser } from "../services/db";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 
-ponder.on("MarketFactory:MarketCreated", async ({ event, context }) => {
+ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
+	try {
 	const {
 		pollAddress,
 		marketAddress,
@@ -18,47 +19,16 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }) => {
 	const timestamp = event.block.timestamp;
 	const chain = getChainInfo(context);
 
-	const existingMarket = await context.db.markets.findUnique({
-		id: marketAddress,
-	});
+		// No on-chain reads here; prepare values first, then DB writes.
+		const normalizedCreator = creator.toLowerCase() as `0x${string}`;
 
-	if (existingMarket) {
-		await context.db.markets.update({
+		await context.db.markets.upsert({
 			id: marketAddress,
-			data: {
+			create: {
 				chainId: chain.chainId,
 				chainName: chain.chainName,
 				pollAddress,
-				creator: creator.toLowerCase() as `0x${string}`,
-				marketType: "amm",
-				// Valid record now
-				isIncomplete: false,
-				collateralToken: collateral,
-				yesToken,
-				noToken,
-				feeTier: Number(feeTier),
-				maxPriceImbalancePerHour: Number(maxPriceImbalancePerHour),
-				totalVolume: existingMarket.totalVolume,
-				totalTrades: existingMarket.totalTrades,
-				currentTvl: existingMarket.currentTvl,
-				uniqueTraders: existingMarket.uniqueTraders,
-				initialLiquidity: existingMarket.initialLiquidity ?? 0n,
-				reserveYes: existingMarket.reserveYes ?? 0n,
-				reserveNo: existingMarket.reserveNo ?? 0n,
-				yesChance: existingMarket.yesChance ?? 500_000_000n, // Default 50%
-				createdAtBlock: event.block.number,
-				createdAt: timestamp,
-				createdTxHash: event.transaction.hash,
-			},
-		});
-	} else {
-		await context.db.markets.create({
-			id: marketAddress,
-			data: {
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				pollAddress,
-				creator: creator.toLowerCase() as `0x${string}`,
+				creator: normalizedCreator,
 				marketType: "amm",
 				isIncomplete: false,
 				collateralToken: collateral,
@@ -73,32 +43,63 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }) => {
 				initialLiquidity: 0n,
 				reserveYes: 0n,
 				reserveNo: 0n,
-				yesChance: 500_000_000n, // Default 50% before liquidity
+				yesChance: 500_000_000n,
 				createdAtBlock: event.block.number,
 				createdAt: timestamp,
 				createdTxHash: event.transaction.hash,
 			},
+			update: ({ current }: any) => ({
+				chainId: chain.chainId,
+				chainName: chain.chainName,
+				pollAddress,
+				creator: normalizedCreator,
+				marketType: "amm",
+				isIncomplete: false,
+				collateralToken: collateral,
+				yesToken,
+				noToken,
+				feeTier: Number(feeTier),
+				maxPriceImbalancePerHour: Number(maxPriceImbalancePerHour),
+				// Preserve accumulated stats/state.
+				totalVolume: current.totalVolume,
+				totalTrades: current.totalTrades,
+				currentTvl: current.currentTvl,
+				uniqueTraders: current.uniqueTraders,
+				initialLiquidity: current.initialLiquidity ?? 0n,
+				reserveYes: current.reserveYes ?? 0n,
+				reserveNo: current.reserveNo ?? 0n,
+				yesChance: current.yesChance ?? 500_000_000n,
+				createdAtBlock: event.block.number,
+				createdAt: timestamp,
+				createdTxHash: event.transaction.hash,
+			}),
 		});
-	}
 
 	const user = await getOrCreateUser(context, creator, chain);
 	await context.db.users.update({
-		id: makeId(chain.chainId, creator.toLowerCase()),
+			id: makeId(chain.chainId, normalizedCreator),
 		data: {
 			marketsCreated: user.marketsCreated + 1,
 		},
 	});
 
-	// Use centralized stats update
 	await updateAggregateStats(context, chain, timestamp, {
 		markets: 1,
 		ammMarkets: 1,
 	});
 
 	console.log(`[${chain.chainName}] AMM market created: ${marketAddress}`);
+	} catch (err) {
+		console.error(
+			`[MarketFactory:MarketCreated] Failed tx=${event.transaction.hash} logIndex=${event.log.logIndex}:`,
+			err
+		);
+		return;
+	}
 });
 
-ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
+ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }: any) => {
+	try {
 	const {
 		pollAddress,
 		marketAddress,
@@ -109,97 +110,33 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
 	} = event.args;
 	const timestamp = event.block.timestamp;
 	const chain = getChainInfo(context);
-
-	// Read timestamps from the contract for proper yesChance calculation
-	let marketStartTimestamp = timestamp;
-	let marketCloseTimestamp = timestamp + 86400n * 7n; // Default 7 days if read fails
-
-	try {
+		const normalizedCreator = creator.toLowerCase() as `0x${string}`;
+  
+		// Reads first (no DB writes before these succeed).
 		const [startTs, closeTs] = await Promise.all([
 			context.client.readContract({
 				address: marketAddress,
 				abi: PredictionPariMutuelAbi,
 				functionName: "marketStartTimestamp",
+				blockNumber: event.block.number,
 			}),
 			context.client.readContract({
 				address: marketAddress,
 				abi: PredictionPariMutuelAbi,
 				functionName: "marketCloseTimestamp",
+				blockNumber: event.block.number,
 			}),
 		]);
-		marketStartTimestamp = BigInt(startTs);
-		marketCloseTimestamp = BigInt(closeTs);
-	} catch (err) {
-		console.warn(
-			`[${chain.chainName}] Failed to read timestamps for PariMutuel ${marketAddress}, using defaults`
-		);
-	}
+		const marketStartTimestamp = BigInt(startTs);
+		const marketCloseTimestamp = BigInt(closeTs);
 
-	const existingMarket = await context.db.markets.findUnique({
-		id: marketAddress,
-	});
-
-	if (existingMarket) {
-		// Recalculate yesChance with proper curve parameters
-		// This fixes the case where SeedInitialLiquidity fired before PariMutuelCreated
-		// and used fallback calculation without curve parameters
-		const totalYes = existingMarket.totalCollateralYes ?? 0n;
-		const totalNo = existingMarket.totalCollateralNo ?? 0n;
-		
-		let correctedYesChance: bigint = 500_000_000n;
-		if (totalYes + totalNo > 0n) {
-			correctedYesChance = calculatePariMutuelYesChance({
-				curveFlattener: Number(curveFlattener),
-				curveOffset: Number(curveOffset),
-				totalCollateralYes: totalYes,
-				totalCollateralNo: totalNo,
-				currentTimestamp: timestamp,
-				marketStartTimestamp,
-				marketCloseTimestamp,
-			});
-			console.log(
-				`[${chain.chainName}] Recalculated yesChance for ${marketAddress}: ${existingMarket.yesChance} -> ${correctedYesChance}`
-			);
-		}
-
-		await context.db.markets.update({
-			id: marketAddress,
-			data: {
+		await context.db.markets.upsert({
+      id: marketAddress,
+			create: {
 				chainId: chain.chainId,
 				chainName: chain.chainName,
 				pollAddress,
-				creator: creator.toLowerCase() as `0x${string}`,
-				marketType: "pari",
-				// Valid record now
-				isIncomplete: false,
-				collateralToken: collateral,
-				curveFlattener: Number(curveFlattener),
-				curveOffset: Number(curveOffset),
-				marketStartTimestamp,
-				marketCloseTimestamp,
-				totalVolume: existingMarket.totalVolume,
-				totalTrades: existingMarket.totalTrades,
-				currentTvl: existingMarket.currentTvl,
-				uniqueTraders: existingMarket.uniqueTraders,
-				initialLiquidity: existingMarket.initialLiquidity ?? 0n,
-				// Preserve existing PariMutuel pool state if already set
-				totalCollateralYes: totalYes,
-				totalCollateralNo: totalNo,
-				// Use recalculated yesChance with proper curve parameters
-				yesChance: correctedYesChance,
-				createdAtBlock: event.block.number,
-				createdAt: timestamp,
-				createdTxHash: event.transaction.hash,
-			},
-		});
-	} else {
-		await context.db.markets.create({
-			id: marketAddress,
-			data: {
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				pollAddress,
-				creator: creator.toLowerCase() as `0x${string}`,
+				creator: normalizedCreator,
 				marketType: "pari",
 				isIncomplete: false,
 				collateralToken: collateral,
@@ -212,32 +149,77 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }) => {
 				currentTvl: 0n,
 				uniqueTraders: 0,
 				initialLiquidity: 0n,
-				// Initialize PariMutuel pool state
 				totalCollateralYes: 0n,
 				totalCollateralNo: 0n,
-				yesChance: 500_000_000n, // Default 50% before seeding
+				yesChance: 500_000_000n,
 				createdAtBlock: event.block.number,
 				createdAt: timestamp,
 				createdTxHash: event.transaction.hash,
 			},
-		});
+			update: ({ current }: any) => {
+				const totalYes = current.totalCollateralYes ?? 0n;
+				const totalNo = current.totalCollateralNo ?? 0n;
+      
+				let correctedYesChance: bigint = current.yesChance ?? 500_000_000n;
+      if (totalYes + totalNo > 0n) {
+        correctedYesChance = calculatePariMutuelYesChance({
+          curveFlattener: Number(curveFlattener),
+          curveOffset: Number(curveOffset),
+          totalCollateralYes: totalYes,
+          totalCollateralNo: totalNo,
+          currentTimestamp: timestamp,
+          marketStartTimestamp,
+          marketCloseTimestamp,
+        });
+      }
+  
+				return {
+          chainId: chain.chainId,
+          chainName: chain.chainName,
+          pollAddress,
+					creator: normalizedCreator,
+          marketType: "pari",
+          isIncomplete: false,
+          collateralToken: collateral,
+          curveFlattener: Number(curveFlattener),
+          curveOffset: Number(curveOffset),
+          marketStartTimestamp,
+          marketCloseTimestamp,
+					// Preserve accumulated stats/state.
+					totalVolume: current.totalVolume,
+					totalTrades: current.totalTrades,
+					currentTvl: current.currentTvl,
+					uniqueTraders: current.uniqueTraders,
+					initialLiquidity: current.initialLiquidity ?? 0n,
+          totalCollateralYes: totalYes,
+          totalCollateralNo: totalNo,
+          yesChance: correctedYesChance,
+          createdAtBlock: event.block.number,
+          createdAt: timestamp,
+          createdTxHash: event.transaction.hash,
+				};
+        },
+      });
+  
+    const user = await getOrCreateUser(context, creator, chain);
+    await context.db.users.update({
+			id: makeId(chain.chainId, normalizedCreator),
+      data: {
+        marketsCreated: user.marketsCreated + 1,
+      },
+    });
+  
+    await updateAggregateStats(context, chain, timestamp, {
+      markets: 1,
+      pariMarkets: 1,
+    });
+  
+		console.log(`[${chain.chainName}] PariMutuel market created: ${marketAddress}`);
+	} catch (err) {
+		console.error(
+			`[MarketFactory:PariMutuelCreated] Failed tx=${event.transaction.hash} logIndex=${event.log.logIndex}:`,
+			err
+		);
+		return;
 	}
-
-	const user = await getOrCreateUser(context, creator, chain);
-	await context.db.users.update({
-		id: makeId(chain.chainId, creator.toLowerCase()),
-		data: {
-			marketsCreated: user.marketsCreated + 1,
-		},
-	});
-
-	// Use centralized stats update
-	await updateAggregateStats(context, chain, timestamp, {
-		markets: 1,
-		pariMarkets: 1,
-	});
-
-	console.log(
-		`[${chain.chainName}] PariMutuel market created: ${marketAddress}`
-	);
 });

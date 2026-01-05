@@ -139,97 +139,143 @@ export async function getOrCreateMinimalMarket(
 		let market = await context.db.markets.findUnique({ id: marketAddress });
 
 		if (!market) {
-			// Create incomplete market record immediately without on-chain fetches
-			// This avoids blocking the indexer when contracts don't exist at historical blocks
-			// The MarketFactory events will create complete records for valid markets
-			console.log(
-				`[${chain.chainName}] Creating incomplete market record for ${marketAddress} (no factory event found)`
-			);
+			// Contract is assumed valid. Always backfill minimal metadata from onchain state at this block.
+			if (marketType === "amm") {
+				const [pollAddress, creator, collateralToken, yesToken, noToken] =
+					await Promise.all([
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionAMMAbi,
+							functionName: "pollAddress",
+							blockNumber,
+						}),
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionAMMAbi,
+							functionName: "creator",
+							blockNumber,
+						}),
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionAMMAbi,
+							functionName: "collateralToken",
+							blockNumber,
+						}),
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionAMMAbi,
+							functionName: "yesToken",
+							blockNumber,
+						}),
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionAMMAbi,
+							functionName: "noToken",
+							blockNumber,
+						}),
+					]);
 
-			const zeroAddr =
-				"0x0000000000000000000000000000000000000000" as `0x${string}`;
-			const pollAddress = zeroAddr;
-			const creator = zeroAddr;
-			const collateralToken = zeroAddr;
-			const yesToken: `0x${string}` | undefined = undefined;
-			const noToken: `0x${string}` | undefined = undefined;
-			const feeTier: number | undefined = undefined;
-			const maxPriceImbalancePerHour: number | undefined = undefined;
-			const curveFlattener: number | undefined = undefined;
-			const curveOffset: number | undefined = undefined;
-			const fetchFailed = true;
-
-			try {
-				market = await context.db.markets.create({
+				market = await context.db.markets.upsert({
 					id: marketAddress,
-					data: {
+					create: {
 						chainId: chain.chainId,
 						chainName: chain.chainName,
-						// Flag as incomplete if on-chain fetch failed
-						isIncomplete: fetchFailed,
-						pollAddress: pollAddress.toLowerCase() as `0x${string}`,
-						creator: creator.toLowerCase() as `0x${string}`,
+						isIncomplete: false,
+						pollAddress: (pollAddress as string).toLowerCase() as `0x${string}`,
+						creator: (creator as string).toLowerCase() as `0x${string}`,
 						marketType,
-						collateralToken:
-							collateralToken.toLowerCase() as `0x${string}`,
-						yesToken: yesToken
-							? (yesToken as `0x${string}`).toLowerCase()
-							: undefined,
-						noToken: noToken
-							? (noToken as `0x${string}`).toLowerCase()
-							: undefined,
-						feeTier,
-						maxPriceImbalancePerHour,
-						curveFlattener,
-						curveOffset,
-					// Stats start at zero
-					totalVolume: 0n,
-					totalTrades: 0,
-					currentTvl: 0n,
-					uniqueTraders: 0,
-					initialLiquidity: 0n,
-					// Initialize yesChance for all market types (50% default)
-					yesChance: 500_000_000n,
-
-					...(marketType === "pari"
-						? {
-								totalCollateralYes: 0n,
-								totalCollateralNo: 0n,
-						  }
-						: {}),
+						collateralToken: (collateralToken as string).toLowerCase() as `0x${string}`,
+						yesToken: (yesToken as string).toLowerCase() as `0x${string}`,
+						noToken: (noToken as string).toLowerCase() as `0x${string}`,
+						totalVolume: 0n,
+						totalTrades: 0,
+						currentTvl: 0n,
+						uniqueTraders: 0,
+						initialLiquidity: 0n,
+						reserveYes: 0n,
+						reserveNo: 0n,
+						yesChance: 500_000_000n,
 						createdAtBlock: blockNumber,
 						createdAt: timestamp,
-						createdTxHash:
-							txHash ??
-							("0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`),
+						createdTxHash: txHash as `0x${string}`,
 					},
+					update: {},
 				});
-				if (fetchFailed) {
-					console.log(
-						`[${chain.chainName}] Created incomplete market record for ${marketAddress}.`
-					);
-				} else {
-					console.log(
-						`[${chain.chainName}] Successfully backfilled market ${marketAddress} from on-chain data.`
-					);
-				}
-			} catch (e: any) {
-				// Handle race condition: another handler created the market first (e.g. factory event processed in parallel?)
-				if (
-					e.message?.includes("unique constraint") ||
-					e.code === "P2002"
-				) {
-					market = await context.db.markets.findUnique({
-						id: marketAddress,
-					});
-					if (!market) {
-						throw new Error(
-							`Failed to get or create market ${marketAddress}: ${e.message}`
-						);
-					}
-				} else {
-					throw e;
-				}
+			} else {
+				const [pollAddress, creator, collateralToken, curveFlattener, curveOffset, marketStartTimestamp, marketCloseTimestamp] =
+					await Promise.all([
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionPariMutuelAbi,
+							functionName: "pollAddress",
+							blockNumber,
+						}),
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionPariMutuelAbi,
+							functionName: "creator",
+							blockNumber,
+						}),
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionPariMutuelAbi,
+							functionName: "collateralToken",
+							blockNumber,
+						}),
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionPariMutuelAbi,
+							functionName: "curveFlattener",
+							blockNumber,
+						}),
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionPariMutuelAbi,
+							functionName: "curveOffset",
+							blockNumber,
+						}),
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionPariMutuelAbi,
+							functionName: "marketStartTimestamp",
+							blockNumber,
+						}),
+						context.client.readContract({
+							address: marketAddress,
+							abi: PredictionPariMutuelAbi,
+							functionName: "marketCloseTimestamp",
+							blockNumber,
+						}),
+					]);
+
+				market = await context.db.markets.upsert({
+					id: marketAddress,
+					create: {
+						chainId: chain.chainId,
+						chainName: chain.chainName,
+						isIncomplete: false,
+						pollAddress: (pollAddress as string).toLowerCase() as `0x${string}`,
+						creator: (creator as string).toLowerCase() as `0x${string}`,
+						marketType,
+						collateralToken: (collateralToken as string).toLowerCase() as `0x${string}`,
+						curveFlattener: Number(curveFlattener),
+						curveOffset: Number(curveOffset),
+						marketStartTimestamp: BigInt(marketStartTimestamp),
+						marketCloseTimestamp: BigInt(marketCloseTimestamp),
+						totalVolume: 0n,
+						totalTrades: 0,
+						currentTvl: 0n,
+						uniqueTraders: 0,
+						initialLiquidity: 0n,
+						yesChance: 500_000_000n,
+						totalCollateralYes: 0n,
+						totalCollateralNo: 0n,
+						createdAtBlock: blockNumber,
+						createdAt: timestamp,
+						createdTxHash: txHash as `0x${string}`,
+					},
+					update: {},
+				});
 			}
 		}
 

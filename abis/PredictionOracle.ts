@@ -101,5 +101,71 @@ export const PredictionOracleAbi = [
     name: "OperatorRemoved",
     type: "event",
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FEE / CONFIG EVENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  {
+    anonymous: false,
+    inputs: [{ indexed: false, name: "newFee", type: "uint256" }],
+    name: "OperatorGasFeeUpdated",
+    type: "event",
+  },
+
+  {
+    anonymous: false,
+    inputs: [{ indexed: false, name: "newFee", type: "uint256" }],
+    name: "ProtocolFeeUpdated",
+    type: "event",
+  },
+
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "oldImplementation", type: "address" },
+      { indexed: true, name: "newImplementation", type: "address" },
+    ],
+    name: "PollImplementationUpdated",
+    type: "event",
+  },
+
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "to", type: "address" },
+      { indexed: false, name: "amount", type: "uint256" },
+    ],
+    name: "ProtocolFeesWithdrawn",
+    type: "event",
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VIEW FUNCTIONS (used by indexer for state-at-emit reads)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  {
+    inputs: [{ name: "_pollAddress", type: "address" }],
+    name: "getCurrentCheckEpoch",
+    outputs: [{ name: "", type: "uint32" }],
+    stateMutability: "view",
+    type: "function",
+  },
+
+  {
+    inputs: [],
+    name: "operatorGasFee",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+
+  {
+    inputs: [],
+    name: "protocolFee",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
 

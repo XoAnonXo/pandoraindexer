@@ -3,7 +3,7 @@
  * 
  * Tracks referral codes and referrer-referee relationships.
  * 
- * @contract 0xF3a3930B0FA5D0a53d1204Be1Deea638d939f04f
+ * @contract 0x28242629493e6611c764e68352186a3E0639CA30
  * @chain Sonic (146)
  */
 export const ReferralRegistryAbi = [

@@ -23,7 +23,7 @@ import { getChainInfo } from "../utils/helpers";
  * - Tiered rewards based on performance
  * - Custom reward logic
  */
-ponder.on("CampaignFactory:CampaignCreated", async ({ event, context }) => {
+ponder.on("CampaignFactory:CampaignCreated", async ({ event, context }: any) => {
   const {
     campaignId,
     creator,
@@ -85,7 +85,7 @@ ponder.on("CampaignFactory:CampaignCreated", async ({ event, context }) => {
       totalParticipants: 0,
       updatedAt: timestamp,
     },
-    update: ({ current }) => ({
+    update: ({ current }: any) => ({
       totalCampaigns: current.totalCampaigns + 1,
       activeCampaigns: current.activeCampaigns + 1,
       updatedAt: timestamp,
@@ -104,7 +104,7 @@ ponder.on("CampaignFactory:CampaignCreated", async ({ event, context }) => {
  * - 2: Ended
  * - 3: Cancelled
  */
-ponder.on("CampaignFactory:CampaignStatusChanged", async ({ event, context }) => {
+ponder.on("CampaignFactory:CampaignStatusChanged", async ({ event, context }: any) => {
   const { campaignId, status } = event.args;
   const timestamp = event.block.timestamp;
   const chain = getChainInfo(context);
@@ -140,7 +140,7 @@ ponder.on("CampaignFactory:CampaignStatusChanged", async ({ event, context }) =>
         totalParticipants: 0,
         updatedAt: timestamp,
       },
-      update: ({ current }) => ({
+      update: ({ current }: any) => ({
         activeCampaigns: isNowActive 
           ? current.activeCampaigns + 1 
           : Math.max(0, current.activeCampaigns - 1),

@@ -164,7 +164,8 @@ export const PredictionPariMutuelAbi = [
     name: "ProtocolFeesWithdrawn",
     inputs: [
       { name: "caller", type: "address", indexed: true },
-      { name: "amount", type: "uint256", indexed: false },
+      { name: "platformShare", type: "uint256", indexed: false },
+      { name: "creatorShare", type: "uint256", indexed: false },
     ],
   },
 
@@ -213,7 +214,7 @@ export const PredictionPariMutuelAbi = [
     type: "function",
     name: "curveFlattener",
     inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "", type: "uint8" }],
     stateMutability: "view",
   },
   
@@ -224,7 +225,7 @@ export const PredictionPariMutuelAbi = [
     type: "function",
     name: "curveOffset",
     inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "", type: "uint24" }],
     stateMutability: "view",
   },
 
@@ -252,53 +253,42 @@ export const PredictionPariMutuelAbi = [
     stateMutability: "view",
   },
   
-  // ═══════════════════════════════════════════════════════════════════════════
-  // POOL STATE VIEW FUNCTIONS (Used for odds calculation)
-  // ═══════════════════════════════════════════════════════════════════════════
-  
   /**
-   * yesPool() - Total collateral in YES pool
-   * Increases when users buy YES positions or seed liquidity
+   * marketState() - Convenience view used by MarketFactory and indexer
+   * Returns (isLive, collateralTvl, yesChance, collateral)
    */
   {
     type: "function",
-    name: "yesPool",
+    name: "marketState",
     inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
+    outputs: [
+      { name: "isLive", type: "bool" },
+      { name: "collateralTvl", type: "uint256" },
+      { name: "yesChance", type: "uint24" },
+      { name: "collateral", type: "address" },
+    ],
     stateMutability: "view",
   },
   
   /**
-   * noPool() - Total collateral in NO pool
-   * Increases when users buy NO positions or seed liquidity
-   */
-  {
-    type: "function",
-    name: "noPool",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-  },
-  
-  /**
-   * totalYesShares() - Time-weighted YES shares for odds calculation
+   * totalSharesYes() - Time-weighted YES shares for odds calculation
    * Used in the time-weighted odds formula (not just collateral ratio)
    */
   {
     type: "function",
-    name: "totalYesShares",
+    name: "totalSharesYes",
     inputs: [],
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
   
   /**
-   * totalNoShares() - Time-weighted NO shares for odds calculation
+   * totalSharesNo() - Time-weighted NO shares for odds calculation
    * Used in the time-weighted odds formula (not just collateral ratio)
    */
   {
     type: "function",
-    name: "totalNoShares",
+    name: "totalSharesNo",
     inputs: [],
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",

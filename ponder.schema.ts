@@ -52,6 +52,45 @@ import { createSchema } from "@ponder/core";
 
 export default createSchema((p) => ({
   // ===========================================================================
+  // ORACLE FEE EVENTS (analytics)
+  // ===========================================================================
+  /**
+   * Fee-related events from PredictionOracle.
+   * These are useful for analytics (fee parameter changes + fee withdrawals).
+   *
+   * ID FORMAT: chainId-txHash-logIndex
+   */
+  oracleFeeEvents: p.createTable({
+    /** Unique ID: chainId-txHash-logIndex */
+    id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** Chain name */
+    chainName: p.string(),
+    /** Oracle contract address */
+    oracleAddress: p.hex(),
+    /**
+     * Event kind:
+     * - "OperatorGasFeeUpdated"
+     * - "ProtocolFeeUpdated"
+     * - "ProtocolFeesWithdrawn"
+     */
+    eventName: p.string(),
+    /** newFee for *FeeUpdated events */
+    newFee: p.bigint().optional(),
+    /** to address for ProtocolFeesWithdrawn */
+    to: p.hex().optional(),
+    /** amount for ProtocolFeesWithdrawn */
+    amount: p.bigint().optional(),
+    /** Tx hash */
+    txHash: p.hex(),
+    /** Block number */
+    blockNumber: p.bigint(),
+    /** Block timestamp */
+    timestamp: p.bigint(),
+  }),
+
+  // ===========================================================================
   // POLLS TABLE
   // ===========================================================================
   /**
@@ -67,6 +106,8 @@ export default createSchema((p) => ({
     chainName: p.string(),
     /** Creator's wallet address */
     creator: p.hex(),
+    /** Arbiter address (can override poll status) */
+    arbiter: p.hex().optional(),
     /** The prediction question */
     question: p.string(),
     /** Resolution rules */
@@ -81,6 +122,8 @@ export default createSchema((p) => ({
     checkEpoch: p.int(),
     /** Whether the last refresh was free */
     lastRefreshWasFree: p.boolean().optional(),
+    /** Previous check epoch value from the last PollRefreshed event */
+    lastRefreshOldCheckEpoch: p.int().optional(),
     /** Whether arbitration has been started for this poll */
     arbitrationStarted: p.boolean(),
     /** Poll category (0-11) */

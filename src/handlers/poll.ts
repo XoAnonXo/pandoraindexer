@@ -2,7 +2,7 @@ import { ponder } from "@/generated";
 import { getChainInfo } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 
-ponder.on("PredictionPoll:AnswerSet", async ({ event, context }) => {
+ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
   const { status, setter, reason } = event.args;
   const pollAddress = event.log.address;
   const timestamp = event.block.timestamp;
@@ -29,7 +29,7 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }) => {
   console.log(`[${chain.chainName}] Poll resolved: ${pollAddress} -> status ${status}`);
 });
 
-ponder.on("PredictionPoll:ArbitrationStarted", async ({ event, context }) => {
+ponder.on("PredictionPoll:ArbitrationStarted", async ({ event, context }: any) => {
   const { arbiter, oldFinalizationEpoch, newFinalizationEpoch } = event.args;
   const pollAddress = event.log.address;
   const timestamp = event.block.timestamp;

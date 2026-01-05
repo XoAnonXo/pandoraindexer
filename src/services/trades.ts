@@ -80,7 +80,7 @@ export async function handleBuyTrade(params: BuyTradeParams) {
   const market = await getOrCreateMinimalMarket(
     context, marketAddress, chain, marketType, timestamp, blockNumber, txHash
   );
-  const pollAddress = market.pollAddress ?? ZERO_ADDRESS;
+  const pollAddress = market.pollAddress;
 
   // Create trade record
   await context.db.trades.create({
@@ -198,7 +198,7 @@ export async function handleSellTrade(params: SellTradeParams) {
   const market = await getOrCreateMinimalMarket(
     context, marketAddress, chain, MarketType.AMM, timestamp, blockNumber, txHash
   );
-  const pollAddress = market.pollAddress ?? ZERO_ADDRESS;
+  const pollAddress = market.pollAddress;
 
   // Create trade record
   await context.db.trades.create({
@@ -307,9 +307,17 @@ export async function handleSwapTrade(params: SwapTradeParams) {
   const tradeId = makeId(chain.chainId, txHash, logIndex);
   const normalizedTrader = trader.toLowerCase() as `0x${string}`;
 
-  // Get existing market (don't backfill for swaps - market should already exist)
-  const market = await context.db.markets.findUnique({ id: marketAddress });
-  const pollAddress = market?.pollAddress ?? ZERO_ADDRESS;
+
+  const market = await getOrCreateMinimalMarket(
+    context,
+    marketAddress,
+    chain,
+    MarketType.AMM,
+    timestamp,
+    blockNumber,
+    txHash
+  );
+  const pollAddress = market.pollAddress;
 
   // Create trade record
   await context.db.trades.create({

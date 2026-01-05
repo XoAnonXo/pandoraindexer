@@ -321,11 +321,11 @@ export const PredictionAMMAbi = [
   },
   
   /**
-   * collateral() - Returns the collateral token address (USDC)
+   * collateralToken() - Returns the collateral token address (USDC)
    */
   {
     inputs: [],
-    name: "collateral",
+    name: "collateralToken",
     outputs: [{ type: "address" }],
     stateMutability: "view",
     type: "function",
@@ -354,12 +354,12 @@ export const PredictionAMMAbi = [
   },
   
   /**
-   * feeTier() - Returns the trading fee tier
+   * tradingFee() - Returns the trading fee rate (Uniswap V3 style, uint24)
    */
   {
     inputs: [],
-    name: "feeTier",
-    outputs: [{ type: "uint256" }],
+    name: "tradingFee",
+    outputs: [{ type: "uint24" }],
     stateMutability: "view",
     type: "function",
   },

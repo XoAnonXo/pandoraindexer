@@ -1,6 +1,5 @@
 import { ponder } from "@/generated";
 import { getChainInfo, makeId } from "../utils/helpers";
-import { MIN_TRADE_AMOUNT, MIN_TOKEN_AMOUNT } from "../utils/constants";
 import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser, getOrCreateMinimalMarket, isNewTraderForMarket, recordMarketInteraction } from "../services/db";
 import { updateReferralVolume } from "../services/referral";
@@ -15,37 +14,34 @@ async function updateMarketReserves(
   context: any,
   marketAddress: `0x${string}`,
   chainName: string,
-  blockNumber?: bigint
-): Promise<bigint | null> {
-  try {
-    const reserves = await context.client.readContract({
-      address: marketAddress,
-      abi: PredictionAMMAbi,
-      functionName: "getReserves",
-      ...(blockNumber !== undefined ? { blockNumber } : {}),
-    });
+  blockNumber: bigint
+): Promise<{ yesChance: bigint; collateralTvl: bigint }> {
+  const reserves = await context.client.readContract({
+    address: marketAddress,
+    abi: PredictionAMMAbi,
+    functionName: "getReserves",
+    blockNumber,
+  });
 
-    const reserveYes = BigInt(reserves[0]);
-    const reserveNo = BigInt(reserves[1]);
-    const totalReserves = reserveYes + reserveNo;
-    const yesChance = totalReserves > 0n
-      ? (reserveNo * 1_000_000_000n) / totalReserves
-      : 500_000_000n;
+  const reserveYes = BigInt(reserves[0]);
+  const reserveNo = BigInt(reserves[1]);
+  const collateralTvl = BigInt(reserves[4]);
 
-    await context.db.markets.update({
-      id: marketAddress,
-      data: {
-        reserveYes,
-        reserveNo,
-        yesChance,
-      },
-    });
+  const totalReserves = reserveYes + reserveNo;
+  const yesChance =
+    totalReserves > 0n ? (reserveNo * 1_000_000_000n) / totalReserves : 500_000_000n;
 
-    return yesChance;
-  } catch (err) {
-    console.warn(`[${chainName}] Failed to read reserves for ${marketAddress}:`, err);
-    return null;
-  }
+  await context.db.markets.update({
+    id: marketAddress,
+    data: {
+      reserveYes,
+      reserveNo,
+      yesChance,
+      currentTvl: collateralTvl,
+    },
+  });
+
+  return { yesChance, collateralTvl };
 }
 
 ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
@@ -53,13 +49,11 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
   const chain = getChainInfo(context);
-  
-  if (collateralAmount < MIN_TRADE_AMOUNT) return;
-  
+
   const tradeId = makeId(chain.chainId, event.transaction.hash, event.log.logIndex);
 
   const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "amm", timestamp, event.block.number, event.transaction.hash);
-  const pollAddress = market.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
+  const pollAddress = market.pollAddress;
 
   await context.db.trades.create({
     id: tradeId,
@@ -81,7 +75,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
   });
 
   // Read reserves (spot price) pinned to this block, update market, and record spot-price tick/candles.
-  const spotYesChance = await updateMarketReserves(
+  const { yesChance: spotYesChance } = await updateMarketReserves(
     context,
     marketAddress,
     chain.chainName,
@@ -99,7 +93,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
     tokenAmount,
     tradeType: "buy",
     txHash: event.transaction.hash,
-    yesPriceOverride: spotYesChance ?? undefined,
+    yesPriceOverride: spotYesChance,
   });
 
   const user = await getOrCreateUser(context, trader, chain);
@@ -124,7 +118,6 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
     data: {
       totalVolume: market.totalVolume + collateralAmount,
       totalTrades: market.totalTrades + 1,
-      currentTvl: market.currentTvl + collateralAmount,
       uniqueTraders: isNewTrader ? market.uniqueTraders + 1 : market.uniqueTraders,
     },
   });
@@ -142,7 +135,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
   });
   
   // Track referral volume if trader has a referrer
-  await updateReferralVolume(context, trader, collateralAmount, fee, timestamp, chain);
+  await updateReferralVolume(context, trader, collateralAmount, fee, timestamp, event.block.number, chain);
 });
 
 ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
@@ -150,13 +143,11 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
   const chain = getChainInfo(context);
-  
-  if (collateralAmount < MIN_TRADE_AMOUNT) return;
-  
+
   const tradeId = makeId(chain.chainId, event.transaction.hash, event.log.logIndex);
 
   const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "amm", timestamp, event.block.number, event.transaction.hash);
-  const pollAddress = market.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
+  const pollAddress = market.pollAddress;
 
   await context.db.trades.create({
     id: tradeId,
@@ -178,7 +169,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
   });
 
   // Read reserves (spot price) pinned to this block, update market, and record spot-price tick/candles.
-  const spotYesChance = await updateMarketReserves(
+  const { yesChance: spotYesChance } = await updateMarketReserves(
     context,
     marketAddress,
     chain.chainName,
@@ -196,7 +187,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     tokenAmount,
     tradeType: "sell",
     txHash: event.transaction.hash,
-    yesPriceOverride: spotYesChance ?? undefined,
+    yesPriceOverride: spotYesChance,
   });
 
   const user = await getOrCreateUser(context, trader, chain);
@@ -220,16 +211,11 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     },
   });
 
-  const newMarketTvl = market.currentTvl > collateralAmount 
-    ? market.currentTvl - collateralAmount 
-    : 0n;
-    
   await context.db.markets.update({
     id: marketAddress,
     data: {
       totalVolume: market.totalVolume + collateralAmount,
       totalTrades: market.totalTrades + 1,
-      currentTvl: newMarketTvl,
       uniqueTraders: isNewTrader ? market.uniqueTraders + 1 : market.uniqueTraders,
     },
   });
@@ -247,7 +233,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
   });
   
   // Track referral volume if trader has a referrer
-  await updateReferralVolume(context, trader, collateralAmount, fee, timestamp, chain);
+  await updateReferralVolume(context, trader, collateralAmount, fee, timestamp, event.block.number, chain);
 });
 
 ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
@@ -255,14 +241,19 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
   const chain = getChainInfo(context);
-  
-  // Filter dust swaps
-  if (amountIn < MIN_TOKEN_AMOUNT) return;
 
   const tradeId = makeId(chain.chainId, event.transaction.hash, event.log.logIndex);
 
-  const market = await context.db.markets.findUnique({ id: marketAddress });
-  const pollAddress = market?.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
+  const market = await getOrCreateMinimalMarket(
+    context,
+    marketAddress,
+    chain,
+    "amm",
+    timestamp,
+    event.block.number,
+    event.transaction.hash
+  );
+  const pollAddress = market.pollAddress;
 
   await context.db.trades.create({
     id: tradeId,
@@ -297,41 +288,37 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
     },
   });
 
-  if (market) {
-    await context.db.markets.update({
-      id: marketAddress,
-      data: {
-        totalTrades: market.totalTrades + 1,
-        uniqueTraders: isNewTrader ? market.uniqueTraders + 1 : market.uniqueTraders,
-      },
-    });
+  await context.db.markets.update({
+    id: marketAddress,
+    data: {
+      totalTrades: market.totalTrades + 1,
+      uniqueTraders: isNewTrader ? market.uniqueTraders + 1 : market.uniqueTraders,
+    },
+  });
 
-    // Update reserves and record a 0-volume spot-price tick so candles match yesChance.
-    const spotYesChance = await updateMarketReserves(
-      context,
-      marketAddress,
-      chain.chainName,
-      BigInt(event.block.number)
-    );
+  // Update reserves (and currentTvl) and record a 0-volume spot-price tick so candles match yesChance.
+  const { yesChance: spotYesChance } = await updateMarketReserves(
+    context,
+    marketAddress,
+    chain.chainName,
+    BigInt(event.block.number)
+  );
 
-    if (spotYesChance !== null) {
-      await recordAmmPriceTickAndCandles({
-        context,
-        marketAddress,
-        timestamp,
-        blockNumber: BigInt(event.block.number),
-        logIndex: event.log.logIndex,
-        isYesSide: true,
-        collateralAmount: 0n,
-        tokenAmount: 1n,
-        tradeType: "swap",
-        txHash: event.transaction.hash,
-        yesPriceOverride: spotYesChance,
-        volumeOverride: 0n,
-        sideOverride: "swap",
-      });
-    }
-  }
+  await recordAmmPriceTickAndCandles({
+    context,
+    marketAddress,
+    timestamp,
+    blockNumber: BigInt(event.block.number),
+    logIndex: event.log.logIndex,
+    isYesSide: true,
+    collateralAmount: 0n,
+    tokenAmount: 1n,
+    tradeType: "swap",
+    txHash: event.transaction.hash,
+    yesPriceOverride: spotYesChance,
+    volumeOverride: 0n,
+    sideOverride: "swap",
+  });
 
   // Use centralized stats update
   await updateAggregateStats(context, chain, timestamp, {
@@ -372,18 +359,8 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
   });
 
   if (market) {
-    const newMarketTvl = market.currentTvl > collateralAmount 
-      ? market.currentTvl - collateralAmount 
-      : 0n;
-    await context.db.markets.update({
-      id: marketAddress,
-      data: {
-        currentTvl: newMarketTvl,
-      },
-    });
-
-    // Update reserves from contract (may be 0 after redemptions)
-    await updateMarketReserves(context, marketAddress, chain.chainName);
+    // Update reserves + currentTvl from contract state at this block.
+    await updateMarketReserves(context, marketAddress, chain.chainName, BigInt(event.block.number));
   }
 
   const userData = await getOrCreateUser(context, user, chain);
@@ -416,14 +393,13 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
   const marketAddress = event.log.address;
   const chain = getChainInfo(context);
   
-  if (collateralAmount < MIN_TRADE_AMOUNT) return;
 
   const eventId = makeId(chain.chainId, event.transaction.hash, event.log.logIndex);
 
   const imbalanceVolume = (amounts.yesToReturn ?? 0n) + (amounts.noToReturn ?? 0n);
 
   const market = await getOrCreateMinimalMarket(context, marketAddress, chain, "amm", timestamp, event.block.number, event.transaction.hash);
-  const pollAddress = market.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
+  const pollAddress = market.pollAddress;
 
   await context.db.liquidityEvents.create({
     id: eventId,
@@ -491,7 +467,6 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
   await context.db.markets.update({
     id: marketAddress,
     data: {
-      currentTvl: market.currentTvl + collateralAmount,
       totalVolume: imbalanceVolume > 0n 
         ? market.totalVolume + imbalanceVolume 
         : market.totalVolume,
@@ -500,8 +475,8 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
     },
   });
 
-  // Update reserves from contract
-  await updateMarketReserves(context, marketAddress, chain.chainName);
+  // Update reserves + currentTvl from contract state at this block.
+  await updateMarketReserves(context, marketAddress, chain.chainName, BigInt(event.block.number));
 
   // Use centralized stats update
   // NOTE: Liquidity adds are NOT trades - they're LP actions
@@ -519,12 +494,18 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
   const marketAddress = event.log.address;
   const chain = getChainInfo(context);
   
-  if (collateralToReturn < MIN_TRADE_AMOUNT) return;
-
   const eventId = makeId(chain.chainId, event.transaction.hash, event.log.logIndex);
 
-  const market = await context.db.markets.findUnique({ id: marketAddress });
-  const pollAddress = market?.pollAddress ?? ("0x" + "0".repeat(40)) as `0x${string}`;
+  const market = await getOrCreateMinimalMarket(
+    context,
+    marketAddress,
+    chain,
+    "amm",
+    timestamp,
+    event.block.number,
+    event.transaction.hash
+  );
+  const pollAddress = market.pollAddress;
 
   await context.db.liquidityEvents.create({
     id: eventId,
@@ -562,21 +543,15 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
     },
   });
 
-  if (market) {
-    const newTvl = market.currentTvl > collateralToReturn 
-      ? market.currentTvl - collateralToReturn 
-      : 0n;
-    await context.db.markets.update({
-      id: marketAddress,
-      data: {
-        currentTvl: newTvl,
-        uniqueTraders: isNewTrader ? market.uniqueTraders + 1 : market.uniqueTraders,
-      },
-    });
+  await context.db.markets.update({
+    id: marketAddress,
+    data: {
+      uniqueTraders: isNewTrader ? market.uniqueTraders + 1 : market.uniqueTraders,
+    },
+  });
 
-    // Update reserves from contract
-    await updateMarketReserves(context, marketAddress, chain.chainName);
-  }
+  // Update reserves + currentTvl from contract state at this block.
+  await updateMarketReserves(context, marketAddress, chain.chainName, BigInt(event.block.number));
 
   // Use centralized stats update
   // NOTE: Liquidity removes are NOT trades - they're LP actions
@@ -591,6 +566,7 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
 ponder.on("PredictionAMM:Sync", async ({ event, context }: any) => {
 	const { rYes, rNo } = event.args;
 	const marketAddress = event.log.address;
+  const chain = getChainInfo(context);
 
 	const market = await context.db.markets.findUnique({ id: marketAddress });
 	if (market) {
@@ -611,4 +587,65 @@ ponder.on("PredictionAMM:Sync", async ({ event, context }: any) => {
 			},
 		});
 	}
+});
+
+ponder.on("PredictionAMM:ProtocolFeesWithdrawn", async ({ event, context }: any) => {
+  try {
+    const marketAddress = event.log.address;
+    const timestamp = event.block.timestamp;
+    const chain = getChainInfo(context);
+
+    // 1) Read on-chain state first (no DB writes before this succeeds)
+    const reserves = await context.client.readContract({
+      address: marketAddress,
+      abi: PredictionAMMAbi,
+      functionName: "getReserves",
+      blockNumber: event.block.number,
+    });
+
+    const reserveYes = BigInt(reserves[0]);
+    const reserveNo = BigInt(reserves[1]);
+    const collateralTvl = BigInt(reserves[4]);
+
+    const totalReserves = reserveYes + reserveNo;
+    const yesChance =
+      totalReserves > 0n ? (reserveNo * 1_000_000_000n) / totalReserves : 500_000_000n;
+
+    // 2) Load (or create) market after successful reads
+    const market =
+      (await context.db.markets.findUnique({ id: marketAddress })) ??
+      (await getOrCreateMinimalMarket(
+        context,
+        marketAddress,
+        chain,
+        "amm",
+        timestamp,
+        event.block.number,
+        event.transaction.hash
+      ));
+
+    const oldTvl = market.currentTvl ?? 0n;
+    const delta = collateralTvl - oldTvl;
+
+    // 3) Apply DB writes last
+    await context.db.markets.update({
+      id: marketAddress,
+      data: {
+        reserveYes,
+        reserveNo,
+        yesChance,
+        currentTvl: collateralTvl,
+      },
+    });
+
+    if (delta !== 0n) {
+      await updateAggregateStats(context, chain, timestamp, { tvlChange: delta });
+    }
+  } catch (err) {
+    console.error(
+      `[PredictionAMM:ProtocolFeesWithdrawn] Failed tx=${event.transaction.hash} logIndex=${event.log.logIndex}:`,
+      err
+    );
+    return;
+  }
 });

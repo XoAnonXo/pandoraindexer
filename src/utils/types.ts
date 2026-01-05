@@ -2,13 +2,11 @@
  * Type definitions for the Anymarket indexer
  */
 
-import type { Context } from "@/generated";
-
 /**
  * Ponder context type for event handlers
  * Using the generated Context type ensures type safety for db operations and client calls
  */
-export type PonderContext = Context;
+export type PonderContext = any;
 
 /**
  * Chain information extracted from context

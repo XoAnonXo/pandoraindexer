@@ -8,12 +8,10 @@
  */
 
 import { ReferralRegistryAbi } from "../../abis/ReferralRegistry";
+import { getChainConfig } from "../../config";
 import { ChainInfo, makeId } from "../utils/helpers";
+import { ZERO_ADDRESS } from "../utils/constants";
 import { getOrCreateUser } from "./db";
-
-// ReferralRegistry contract address on Sonic
-const REFERRAL_REGISTRY_ADDRESS = "0xF3a3930B0FA5D0a53d1204Be1Deea638d939f04f" as `0x${string}`;
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as `0x${string}`;
 
 /**
  * Update referral volume tracking when a trade occurs.
@@ -27,6 +25,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as `0x${string
  * @param volume - Trade volume in USDC (6 decimals)
  * @param fees - Fees paid on the trade (6 decimals)
  * @param timestamp - Block timestamp
+ * @param blockNumber - Event block number (used to pin on-chain reads to "state-at-emit")
  * @param chain - Chain info object
  */
 export async function updateReferralVolume(
@@ -35,21 +34,25 @@ export async function updateReferralVolume(
   volume: bigint,
   fees: bigint,
   timestamp: bigint,
+  blockNumber: bigint | number,
   chain: ChainInfo
 ): Promise<void> {
   // Skip zero volume trades
   if (volume === 0n) return;
   
   const normalizedTrader = traderAddress.toLowerCase() as `0x${string}`;
+  const bn = typeof blockNumber === "bigint" ? blockNumber : BigInt(blockNumber);
+  const referralRegistryAddress = getChainConfig(chain.chainId)!.contracts.referralRegistry;
   
   // Query the ReferralRegistry contract to get the trader's referrer
   let referrer: `0x${string}` | null = null;
   try {
     referrer = await context.client.readContract({
-      address: REFERRAL_REGISTRY_ADDRESS,
+      address: referralRegistryAddress,
       abi: ReferralRegistryAbi,
       functionName: "getReferrer",
       args: [traderAddress],
+      blockNumber: bn,
     });
   } catch (error: any) {
     // Expected: Contract returns no data for users without referrers
@@ -93,7 +96,7 @@ export async function updateReferralVolume(
       firstTradeAt: timestamp,
       lastTradeAt: timestamp,
     },
-    update: ({ current }) => ({
+    update: ({ current }: any) => ({
       status: "active", // Mark as active once they trade
       totalVolumeGenerated: current.totalVolumeGenerated + volume,
       totalFeesGenerated: current.totalFeesGenerated + fees,
@@ -150,7 +153,7 @@ export async function updateReferralVolume(
       totalRewardsDistributed: 0n,
       updatedAt: timestamp,
     },
-    update: ({ current }) => ({
+    update: ({ current }: any) => ({
       totalVolumeGenerated: current.totalVolumeGenerated + volume,
       totalFeesGenerated: current.totalFeesGenerated + fees,
       updatedAt: timestamp,
