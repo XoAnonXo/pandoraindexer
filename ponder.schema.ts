@@ -207,6 +207,14 @@ export default createSchema((p) => ({
     reserveNo: p.bigint().optional(),
     
     // ─────────────────────────────────────────────────────────────────────────
+    // FEE TRACKING
+    // ─────────────────────────────────────────────────────────────────────────
+    /** Total creator fees earned from this market (6 decimals) - sum of creatorShare from ProtocolFeesWithdrawn */
+    creatorFeesEarned: p.bigint(),
+    /** Total platform fees earned from this market (6 decimals) - sum of platformShare from ProtocolFeesWithdrawn */
+    platformFeesEarned: p.bigint(),
+    
+    // ─────────────────────────────────────────────────────────────────────────
     // PARI-MUTUEL SPECIFIC FIELDS
     // ─────────────────────────────────────────────────────────────────────────
     /** PariMutuel: Total collateral in YES pool (6 decimals) */
@@ -679,6 +687,8 @@ export default createSchema((p) => ({
     totalFees: p.bigint(),
     /** Total USDC paid out to winners (6 decimals) */
     totalWinningsPaid: p.bigint(),
+    /** Total platform share from fee withdrawals across all markets (6 decimals) */
+    totalPlatformFeesEarned: p.bigint(),
     
     // ─────────────────────────────────────────────────────────────────────────
     // METADATA

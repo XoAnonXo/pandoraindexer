@@ -383,7 +383,7 @@ ponder.on(
   "PredictionPariMutuel:ProtocolFeesWithdrawn",
   async ({ event, context }: any) => {
     try {
-      const { creatorShare } = event.args;
+      const { platformShare, creatorShare } = event.args;
       const timestamp = event.block.timestamp;
       const marketAddress = event.log.address;
       const chain = getChainInfo(context);
@@ -415,11 +415,18 @@ ponder.on(
       const oldTvl = market.currentTvl ?? 0n;
       const delta = tvlNow - oldTvl;
 
-      // 3) Apply DB writes last
+      const creatorShareBigInt = BigInt(creatorShare ?? 0);
+      const platformShareBigInt = BigInt(platformShare ?? 0);
+
+
+      
+      // Apply DB writes last
       await context.db.markets.update({
         id: marketAddress,
         data: {
           currentTvl: tvlNow,
+          creatorFeesEarned: (market.creatorFeesEarned ?? 0n) + creatorShareBigInt,
+          platformFeesEarned: (market.platformFeesEarned ?? 0n) + platformShareBigInt,
         },
       });
 
@@ -427,8 +434,7 @@ ponder.on(
         await updateAggregateStats(context, chain, timestamp, { tvlChange: delta });
       }
 
-      // 4) Update creator's totalCreatorFees if creatorShare > 0
-      const creatorShareBigInt = BigInt(creatorShare ?? 0);
+      //  Update creator's totalCreatorFees if creatorShare > 0
       if (creatorShareBigInt > 0n && market.creator) {
         const creatorUser = await getOrCreateUser(context, market.creator, chain);
         await context.db.users.update({
@@ -437,6 +443,11 @@ ponder.on(
             totalCreatorFees: (creatorUser.totalCreatorFees ?? 0n) + creatorShareBigInt,
           },
         });
+      }
+
+      //  Update platform stats with platformShare
+      if (platformShareBigInt > 0n) {
+        await updateAggregateStats(context, chain, timestamp, { platformFees: platformShareBigInt });
       }
     } catch (err) {
       console.error(

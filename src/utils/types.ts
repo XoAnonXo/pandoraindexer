@@ -36,6 +36,7 @@ export interface StatsUpdate {
   tvlChange?: bigint;
   fees?: bigint;
   winningsPaid?: bigint;
+  platformFees?: bigint;
 }
 
 /**

@@ -591,7 +591,7 @@ ponder.on("PredictionAMM:Sync", async ({ event, context }: any) => {
 
 ponder.on("PredictionAMM:ProtocolFeesWithdrawn", async ({ event, context }: any) => {
   try {
-    const { creatorShare } = event.args;
+    const { platformShare, creatorShare } = event.args;
     const marketAddress = event.log.address;
     const timestamp = event.block.timestamp;
     const chain = getChainInfo(context);
@@ -628,6 +628,9 @@ ponder.on("PredictionAMM:ProtocolFeesWithdrawn", async ({ event, context }: any)
     const oldTvl = market.currentTvl ?? 0n;
     const delta = collateralTvl - oldTvl;
 
+    const creatorShareBigInt = BigInt(creatorShare ?? 0);
+    const platformShareBigInt = BigInt(platformShare ?? 0);
+
     // 3) Apply DB writes last
     await context.db.markets.update({
       id: marketAddress,
@@ -636,6 +639,8 @@ ponder.on("PredictionAMM:ProtocolFeesWithdrawn", async ({ event, context }: any)
         reserveNo,
         yesChance,
         currentTvl: collateralTvl,
+        creatorFeesEarned: (market.creatorFeesEarned ?? 0n) + creatorShareBigInt,
+        platformFeesEarned: (market.platformFeesEarned ?? 0n) + platformShareBigInt,
       },
     });
 
@@ -644,7 +649,6 @@ ponder.on("PredictionAMM:ProtocolFeesWithdrawn", async ({ event, context }: any)
     }
 
     // 4) Update creator's totalCreatorFees if creatorShare > 0
-    const creatorShareBigInt = BigInt(creatorShare ?? 0);
     if (creatorShareBigInt > 0n && market.creator) {
       const creatorUser = await getOrCreateUser(context, market.creator, chain);
       await context.db.users.update({
@@ -653,6 +657,11 @@ ponder.on("PredictionAMM:ProtocolFeesWithdrawn", async ({ event, context }: any)
           totalCreatorFees: (creatorUser.totalCreatorFees ?? 0n) + creatorShareBigInt,
         },
       });
+    }
+
+    // 5) Update platform stats with platformShare
+    if (platformShareBigInt > 0n) {
+      await updateAggregateStats(context, chain, timestamp, { platformFees: platformShareBigInt });
     }
   } catch (err) {
     console.error(
