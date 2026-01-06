@@ -1,6 +1,7 @@
 import type { PonderContext } from "../utils/types";
 
 const CANDLE_PRICE_SCALE = 1_000_000_000n; // 1e9
+const MAX_UINT96 = (1n << 96n) - 1n;
 
 export const CANDLE_INTERVALS = ["1m", "5m", "1h", "1d"] as const;
 export type CandleInterval = (typeof CANDLE_INTERVALS)[number];
@@ -53,6 +54,11 @@ function clampPriceScaled(priceScaled: bigint): bigint {
   if (priceScaled < 0n) return 0n;
   if (priceScaled > CANDLE_PRICE_SCALE) return CANDLE_PRICE_SCALE;
   return priceScaled;
+}
+
+function clampUint96(value: bigint): bigint {
+  if (value < 0n) return 0n;
+  return value > MAX_UINT96 ? MAX_UINT96 : value;
 }
 
 export type TickSide = "yes" | "no" | "swap" | "both";
@@ -113,7 +119,8 @@ async function upsertCandleBucket(params: {
         high: priceScaled,
         low: priceScaled,
         close: priceScaled,
-        volume,
+        // Contract-like behavior: candle volume is saturating uint96.
+        volume: clampUint96(volume),
         trades: 1,
         firstSeq: seq,
         lastSeq: seq,
@@ -134,7 +141,8 @@ async function upsertCandleBucket(params: {
       close,
       high,
       low,
-      volume: existing.volume + volume,
+      // Contract-like behavior: candle volume is saturating uint96.
+      volume: clampUint96(existing.volume + volume),
       trades: existing.trades + 1,
       firstSeq: seq < existing.firstSeq ? seq : existing.firstSeq,
       lastSeq: seq > existing.lastSeq ? seq : existing.lastSeq,

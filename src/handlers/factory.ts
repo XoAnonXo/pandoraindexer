@@ -1,8 +1,10 @@
 import { ponder } from "@/generated";
-import { getChainInfo, makeId, calculatePariMutuelYesChance } from "../utils/helpers";
+import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser } from "../services/db";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
+
+const YES_PRICE_SCALE = 1_000_000_000n; // 1e9
 
 ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 	try {
@@ -166,18 +168,9 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }: any) => 
 				const totalYes = current.totalCollateralYes ?? 0n;
 				const totalNo = current.totalCollateralNo ?? 0n;
       
-				let correctedYesChance: bigint = current.yesChance ?? 500_000_000n;
-      if (totalYes + totalNo > 0n) {
-        correctedYesChance = calculatePariMutuelYesChance({
-          curveFlattener: Number(curveFlattener),
-          curveOffset: Number(curveOffset),
-          totalCollateralYes: totalYes,
-          totalCollateralNo: totalNo,
-          currentTimestamp: timestamp,
-          marketStartTimestamp,
-          marketCloseTimestamp,
-        });
-      }
+				const total = totalYes + totalNo;
+				const correctedYesChance =
+					total > 0n ? (totalYes * YES_PRICE_SCALE) / total : 500_000_000n;
   
 				return {
           chainId: chain.chainId,

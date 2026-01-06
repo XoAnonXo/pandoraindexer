@@ -6,6 +6,10 @@ import { updateReferralVolume } from "../services/referral";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
 import { recordAmmPriceTickAndCandles } from "../services/candles";
 
+function toBigInt(value: unknown): bigint {
+  return typeof value === "bigint" ? value : BigInt(value as any);
+}
+
 /**
  * Helper function to read reserves from contract and update market
  * Called after each trade event to keep reserveYes/reserveNo/yesChance in sync
@@ -176,6 +180,12 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     BigInt(event.block.number)
   );
 
+  // Candle volume should match contract semantics: amountIn of the internal YES↔NO swap.
+  // For sell: soldAmount = amountToSwap + pairsToBurn, and pairsToBurn = netCollateralOut + protocolFee.
+  const tokenAmountBI = toBigInt(tokenAmount);
+  const pairsToBurn = toBigInt(collateralAmount) + toBigInt(fee);
+  const amountInForCandle = tokenAmountBI > pairsToBurn ? tokenAmountBI - pairsToBurn : 0n;
+
   await recordAmmPriceTickAndCandles({
     context,
     marketAddress,
@@ -188,6 +198,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     tradeType: "sell",
     txHash: event.transaction.hash,
     yesPriceOverride: spotYesChance,
+    volumeOverride: amountInForCandle,
   });
 
   const user = await getOrCreateUser(context, trader, chain);
@@ -316,7 +327,8 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
     tradeType: "swap",
     txHash: event.transaction.hash,
     yesPriceOverride: spotYesChance,
-    volumeOverride: 0n,
+    // Candle volume should match contract semantics: amountIn of the swap (in outcome tokens).
+    volumeOverride: amountIn,
     sideOverride: "swap",
   });
 

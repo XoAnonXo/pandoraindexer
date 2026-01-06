@@ -1,5 +1,5 @@
 import { ponder } from "@/generated";
-import { getChainInfo, makeId, calculatePariMutuelYesChance } from "../utils/helpers";
+import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import {
 	getOrCreateUser,
@@ -10,6 +10,18 @@ import {
 import { updateReferralVolume } from "../services/referral";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 import { recordPriceTickAndCandles } from "../services/candles";
+
+const YES_PRICE_SCALE = 1_000_000_000n; // 1e9
+
+function computeYesChanceFromCollateral(params: {
+	totalCollateralYes: bigint;
+	totalCollateralNo: bigint;
+}): bigint {
+	const { totalCollateralYes, totalCollateralNo } = params;
+	const total = totalCollateralYes + totalCollateralNo;
+	if (total <= 0n) return 500_000_000n;
+	return (totalCollateralYes * YES_PRICE_SCALE) / total;
+}
 
 ponder.on(
 	"PredictionPariMutuel:SeedInitialLiquidity",
@@ -67,14 +79,9 @@ ponder.on(
 			},
 		});
 
-		const yesChance = calculatePariMutuelYesChance({
-			curveFlattener: market.curveFlattener,
-			curveOffset: market.curveOffset ?? 0,
+		const yesChance = computeYesChanceFromCollateral({
 			totalCollateralYes: yesAmount,
 			totalCollateralNo: noAmount,
-			currentTimestamp: timestamp,
-			marketStartTimestamp: market.marketStartTimestamp!,
-			marketCloseTimestamp: market.marketCloseTimestamp!,
 		});
 
 		await context.db.markets.update({
@@ -92,7 +99,7 @@ ponder.on(
 			},
 		});
 
-		// Record price tick + candles for PariMutuel using computed yesChance (scaled 1e9).
+		// Record price tick + candles for PariMutuel using collateral-ratio yesChance (scaled 1e9).
 		await recordPriceTickAndCandles({
 			context,
 			marketAddress,
@@ -222,15 +229,9 @@ ponder.on(
 			? currentNoShares
 			: currentNoShares + sharesOut;
 
-		// Recalculate yesChance using time-weighted curve
-		const newYesChance = calculatePariMutuelYesChance({
-			curveFlattener: market.curveFlattener!,
-			curveOffset: market.curveOffset ?? 0,
+		const newYesChance = computeYesChanceFromCollateral({
 			totalCollateralYes: newYesCollateral,
 			totalCollateralNo: newNoCollateral,
-			currentTimestamp: timestamp,
-			marketStartTimestamp: market.marketStartTimestamp!,
-			marketCloseTimestamp: market.marketCloseTimestamp!,
 		});
 
 		await context.db.markets.update({
@@ -252,7 +253,7 @@ ponder.on(
 			},
 		});
 
-		// Record price tick + candles for PariMutuel using computed yesChance (scaled 1e9).
+		// Record price tick + candles for PariMutuel using collateral-ratio yesChance (scaled 1e9).
 		await recordPriceTickAndCandles({
 			context,
 			marketAddress,

@@ -227,7 +227,7 @@ export default createSchema((p) => ({
     totalSharesNo: p.bigint().optional(),
     /** 
      * PariMutuel: Current YES probability (scaled 1e9)
-     * Formula: yesChance = totalSharesNo / (totalSharesYes + totalSharesNo) * 1e9
+     * Formula: yesChance = totalCollateralYes / (totalCollateralYes + totalCollateralNo) * 1e9
      * Example: 500_000_000 = 50%
      */
     yesChance: p.bigint().optional(),
