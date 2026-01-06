@@ -383,6 +383,7 @@ ponder.on(
   "PredictionPariMutuel:ProtocolFeesWithdrawn",
   async ({ event, context }: any) => {
     try {
+      const { creatorShare } = event.args;
       const timestamp = event.block.timestamp;
       const marketAddress = event.log.address;
       const chain = getChainInfo(context);
@@ -424,6 +425,18 @@ ponder.on(
 
       if (delta !== 0n) {
         await updateAggregateStats(context, chain, timestamp, { tvlChange: delta });
+      }
+
+      // 4) Update creator's totalCreatorFees if creatorShare > 0
+      const creatorShareBigInt = BigInt(creatorShare ?? 0);
+      if (creatorShareBigInt > 0n && market.creator) {
+        const creatorUser = await getOrCreateUser(context, market.creator, chain);
+        await context.db.users.update({
+          id: creatorUser.id,
+          data: {
+            totalCreatorFees: (creatorUser.totalCreatorFees ?? 0n) + creatorShareBigInt,
+          },
+        });
       }
     } catch (err) {
       console.error(

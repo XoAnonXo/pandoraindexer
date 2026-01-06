@@ -472,6 +472,11 @@ export default createSchema((p) => ({
     marketsCreated: p.int(),
     /** Number of prediction polls created by this user */
     pollsCreated: p.int(),
+    /**
+     * Total fees earned from markets created by this user (6 decimals)
+     * Updated when ProtocolFeesWithdrawn event fires on user's markets
+     */
+    totalCreatorFees: p.bigint(),
     
     // ─────────────────────────────────────────────────────────────────────────
     // REFERRAL FIELDS

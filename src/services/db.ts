@@ -108,6 +108,7 @@ export async function getOrCreateUser(
 					// Creator stats
 					marketsCreated: 0,
 					pollsCreated: 0,
+					totalCreatorFees: 0n,
 					// Referral stats (all start at zero/null)
 					totalReferrals: 0,
 					totalReferralVolume: 0n,
