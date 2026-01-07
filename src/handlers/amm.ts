@@ -3,6 +3,7 @@ import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser, getOrCreateMinimalMarket, isNewTraderForMarket, recordMarketInteraction } from "../services/db";
 import { updateReferralVolume } from "../services/referral";
+import { updatePollTvl } from "../services/pollTvl";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
 import { recordAmmPriceTickAndCandles } from "../services/candles";
 
@@ -13,10 +14,12 @@ function toBigInt(value: unknown): bigint {
 /**
  * Helper function to read reserves from contract and update market
  * Called after each trade event to keep reserveYes/reserveNo/yesChance in sync
+ * Also syncs poll TVL after updating market TVL
  */
 async function updateMarketReserves(
   context: any,
   marketAddress: `0x${string}`,
+  pollAddress: `0x${string}`,
   chainName: string,
   blockNumber: bigint
 ): Promise<{ yesChance: bigint; collateralTvl: bigint }> {
@@ -44,6 +47,9 @@ async function updateMarketReserves(
       currentTvl: collateralTvl,
     },
   });
+
+  // Sync poll TVL after market TVL update
+  await updatePollTvl(context, pollAddress);
 
   return { yesChance, collateralTvl };
 }
@@ -82,6 +88,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
   const { yesChance: spotYesChance } = await updateMarketReserves(
     context,
     marketAddress,
+    pollAddress,
     chain.chainName,
     BigInt(event.block.number)
   );
@@ -176,6 +183,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
   const { yesChance: spotYesChance } = await updateMarketReserves(
     context,
     marketAddress,
+    pollAddress,
     chain.chainName,
     BigInt(event.block.number)
   );
@@ -311,6 +319,7 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
   const { yesChance: spotYesChance } = await updateMarketReserves(
     context,
     marketAddress,
+    pollAddress,
     chain.chainName,
     BigInt(event.block.number)
   );
@@ -372,7 +381,7 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 
   if (market) {
     // Update reserves + currentTvl from contract state at this block.
-    await updateMarketReserves(context, marketAddress, chain.chainName, BigInt(event.block.number));
+    await updateMarketReserves(context, marketAddress, market.pollAddress, chain.chainName, BigInt(event.block.number));
   }
 
   const userData = await getOrCreateUser(context, user, chain);
@@ -488,7 +497,7 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
   });
 
   // Update reserves + currentTvl from contract state at this block.
-  await updateMarketReserves(context, marketAddress, chain.chainName, BigInt(event.block.number));
+  await updateMarketReserves(context, marketAddress, pollAddress, chain.chainName, BigInt(event.block.number));
 
   // Use centralized stats update
   // NOTE: Liquidity adds are NOT trades - they're LP actions
@@ -563,7 +572,7 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
   });
 
   // Update reserves + currentTvl from contract state at this block.
-  await updateMarketReserves(context, marketAddress, chain.chainName, BigInt(event.block.number));
+  await updateMarketReserves(context, marketAddress, pollAddress, chain.chainName, BigInt(event.block.number));
 
   // Use centralized stats update
   // NOTE: Liquidity removes are NOT trades - they're LP actions
@@ -655,6 +664,9 @@ ponder.on("PredictionAMM:ProtocolFeesWithdrawn", async ({ event, context }: any)
         platformFeesEarned: (market.platformFeesEarned ?? 0n) + platformShareBigInt,
       },
     });
+
+    // Sync poll TVL after market TVL update
+    await updatePollTvl(context, market.pollAddress);
 
     if (delta !== 0n) {
       await updateAggregateStats(context, chain, timestamp, { tvlChange: delta });

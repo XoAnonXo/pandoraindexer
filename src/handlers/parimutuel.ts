@@ -8,6 +8,7 @@ import {
 	recordMarketInteraction,
 } from "../services/db";
 import { updateReferralVolume } from "../services/referral";
+import { updatePollTvl } from "../services/pollTvl";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 import { recordPriceTickAndCandles } from "../services/candles";
 
@@ -98,6 +99,9 @@ ponder.on(
 				yesChance: yesChance,
 			},
 		});
+
+		// Sync poll TVL after market TVL update
+		await updatePollTvl(context, pollAddress);
 
 		// Record price tick + candles for PariMutuel using collateral-ratio yesChance (scaled 1e9).
 		await recordPriceTickAndCandles({
@@ -253,6 +257,9 @@ ponder.on(
 			},
 		});
 
+		// Sync poll TVL after market TVL update
+		await updatePollTvl(context, pollAddress);
+
 		// Record price tick + candles for PariMutuel using collateral-ratio yesChance (scaled 1e9).
 		await recordPriceTickAndCandles({
 			context,
@@ -337,6 +344,9 @@ ponder.on(
 					currentTvl: newMarketTvl,
 				},
 			});
+
+			// Sync poll TVL after market TVL update
+			await updatePollTvl(context, market.pollAddress);
 		}
 
 		const userData = await getOrCreateUser(context, user, chain);
@@ -430,6 +440,9 @@ ponder.on(
           platformFeesEarned: (market.platformFeesEarned ?? 0n) + platformShareBigInt,
         },
       });
+
+      // Sync poll TVL after market TVL update
+      await updatePollTvl(context, market.pollAddress);
 
       if (delta !== 0n) {
         await updateAggregateStats(context, chain, timestamp, { tvlChange: delta });

@@ -144,6 +144,11 @@ export default createSchema((p) => ({
     disputedAt: p.bigint().optional(),
     /** Timestamp when resolved (null if pending) */
     resolvedAt: p.bigint().optional(),
+    
+    /** Maximum TVL among all markets for this poll (6 decimals) - for filtering/sorting */
+    maxMarketTvl: p.bigint().optional(),
+    /** Total TVL across all markets for this poll (6 decimals) - for analytics */
+    totalMarketsTvl: p.bigint().optional(),
     /** Block number when created */
     createdAtBlock: p.bigint(),
     /** Timestamp when created */

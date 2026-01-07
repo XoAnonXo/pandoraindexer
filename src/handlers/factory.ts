@@ -2,6 +2,7 @@ import { ponder } from "@/generated";
 import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser } from "../services/db";
+import { updatePollTvl } from "../services/pollTvl";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 
 const YES_PRICE_SCALE = 1_000_000_000n; // 1e9
@@ -93,6 +94,9 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 		markets: 1,
 		ammMarkets: 1,
 	});
+
+	// Sync poll TVL (will be 0 initially, but sets up the fields)
+	await updatePollTvl(context, pollAddress);
 
 	console.log(`[${chain.chainName}] AMM market created: ${marketAddress}`);
 	} catch (err) {
@@ -215,6 +219,9 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }: any) => 
       pariMarkets: 1,
     });
   
+		// Sync poll TVL (will be 0 initially, but sets up the fields)
+		await updatePollTvl(context, pollAddress);
+
 		console.log(`[${chain.chainName}] PariMutuel market created: ${marketAddress}`);
 	} catch (err) {
 		console.error(
