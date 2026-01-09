@@ -17,9 +17,6 @@ COPY . .
 # Generate Ponder types from schema
 RUN npm run codegen
 
-# Build cron.ts to cron.js
-RUN npx tsc cron.ts --outDir . --module commonjs --esModuleInterop --skipLibCheck
-
 # Make start script executable
 RUN chmod +x start.sh
 
