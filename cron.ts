@@ -36,8 +36,7 @@ setTimeout(async () => {
 			"npm run recalculate:volume24h"
 		);
 		if (stdout) console.log("[Cron] Initial calculation output:", stdout);
-		if (stderr && stderr.trim())
-			console.error("[Cron] Errors:", stderr);
+		if (stderr && stderr.trim()) console.error("[Cron] Errors:", stderr);
 		console.log("[Cron] ✅ Initial calculation completed");
 	} catch (error) {
 		console.error("[Cron] ❌ Initial calculation failed:", error);

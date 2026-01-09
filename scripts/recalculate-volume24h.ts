@@ -12,6 +12,7 @@
  *
  * Environment:
  *   DATABASE_URL - PostgreSQL connection string (required)
+ *   RAILWAY_DEPLOYMENT_ID - Railway deployment ID for schema name (optional)
  */
 
 import { Pool } from "pg";
@@ -24,7 +25,16 @@ if (!DATABASE_URL) {
 	process.exit(1);
 }
 
-// Create PostgreSQL connection pool
+// Get Ponder schema name from Railway deployment ID
+// Ponder uses format: {color}-{projectName}_{shortDeploymentId}
+const deploymentId = process.env.RAILWAY_DEPLOYMENT_ID;
+const schemaName = deploymentId
+	? `blue-sonicmarketindexer_${deploymentId.substring(0, 8)}`
+	: "public";
+
+console.log(`[Recalculate] Using database schema: ${schemaName}`);
+
+// Create PostgreSQL connection pool with schema
 const pool = new Pool({
 	connectionString: DATABASE_URL,
 });
@@ -44,6 +54,10 @@ async function recalculateVolume24h() {
 	const client = await pool.connect();
 
 	try {
+		// Set search_path to use Ponder's schema
+		await client.query(`SET search_path TO "${schemaName}", public`);
+		console.log(`[Recalculate] Set search_path to: ${schemaName}`);
+
 		console.log(`[Recalculate] Timestamp 24h ago: ${timestamp24hAgo}`);
 		console.log("[Recalculate] Fetching all markets...");
 
