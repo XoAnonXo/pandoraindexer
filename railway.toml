@@ -1,0 +1,9 @@
+[[services]]
+name = "indexer"
+
+[[services]]
+name = "volume-recalc-cron"
+dockerfile = "Dockerfile.cron"
+
+[services.volume-recalc-cron]
+cron = "0 * * * *"  # Каждый час

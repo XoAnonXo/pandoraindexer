@@ -2,12 +2,12 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Скопировать package.json и установить зависимости
-COPY scripts/package.json scripts/package-lock.json ./
+# Копировать package.json из корня
+COPY package.json package-lock.json ./
 RUN npm ci --production
 
-# Скопировать скрипт
-COPY scripts/recalculate-volume24h.ts ./
+# Копировать скрипт
+COPY scripts/recalculate-volume24h.ts ./scripts/
 
-# Запустить
-CMD ["npx", "tsx", "recalculate-volume24h.ts"]
+# Запустить из корня
+CMD ["npm", "run", "recalculate:volume24h"]
