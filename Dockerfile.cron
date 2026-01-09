@@ -2,15 +2,17 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Копировать package.json
+# 1. Install dependencies first (better caching)
 COPY package.json package-lock.json ./
-
-# Убрать --production чтобы установить devDependencies (tsx)
 RUN npm ci
 
-# Копировать tsconfig и scripts
+# 2. Copy config files
 COPY tsconfig.json ./
+
+# 3. Copy EVERYTHING needed for the script
+# If your scripts import from ../src, you MUST add: COPY src/ ./src/
 COPY scripts/ ./scripts/
 
-# Для отладки добавить логи
-CMD ["sh", "-c", "echo 'Starting recalculation...' && npm run recalculate:volume24h && echo 'Done!'"]
+# 4. Environment Check & Run
+# We use 'ls' to verify files exist in the logs if it fails
+CMD ["sh", "-c", "ls -l ./scripts && npm run recalculate:volume24h"]

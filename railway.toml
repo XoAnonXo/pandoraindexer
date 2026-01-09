@@ -1,9 +1,10 @@
 [[services]]
 name = "indexer"
+# настройки первого сервиса
 
 [[services]]
 name = "volume-recalc-cron"
 dockerfile = "Dockerfile.cron"
 
-[services.volume-recalc-cron]
-cron = "0 * * * *"
+[services.volume-recalc-cron.cron]
+schedule = "0 * * * *"
