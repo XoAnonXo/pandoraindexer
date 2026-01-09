@@ -25,10 +25,13 @@
 		"graphql": "^16.12.0",
 		"graphql-request": "^7.3.5",
 		"hono": "^4.0.0",
+		"node-cron": "^4.2.1",
 		"pg": "^8.13.1",
+		"shelljs": "^0.10.0",
 		"viem": "^2.0.0"
 	},
 	"devDependencies": {
+		"@types/node-cron": "^3.0.11",
 		"@types/pg": "^8.11.10",
 		"tsx": "^4.21.0",
 		"typescript": "^5.0.0"
