@@ -2,13 +2,14 @@
 name = "indexer"
 dockerfile = "Dockerfile"
 
-# Init job - запускается ПЕРЕД основным сервисом
-[[services.indexer.init]]
-command = "npm run recalculate:volume24h"
-
+# Отдельный сервис для первого запуска
 [[services]]
-name = "volume-recalc-cron"
+name = "volume-init"
 dockerfile = "Dockerfile.cron"
 
-[services.volume-recalc-cron]
+[[services]]
+name = "volume-cron"
+dockerfile = "Dockerfile.cron"
+
+[services.volume-cron]
 cron = "0 * * * *"

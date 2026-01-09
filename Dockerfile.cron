@@ -2,12 +2,13 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Копировать package.json из корня
+# Копировать все что нужно
 COPY package.json package-lock.json ./
 RUN npm ci --production
 
-# Копировать скрипт
-COPY scripts/recalculate-volume24h.ts ./scripts/
+# Копировать tsconfig и scripts
+COPY tsconfig.json ./
+COPY scripts/ ./scripts/
 
-# Запустить из корня
-CMD ["npm", "run", "recalculate:volume24h"]
+# Для отладки добавить логи
+CMD ["sh", "-c", "echo 'Starting recalculation...' && npm run recalculate:volume24h && echo 'Done!'"]
