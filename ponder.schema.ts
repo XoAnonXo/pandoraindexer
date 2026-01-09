@@ -198,6 +198,8 @@ export default createSchema((p) => ({
     marketCloseTimestamp: p.bigint().optional(),
     /** Total trading volume (6 decimals) */
     totalVolume: p.bigint(),
+    /** Trading volume in last 24 hours (6 decimals) - updated periodically by recalculation script */
+    volume24h: p.bigint(),
     /** Number of trades */
     totalTrades: p.int(),
     /** Current total value locked */

@@ -238,15 +238,15 @@ ponder.on(
 			totalCollateralNo: newNoCollateral,
 		});
 
-		await context.db.markets.update({
-			id: marketAddress,
-			data: {
-				totalVolume: market.totalVolume + collateralIn,
-				totalTrades: market.totalTrades + 1,
-				currentTvl: market.currentTvl + collateralIn,
-				uniqueTraders: isNewTrader
-					? market.uniqueTraders + 1
-					: market.uniqueTraders,
+	await context.db.markets.update({
+		id: marketAddress,
+		data: {
+			totalVolume: market.totalVolume + collateralIn,
+			totalTrades: market.totalTrades + 1,
+			currentTvl: market.currentTvl + collateralIn,
+			uniqueTraders: isNewTrader
+				? market.uniqueTraders + 1
+				: market.uniqueTraders,
 				// Update PariMutuel pool state
 				totalCollateralYes: newYesCollateral,
 				totalCollateralNo: newNoCollateral,

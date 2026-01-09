@@ -65,7 +65,13 @@ export async function checkAndRecordMarketInteraction(
 		traderAddress,
 		chain
 	);
-	await recordMarketInteraction(context, marketAddress, traderAddress, chain, timestamp);
+	await recordMarketInteraction(
+		context,
+		marketAddress,
+		traderAddress,
+		chain,
+		timestamp
+	);
 	return isNewTrader;
 }
 
@@ -142,39 +148,44 @@ export async function getOrCreateMinimalMarket(
 		if (!market) {
 			// Contract is assumed valid. Always backfill minimal metadata from onchain state at this block.
 			if (marketType === "amm") {
-				const [pollAddress, creator, collateralToken, yesToken, noToken] =
-					await Promise.all([
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionAMMAbi,
-							functionName: "pollAddress",
-							blockNumber,
-						}),
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionAMMAbi,
-							functionName: "creator",
-							blockNumber,
-						}),
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionAMMAbi,
-							functionName: "collateralToken",
-							blockNumber,
-						}),
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionAMMAbi,
-							functionName: "yesToken",
-							blockNumber,
-						}),
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionAMMAbi,
-							functionName: "noToken",
-							blockNumber,
-						}),
-					]);
+				const [
+					pollAddress,
+					creator,
+					collateralToken,
+					yesToken,
+					noToken,
+				] = await Promise.all([
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionAMMAbi,
+						functionName: "pollAddress",
+						blockNumber,
+					}),
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionAMMAbi,
+						functionName: "creator",
+						blockNumber,
+					}),
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionAMMAbi,
+						functionName: "collateralToken",
+						blockNumber,
+					}),
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionAMMAbi,
+						functionName: "yesToken",
+						blockNumber,
+					}),
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionAMMAbi,
+						functionName: "noToken",
+						blockNumber,
+					}),
+				]);
 
 				market = await context.db.markets.upsert({
 					id: marketAddress,
@@ -182,74 +193,92 @@ export async function getOrCreateMinimalMarket(
 						chainId: chain.chainId,
 						chainName: chain.chainName,
 						isIncomplete: false,
-						pollAddress: (pollAddress as string).toLowerCase() as `0x${string}`,
-						creator: (creator as string).toLowerCase() as `0x${string}`,
+						pollAddress: (
+							pollAddress as string
+						).toLowerCase() as `0x${string}`,
+						creator: (
+							creator as string
+						).toLowerCase() as `0x${string}`,
 						marketType,
-						collateralToken: (collateralToken as string).toLowerCase() as `0x${string}`,
-						yesToken: (yesToken as string).toLowerCase() as `0x${string}`,
-						noToken: (noToken as string).toLowerCase() as `0x${string}`,
+						collateralToken: (
+							collateralToken as string
+						).toLowerCase() as `0x${string}`,
+						yesToken: (
+							yesToken as string
+						).toLowerCase() as `0x${string}`,
+						noToken: (
+							noToken as string
+						).toLowerCase() as `0x${string}`,
 						totalVolume: 0n,
+						volume24h: 0n,
 						totalTrades: 0,
 						currentTvl: 0n,
 						uniqueTraders: 0,
-            initialLiquidity: 0n,
-            reserveYes: 0n,
-            reserveNo: 0n,
-            yesChance: 500_000_000n,
-            creatorFeesEarned: 0n,
-            platformFeesEarned: 0n,
-            createdAtBlock: blockNumber,
-            createdAt: timestamp,
-            createdTxHash: txHash as `0x${string}`,
+						initialLiquidity: 0n,
+						reserveYes: 0n,
+						reserveNo: 0n,
+						yesChance: 500_000_000n,
+						creatorFeesEarned: 0n,
+						platformFeesEarned: 0n,
+						createdAtBlock: blockNumber,
+						createdAt: timestamp,
+						createdTxHash: txHash as `0x${string}`,
 					},
 					update: {},
 				});
 			} else {
-				const [pollAddress, creator, collateralToken, curveFlattener, curveOffset, marketStartTimestamp, marketCloseTimestamp] =
-					await Promise.all([
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionPariMutuelAbi,
-							functionName: "pollAddress",
-							blockNumber,
-						}),
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionPariMutuelAbi,
-							functionName: "creator",
-							blockNumber,
-						}),
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionPariMutuelAbi,
-							functionName: "collateralToken",
-							blockNumber,
-						}),
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionPariMutuelAbi,
-							functionName: "curveFlattener",
-							blockNumber,
-						}),
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionPariMutuelAbi,
-							functionName: "curveOffset",
-							blockNumber,
-						}),
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionPariMutuelAbi,
-							functionName: "marketStartTimestamp",
-							blockNumber,
-						}),
-						context.client.readContract({
-							address: marketAddress,
-							abi: PredictionPariMutuelAbi,
-							functionName: "marketCloseTimestamp",
-							blockNumber,
-						}),
-					]);
+				const [
+					pollAddress,
+					creator,
+					collateralToken,
+					curveFlattener,
+					curveOffset,
+					marketStartTimestamp,
+					marketCloseTimestamp,
+				] = await Promise.all([
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionPariMutuelAbi,
+						functionName: "pollAddress",
+						blockNumber,
+					}),
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionPariMutuelAbi,
+						functionName: "creator",
+						blockNumber,
+					}),
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionPariMutuelAbi,
+						functionName: "collateralToken",
+						blockNumber,
+					}),
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionPariMutuelAbi,
+						functionName: "curveFlattener",
+						blockNumber,
+					}),
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionPariMutuelAbi,
+						functionName: "curveOffset",
+						blockNumber,
+					}),
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionPariMutuelAbi,
+						functionName: "marketStartTimestamp",
+						blockNumber,
+					}),
+					context.client.readContract({
+						address: marketAddress,
+						abi: PredictionPariMutuelAbi,
+						functionName: "marketCloseTimestamp",
+						blockNumber,
+					}),
+				]);
 
 				market = await context.db.markets.upsert({
 					id: marketAddress,
@@ -257,27 +286,34 @@ export async function getOrCreateMinimalMarket(
 						chainId: chain.chainId,
 						chainName: chain.chainName,
 						isIncomplete: false,
-						pollAddress: (pollAddress as string).toLowerCase() as `0x${string}`,
-						creator: (creator as string).toLowerCase() as `0x${string}`,
+						pollAddress: (
+							pollAddress as string
+						).toLowerCase() as `0x${string}`,
+						creator: (
+							creator as string
+						).toLowerCase() as `0x${string}`,
 						marketType,
-						collateralToken: (collateralToken as string).toLowerCase() as `0x${string}`,
+						collateralToken: (
+							collateralToken as string
+						).toLowerCase() as `0x${string}`,
 						curveFlattener: Number(curveFlattener),
 						curveOffset: Number(curveOffset),
 						marketStartTimestamp: BigInt(marketStartTimestamp),
 						marketCloseTimestamp: BigInt(marketCloseTimestamp),
 						totalVolume: 0n,
+						volume24h: 0n,
 						totalTrades: 0,
 						currentTvl: 0n,
 						uniqueTraders: 0,
-					initialLiquidity: 0n,
-					yesChance: 500_000_000n,
-					totalCollateralYes: 0n,
-					totalCollateralNo: 0n,
-					creatorFeesEarned: 0n,
-					platformFeesEarned: 0n,
-					createdAtBlock: blockNumber,
-					createdAt: timestamp,
-					createdTxHash: txHash as `0x${string}`,
+						initialLiquidity: 0n,
+						yesChance: 500_000_000n,
+						totalCollateralYes: 0n,
+						totalCollateralNo: 0n,
+						creatorFeesEarned: 0n,
+						platformFeesEarned: 0n,
+						createdAtBlock: blockNumber,
+						createdAt: timestamp,
+						createdTxHash: txHash as `0x${string}`,
 					},
 					update: {},
 				});
