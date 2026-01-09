@@ -2,9 +2,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Копировать все что нужно
+# Копировать package.json
 COPY package.json package-lock.json ./
-RUN npm ci --production
+
+# Убрать --production чтобы установить devDependencies (tsx)
+RUN npm ci
 
 # Копировать tsconfig и scripts
 COPY tsconfig.json ./

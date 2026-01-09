@@ -1,15 +1,9 @@
 [[services]]
 name = "indexer"
-dockerfile = "Dockerfile"
-
-# Отдельный сервис для первого запуска
-[[services]]
-name = "volume-init"
-dockerfile = "Dockerfile.cron"
 
 [[services]]
-name = "volume-cron"
+name = "volume-recalc-cron"
 dockerfile = "Dockerfile.cron"
 
-[services.volume-cron]
+[services.volume-recalc-cron]
 cron = "0 * * * *"
