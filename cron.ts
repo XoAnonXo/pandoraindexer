@@ -24,15 +24,22 @@ cron.schedule("0 * * * *", async () => {
 	}
 });
 
-// Запустить сразу при старте (первая инициализация)
-console.log("[Cron] Running initial volume24h calculation...");
-execAsync("npm run recalculate:volume24h")
-	.then(({ stdout }) => {
-		if (stdout) console.log("[Cron] Initial calculation output:", stdout);
-		console.log("[Cron] ✅ Initial calculation completed");
-	})
-	.catch((error) => {
-		console.error("[Cron] ❌ Initial calculation failed:", error);
-	});
-
 console.log("[Cron] ✅ Cron jobs scheduled (runs every hour at :00)");
+
+// Запустить первую инициализацию с задержкой 60 секунд
+// чтобы Ponder успел создать таблицы в БД
+console.log("[Cron] Waiting 60 seconds for Ponder to initialize database...");
+setTimeout(async () => {
+	console.log("[Cron] Running initial volume24h calculation...");
+	try {
+		const { stdout, stderr } = await execAsync(
+			"npm run recalculate:volume24h"
+		);
+		if (stdout) console.log("[Cron] Initial calculation output:", stdout);
+		if (stderr && stderr.trim())
+			console.error("[Cron] Errors:", stderr);
+		console.log("[Cron] ✅ Initial calculation completed");
+	} catch (error) {
+		console.error("[Cron] ❌ Initial calculation failed:", error);
+	}
+}, 60000); // 60 секунд = 1 минута
