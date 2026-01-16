@@ -20,11 +20,13 @@ npm run dev
 
 ## Features
 
-- ✅ **Multi-Chain Ready** - Tables support multiple EVM chains
-- ✅ **Real-time Indexing** - Polls, markets, trades, users, winnings
-- ✅ **Platform Statistics** - Per-chain and time-series analytics
-- ✅ **GraphQL API** - Auto-generated from schema
-- ✅ **Docker Support** - Easy deployment to Railway
+-   ✅ **Multi-Chain Ready** - Tables support multiple EVM chains
+-   ✅ **Real-time Indexing** - Polls, markets, trades, users, winnings
+-   ✅ **Referral System** - Track referral codes, campaigns, and rewards
+-   ✅ **Dispute Resolution** - NFT-based voting on oracle decisions
+-   ✅ **Platform Statistics** - Per-chain and time-series analytics
+-   ✅ **GraphQL API** - Auto-generated from schema
+-   ✅ **Docker Support** - Easy deployment to Railway
 
 ## Architecture
 
@@ -63,22 +65,115 @@ npm run dev
 
 ### Core Tables (Per Chain)
 
-| Table | Description | Key Fields |
-|-------|-------------|------------|
-| `polls` | Prediction questions | chainId, question, status, resolvedAt |
-| `markets` | AMM & PariMutuel markets | chainId, marketType, totalVolume, currentTvl |
-| `trades` | All trading activity | chainId, tradeType, side, collateralAmount |
-| `users` | Per-chain user stats | chainId, address, totalVolume, totalWinnings |
-| `winnings` | Winning redemptions | chainId, collateralAmount, outcome |
-| `liquidityEvents` | LP add/remove | chainId, eventType, collateralAmount |
+| Table             | Description              | Key Fields                                   |
+| ----------------- | ------------------------ | -------------------------------------------- |
+| `polls`           | Prediction questions     | chainId, question, status, resolvedAt        |
+| `markets`         | AMM & PariMutuel markets | chainId, marketType, totalVolume, currentTvl |
+| `trades`          | All trading activity     | chainId, tradeType, side, collateralAmount   |
+| `users`           | Per-chain user stats     | chainId, address, totalVolume, totalWinnings |
+| `winnings`        | Winning redemptions      | chainId, collateralAmount, outcome           |
+| `liquidityEvents` | LP add/remove            | chainId, eventType, collateralAmount         |
 
 ### Analytics Tables (Per Chain)
 
-| Table | Description | Key Fields |
-|-------|-------------|------------|
-| `platformStats` | Chain totals | chainId, totalVolume, totalMarkets, totalUsers |
-| `dailyStats` | Daily aggregates | chainId, dayTimestamp, volume, tradesCount |
-| `hourlyStats` | Hourly aggregates | chainId, hourTimestamp, volume |
+| Table           | Description       | Key Fields                                     |
+| --------------- | ----------------- | ---------------------------------------------- |
+| `platformStats` | Chain totals      | chainId, totalVolume, totalMarkets, totalUsers |
+| `dailyStats`    | Daily aggregates  | chainId, dayTimestamp, volume, tradesCount     |
+| `hourlyStats`   | Hourly aggregates | chainId, hourTimestamp, volume                 |
+
+### Referral System Tables
+
+| Table            | Description                    | Key Fields                               |
+| ---------------- | ------------------------------ | ---------------------------------------- |
+| `referralCodes`  | User referral codes            | code, owner, totalReferrals, totalVolume |
+| `referrals`      | Referrer-referee relationships | referrer, referee, totalVolume           |
+| `campaigns`      | Reward campaigns               | campaignId, rewardToken, totalRewards    |
+| `campaignClaims` | Individual reward claims       | campaignId, user, totalClaimed           |
+
+### Dispute Resolution Tables
+
+| Table                 | Description         | Key Fields                                   |
+| --------------------- | ------------------- | -------------------------------------------- |
+| `disputes`            | Dispute tracking    | oracle, disputer, state, votesYes/No/Unknown |
+| `disputeVotes`        | Individual votes    | oracle, voter, power, votedFor               |
+| `disputeRewardClaims` | Voter reward claims | oracle, tokenId, rewardAmount                |
+
+## Dispute Resolution System
+
+### Overview
+
+The Dispute Resolution System allows NFT holders to challenge oracle/poll decisions through voting.
+
+**Architecture:**
+
+-   **DisputeResolverHome** (Sonic) - Manages disputes on Sonic, wraps AnonStaking NFTs
+
+**Current Deployment:**
+
+-   Sonic: `0x2446DC1279Ed900c05CF2D137B07f383d98c0baD` (DisputeResolverHome)
+-   AnonStaking: `0x5170F242c0246FD9427fB94c595d9b50fb48AA91`
+-   Vault: `0xeb9404fF82e576F6b8623814AdCF10B61A5c7d44`
+
+### Key Events
+
+| Event               | Description                         |
+| ------------------- | ----------------------------------- |
+| `DisputeCreated`    | New dispute opened against oracle   |
+| `Vote`              | NFT holder casts vote               |
+| `DisputeResolved`   | Dispute finalized with outcome      |
+| `DisputeFailed`     | Dispute failed (insufficient votes) |
+| `VoteRewardClaimed` | Voter claims rewards                |
+| `CollateralTaken`   | Disputer's collateral seized        |
+
+### GraphQL Examples
+
+**Get Active Disputes:**
+
+```graphql
+{
+	disputes(where: { state: 1 }) {
+		oracle
+		disputer
+		draftStatus
+		votesYes
+		votesNo
+		endAt
+	}
+}
+```
+
+**Get My Votes:**
+
+```graphql
+{
+	disputeVotes(where: { voter: "0xYOUR_ADDRESS" }) {
+		oracle
+		votedFor
+		power
+		votedAt
+	}
+}
+```
+
+**Get My Rewards:**
+
+```graphql
+{
+	disputeRewardClaims(where: { claimer: "0xYOUR_ADDRESS" }) {
+		oracle
+		rewardAmount
+		claimedAt
+	}
+}
+```
+
+### Integration with Polls
+
+Disputes automatically update the `polls` table:
+
+-   Sets `disputedBy`, `disputeStake`, `disputedAt`, `arbitrationStarted`
+-   Updates `status` when resolved
 
 ## Adding a New Chain
 
@@ -88,24 +183,29 @@ Edit `config.ts`:
 
 ```typescript
 export const CHAINS: Record<number, ChainConfig> = {
-  // Existing chain...
-  146: { /* Sonic */ },
-  
-  // Add new chain
-  8453: {
-    chainId: 8453,
-    name: "Base",
-    shortName: "base",
-    rpcUrl: process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org",
-    explorerUrl: "https://basescan.org",
-    contracts: {
-      oracle: "0x...",         // Deploy and add address
-      marketFactory: "0x...",  // Deploy and add address
-      usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    },
-    startBlock: 12345678,  // Block when contracts were deployed
-    enabled: true,
-  },
+	// Existing chain...
+	146: {
+		/* Sonic */
+	},
+
+	// Add new chain
+	8453: {
+		chainId: 8453,
+		name: "Base",
+		shortName: "base",
+		rpcUrl: process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org",
+		explorerUrl: "https://basescan.org",
+		contracts: {
+			oracle: "0x...", // Deploy and add address
+			marketFactory: "0x...", // Deploy and add address
+			usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+			referralRegistry: "0x...", // Deploy and add address
+			campaignFactory: "0x...", // Deploy and add address
+			disputeResolverHome: "0x...", // Sonic only
+		},
+		startBlock: 12345678, // Block when contracts were deployed
+		enabled: true,
+	},
 };
 ```
 
@@ -127,7 +227,7 @@ networks: {
 // Add contracts
 contracts: {
   // Sonic contracts...
-  
+
   PredictionOracle_Base: {
     network: "base",
     abi: PredictionOracleAbi,
@@ -152,13 +252,13 @@ The indexer will start syncing the new chain from its startBlock.
 
 **CRITICAL**: These events generate volume:
 
-| Event | Contract | Counts As Volume |
-|-------|----------|------------------|
-| `SeedInitialLiquidity` | PariMutuel | `yesAmount + noAmount` |
-| `PositionPurchased` | PariMutuel | `collateralIn` |
-| `BuyTokens` | AMM | `collateralAmount` |
-| `SellTokens` | AMM | `collateralAmount` |
-| `LiquidityAdded` (imbalance) | AMM | `yesToReturn + noToReturn` |
+| Event                        | Contract   | Counts As Volume           |
+| ---------------------------- | ---------- | -------------------------- |
+| `SeedInitialLiquidity`       | PariMutuel | `yesAmount + noAmount`     |
+| `PositionPurchased`          | PariMutuel | `collateralIn`             |
+| `BuyTokens`                  | AMM        | `collateralAmount`         |
+| `SellTokens`                 | AMM        | `collateralAmount`         |
+| `LiquidityAdded` (imbalance) | AMM        | `yesToReturn + noToReturn` |
 
 ## GraphQL Examples
 
@@ -166,14 +266,14 @@ The indexer will start syncing the new chain from its startBlock.
 
 ```graphql
 query {
-  platformStatss(where: { chainId: 146 }) {
-    items {
-      chainName
-      totalVolume
-      totalMarkets
-      totalUsers
-    }
-  }
+	platformStatss(where: { chainId: 146 }) {
+		items {
+			chainName
+			totalVolume
+			totalMarkets
+			totalUsers
+		}
+	}
 }
 ```
 
@@ -181,16 +281,16 @@ query {
 
 ```graphql
 query {
-  marketss(orderBy: "totalVolume", orderDirection: "desc", limit: 10) {
-    items {
-      id
-      chainId
-      chainName
-      marketType
-      totalVolume
-      totalTrades
-    }
-  }
+	marketss(orderBy: "totalVolume", orderDirection: "desc", limit: 10) {
+		items {
+			id
+			chainId
+			chainName
+			marketType
+			totalVolume
+			totalTrades
+		}
+	}
 }
 ```
 
@@ -198,15 +298,15 @@ query {
 
 ```graphql
 query {
-  userss(where: { address: "0x123...", chainId: 146 }) {
-    items {
-      chainName
-      totalTrades
-      totalVolume
-      totalWinnings
-      bestStreak
-    }
-  }
+	userss(where: { address: "0x123...", chainId: 146 }) {
+		items {
+			chainName
+			totalTrades
+			totalVolume
+			totalWinnings
+			bestStreak
+		}
+	}
 }
 ```
 
@@ -214,29 +314,29 @@ query {
 
 ```graphql
 query {
-  dailyStatss(
-    where: { chainId: 146 }
-    orderBy: "dayTimestamp"
-    orderDirection: "desc"
-    limit: 7
-  ) {
-    items {
-      dayTimestamp
-      volume
-      tradesCount
-      newUsers
-    }
-  }
+	dailyStatss(
+		where: { chainId: 146 }
+		orderBy: "dayTimestamp"
+		orderDirection: "desc"
+		limit: 7
+	) {
+		items {
+			dayTimestamp
+			volume
+			tradesCount
+			newUsers
+		}
+	}
 }
 ```
 
 ## Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `PONDER_RPC_URL_146` | Sonic RPC URL | Yes |
-| `PONDER_RPC_URL_8453` | Base RPC URL | If Base enabled |
-| `DATABASE_URL` | PostgreSQL URL | Production |
+| Variable              | Description    | Required        |
+| --------------------- | -------------- | --------------- |
+| `PONDER_RPC_URL_146`  | Sonic RPC URL  | Yes             |
+| `PONDER_RPC_URL_8453` | Base RPC URL   | If Base enabled |
+| `DATABASE_URL`        | PostgreSQL URL | Production      |
 
 ## Development
 
@@ -256,10 +356,10 @@ npm run start
 1. Create PostgreSQL database on Railway
 2. Create new service from this repo
 3. Set environment variables:
-   ```
-   DATABASE_URL=postgresql://...
-   PONDER_RPC_URL_146=https://rpc.soniclabs.com
-   ```
+    ```
+    DATABASE_URL=postgresql://...
+    PONDER_RPC_URL_146=https://rpc.soniclabs.com
+    ```
 4. Deploy
 
 ## Files
@@ -276,7 +376,20 @@ ponder/
 │   ├── PredictionPoll.ts
 │   ├── MarketFactory.ts
 │   ├── PredictionAMM.ts
-│   └── PredictionPariMutuel.ts
+│   ├── PredictionPariMutuel.ts
+│   ├── ReferralRegistry.ts
+│   ├── CampaignFactory.ts
+│   └── DisputeResolverHome.ts
+├── src/
+│   └── handlers/       # Event handlers
+│       ├── oracle.ts
+│       ├── poll.ts
+│       ├── factory.ts
+│       ├── amm.ts
+│       ├── parimutuel.ts
+│       ├── referral.ts
+│       ├── campaign.ts
+│       └── disputes.ts
 ├── Dockerfile
 └── docker-compose.yml
 ```
@@ -286,14 +399,16 @@ ponder/
 ### Volume Not Tracking
 
 Check that these events are being indexed:
-- `SeedInitialLiquidity` for PariMutuel initial volume
-- `LiquidityAdded` imbalance for AMM (non-50/50 liquidity)
+
+-   `SeedInitialLiquidity` for PariMutuel initial volume
+-   `LiquidityAdded` imbalance for AMM (non-50/50 liquidity)
 
 See `docs/INDEXER_VOLUME_TRACKING.md` for details.
 
 ### Schema Changes
 
 Schema changes require a full re-sync:
+
 ```bash
 rm -rf .ponder
 npm run dev
