@@ -52,8 +52,14 @@ export { PredictionAMMAbi } from "./PredictionAMM";
 // PariMutuel Market - Pool-based betting with shared winnings
 export { PredictionPariMutuelAbi } from "./PredictionPariMutuel";
 
-// Referral Registry - Tracks referral codes and relationships
-export { ReferralRegistryAbi } from "./ReferralRegistry";
+// Referral Factory - Manages referral campaigns and relationships (NEW)
+export { ReferralFactoryAbi } from "./ReferralFactory";
 
-// Campaign Factory - Creates and manages reward campaigns
-export { CampaignFactoryAbi } from "./CampaignFactory";
+// Referral Campaign - Handles reward distribution with signatures (NEW)
+export { ReferralCampaignAbi } from "./ReferralCampaign";
+
+// Dispute Resolver Home - Manages disputes on home chain (Sonic)
+export { DisputeResolverHomeAbi } from "./DisputeResolverHome";
+
+// Bonding Curve - Launchpad token trading
+export { BondingCurveAbi } from "./BondingCurve";

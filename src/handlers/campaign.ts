@@ -1,9 +1,9 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════╗
- * ║                    CAMPAIGN FACTORY HANDLERS                               ║
+ * ║                REFERRAL CAMPAIGN HANDLERS (NEW)                            ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Handles reward campaign creation and status changes.                      ║
- * ║  Campaigns distribute rewards to referrers based on various criteria.      ║
+ * ║  Handles reward campaign creation via ReferralFactory.                     ║
+ * ║  New system: Signature-based reward distribution with operator             ║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -11,60 +11,56 @@ import { ponder } from "@/generated";
 import { getChainInfo } from "../utils/helpers";
 
 // =============================================================================
-// CAMPAIGN CREATED EVENT
+// CAMPAIGN CREATED EVENT (NEW)
 // =============================================================================
 /**
- * Handles when a new reward campaign is created.
+ * Handles when a new reward campaign is created by ReferralFactory.
  * Creates campaign record and updates global stats.
  * 
- * Campaign types:
- * - Referral rewards (% of referee volume)
- * - Fixed rewards per signup
- * - Tiered rewards based on performance
- * - Custom reward logic
+ * NEW SYSTEM:
+ * - Campaigns are created by ReferralFactory.createCampaign()
+ * - Each campaign has an operator that signs claim messages
+ * - Rewards distributed via EIP-712 signatures
+ * - Campaign address is emitted in event (not campaignId)
  */
-ponder.on("CampaignFactory:CampaignCreated", async ({ event, context }: any) => {
+ponder.on("ReferralFactory:CampaignCreated", async ({ event, context }: any) => {
   const {
-    campaignId,
-    creator,
-    rewardAsset,
-    assetKind,
-    rewardPool,
-    startTime,
-    endTime,
-    rewardType,
-    rewardConfig,
-    name,
-    description,
+    campaign,
+    rewardToken,
+    operator,
+    version,
   } = event.args;
 
   const timestamp = event.block.timestamp;
   const blockNumber = event.block.number;
   const chain = getChainInfo(context);
 
-  const normalizedCreator = creator.toLowerCase() as `0x${string}`;
-  const normalizedRewardAsset = rewardAsset.toLowerCase() as `0x${string}`;
-  const campaignIdStr = campaignId.toString();
+  const normalizedCampaign = campaign.toLowerCase() as `0x${string}`;
+  const normalizedRewardToken = rewardToken.toLowerCase() as `0x${string}`;
+  const normalizedOperator = operator.toLowerCase() as `0x${string}`;
+  
+  // Use campaign address as ID (instead of campaignId)
+  const campaignId = normalizedCampaign;
 
-  console.log(`[${chain.chainName}] Campaign created: ${name} (ID: ${campaignIdStr}) by ${normalizedCreator}`);
+  console.log(`[${chain.chainName}] Campaign created: ${campaignId} (operator: ${normalizedOperator}, version: ${version})`);
 
   // Create campaign record
   await context.db.campaigns.create({
-    id: campaignIdStr,
+    id: campaignId,
     data: {
       chainId: chain.chainId,
       chainName: chain.chainName,
-      name: name,
-      description: description,
-      creator: normalizedCreator,
-      rewardAsset: normalizedRewardAsset,
-      assetKind: assetKind,
-      rewardPool: rewardPool,
+      name: `Campaign ${campaignId.slice(0, 10)}...`, // Default name (can be updated manually)
+      description: `Signature-based referral rewards v${version}`,
+      creator: normalizedOperator, // Operator acts as creator
+      rewardAsset: normalizedRewardToken,
+      assetKind: 0, // ERC20 (assuming)
+      rewardPool: 0n, // Not tracked on-chain in new system
       rewardsPaid: 0n,
-      rewardType: rewardType,
-      rewardConfig: rewardConfig,
-      startTime: startTime,
-      endTime: endTime,
+      rewardType: 0, // Custom (signature-based)
+      rewardConfig: "0x", // Not used in new system
+      startTime: BigInt(timestamp), // Campaign starts immediately
+      endTime: 0n, // No end time (perpetual)
       status: 0, // Active by default
       totalParticipants: 0,
       totalClaims: 0,
@@ -93,60 +89,5 @@ ponder.on("CampaignFactory:CampaignCreated", async ({ event, context }: any) => 
   });
 });
 
-// =============================================================================
-// CAMPAIGN STATUS CHANGED EVENT
-// =============================================================================
-/**
- * Handles when a campaign's status changes.
- * Status values:
- * - 0: Active
- * - 1: Paused
- * - 2: Ended
- * - 3: Cancelled
- */
-ponder.on("CampaignFactory:CampaignStatusChanged", async ({ event, context }: any) => {
-  const { campaignId, status } = event.args;
-  const timestamp = event.block.timestamp;
-  const chain = getChainInfo(context);
-
-  const campaignIdStr = campaignId.toString();
-  const statusNames = ["Active", "Paused", "Ended", "Cancelled"];
-  const statusName = statusNames[status] || `Unknown(${status})`;
-
-  console.log(`[${chain.chainName}] Campaign ${campaignIdStr} status changed to: ${statusName}`);
-
-  // Get current campaign to track status changes
-  const campaign = await context.db.campaigns.findUnique({ id: campaignIdStr });
-  const wasActive = campaign?.status === 0;
-  const isNowActive = status === 0;
-
-  // Update campaign status
-  await context.db.campaigns.update({
-    id: campaignIdStr,
-    data: {
-      status: status,
-      updatedAt: timestamp,
-    },
-  });
-
-  // Update active campaigns count if status changed to/from active
-  if (wasActive !== isNowActive) {
-    await context.db.campaignStats.upsert({
-      id: "global",
-      create: {
-        totalCampaigns: 1,
-        activeCampaigns: isNowActive ? 1 : 0,
-        totalRewardsDistributed: 0n,
-        totalParticipants: 0,
-        updatedAt: timestamp,
-      },
-      update: ({ current }: any) => ({
-        activeCampaigns: isNowActive 
-          ? current.activeCampaigns + 1 
-          : Math.max(0, current.activeCampaigns - 1),
-        updatedAt: timestamp,
-      }),
-    });
-  }
-});
-
+// NOTE: CampaignStatusChanged event does not exist in new system
+// Status changes would need to be tracked via ReferralCampaign contract state reads

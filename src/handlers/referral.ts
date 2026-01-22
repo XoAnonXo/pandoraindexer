@@ -1,8 +1,9 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════╗
- * ║                    REFERRAL REGISTRY HANDLERS                              ║
+ * ║                    REFERRAL FACTORY HANDLERS (NEW)                         ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Handles referral code registration and referrer-referee relationships.    ║
+ * ║  Handles referral relationships with signature-based verification.         ║
+ * ║  New system: ReferralFactory + ReferralCampaign contracts                  ║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
@@ -10,79 +11,18 @@ import { ponder } from "@/generated";
 import { getChainInfo, makeId } from "../utils/helpers";
 import { getOrCreateUser } from "../services/db";
 
-/**
- * NOTE: `codeHash` is a bytes32 value emitted by the contract.
- * It is not guaranteed to be a UTF-8 packed string, so we treat it as an identifier (hex).
- */
-
 // =============================================================================
-// CODE REGISTERED EVENT
+// REFERRAL REGISTERED EVENT (NEW)
 // =============================================================================
 /**
- * Handles when a user registers a new referral code.
- * Creates a referralCodes record and updates user's referralCodeHash.
- */
-ponder.on("ReferralRegistry:CodeRegistered", async ({ event, context }: any) => {
-  const { owner, codeHash } = event.args;
-  const timestamp = event.block.timestamp;
-  const blockNumber = event.block.number;
-  const chain = getChainInfo(context);
-
-  const code = codeHash as `0x${string}`;
-  const normalizedUser = owner.toLowerCase() as `0x${string}`;
-  
-  console.log(`[${chain.chainName}] Referral code registered: ${codeHash} by ${normalizedUser}`);
-  
-  // Create referral code record
-  await context.db.referralCodes.create({
-    id: codeHash,
-    data: {
-      ownerAddress: normalizedUser,
-      code,
-      totalReferrals: 0,
-      totalVolumeGenerated: 0n,
-      totalFeesGenerated: 0n,
-      createdAt: timestamp,
-      createdAtBlock: blockNumber,
-    },
-  });
-  
-  // Update or create user record with their referral code
-  const userRecord = await getOrCreateUser(context, owner, chain);
-  await context.db.users.update({
-    id: userRecord.id,
-    data: {
-      referralCodeHash: codeHash,
-    },
-  });
-  
-  // Update global referral stats
-  await context.db.referralStats.upsert({
-    id: "global",
-    create: {
-      totalCodes: 1,
-      totalReferrals: 0,
-      totalVolumeGenerated: 0n,
-      totalFeesGenerated: 0n,
-      totalRewardsDistributed: 0n,
-      updatedAt: timestamp,
-    },
-    update: ({ current }: any) => ({
-      totalCodes: current.totalCodes + 1,
-      updatedAt: timestamp,
-    }),
-  });
-});
-
-// =============================================================================
-// REFERRAL REGISTERED EVENT
-// =============================================================================
-/**
- * Handles when a new user registers under a referrer.
+ * Handles when a new user registers under a referrer via signature.
  * Creates a referrals record and updates both user and referrer stats.
+ * 
+ * NOTE: In the new system, there are no referral codes (codeHash).
+ * Referrals are tracked directly by referee => referrer mapping.
  */
-ponder.on("ReferralRegistry:ReferralRegistered", async ({ event, context }: any) => {
-  const { referee, referrer, codeHash } = event.args;
+ponder.on("ReferralFactory:ReferralRegistered", async ({ event, context }: any) => {
+  const { referrer, referee } = event.args;
   const timestamp = event.block.timestamp;
   const blockNumber = event.block.number;
   const chain = getChainInfo(context);
@@ -99,7 +39,7 @@ ponder.on("ReferralRegistry:ReferralRegistered", async ({ event, context }: any)
     data: {
       referrerAddress: normalizedReferrer,
       refereeAddress: normalizedReferee,
-      referralCodeHash: codeHash,
+      referralCodeHash: null, // NEW: No code hash in new system
       status: "pending", // Will become "active" on first trade
       totalVolumeGenerated: 0n,
       totalFeesGenerated: 0n,
@@ -129,22 +69,11 @@ ponder.on("ReferralRegistry:ReferralRegistered", async ({ event, context }: any)
     },
   });
   
-  // Update referral code stats (if code exists)
-  const codeRecord = await context.db.referralCodes.findUnique({ id: codeHash });
-  if (codeRecord) {
-    await context.db.referralCodes.update({
-      id: codeHash,
-      data: {
-        totalReferrals: codeRecord.totalReferrals + 1,
-      },
-    });
-  }
-  
   // Update global referral stats
   await context.db.referralStats.upsert({
     id: "global",
     create: {
-      totalCodes: 0,
+      totalCodes: 0, // No codes in new system
       totalReferrals: 1,
       totalVolumeGenerated: 0n,
       totalFeesGenerated: 0n,
@@ -157,4 +86,3 @@ ponder.on("ReferralRegistry:ReferralRegistered", async ({ event, context }: any)
     }),
   });
 });
-

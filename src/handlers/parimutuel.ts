@@ -131,7 +131,8 @@ ponder.on(
 			0n,
 			timestamp,
 			event.block.number,
-			chain
+			chain,
+			marketAddress
 		);
 
 		console.log(
@@ -238,15 +239,15 @@ ponder.on(
 			totalCollateralNo: newNoCollateral,
 		});
 
-	await context.db.markets.update({
-		id: marketAddress,
-		data: {
-			totalVolume: market.totalVolume + collateralIn,
-			totalTrades: market.totalTrades + 1,
-			currentTvl: market.currentTvl + collateralIn,
-			uniqueTraders: isNewTrader
-				? market.uniqueTraders + 1
-				: market.uniqueTraders,
+		await context.db.markets.update({
+			id: marketAddress,
+			data: {
+				totalVolume: market.totalVolume + collateralIn,
+				totalTrades: market.totalTrades + 1,
+				currentTvl: market.currentTvl + collateralIn,
+				uniqueTraders: isNewTrader
+					? market.uniqueTraders + 1
+					: market.uniqueTraders,
 				// Update PariMutuel pool state
 				totalCollateralYes: newYesCollateral,
 				totalCollateralNo: newNoCollateral,
@@ -291,7 +292,8 @@ ponder.on(
 			0n,
 			timestamp,
 			event.block.number,
-			chain
+			chain,
+			marketAddress
 		);
 	}
 );
@@ -391,84 +393,94 @@ ponder.on(
 );
 
 ponder.on(
-  "PredictionPariMutuel:ProtocolFeesWithdrawn",
-  async ({ event, context }: any) => {
-    try {
-      const { platformShare, creatorShare } = event.args;
-      const timestamp = event.block.timestamp;
-      const marketAddress = event.log.address;
-      const chain = getChainInfo(context);
+	"PredictionPariMutuel:ProtocolFeesWithdrawn",
+	async ({ event, context }: any) => {
+		try {
+			const { platformShare, creatorShare } = event.args;
+			const timestamp = event.block.timestamp;
+			const marketAddress = event.log.address;
+			const chain = getChainInfo(context);
 
-      // 1) Read on-chain state first (no DB writes before this succeeds)
-      const marketState = await context.client.readContract({
-        address: marketAddress,
-        abi: PredictionPariMutuelAbi,
-        functionName: "marketState",
-        blockNumber: event.block.number,
-      });
+			// 1) Read on-chain state first (no DB writes before this succeeds)
+			const marketState = await context.client.readContract({
+				address: marketAddress,
+				abi: PredictionPariMutuelAbi,
+				functionName: "marketState",
+				blockNumber: event.block.number,
+			});
 
-      // marketState returns: (isLive, collateralTvl, yesChance, collateral)
-      const tvlNow = BigInt(marketState[1]);
+			// marketState returns: (isLive, collateralTvl, yesChance, collateral)
+			const tvlNow = BigInt(marketState[1]);
 
-      // 2) Load (or create) market after successful reads
-      const market =
-        (await context.db.markets.findUnique({ id: marketAddress })) ??
-        (await getOrCreateMinimalMarket(
-          context,
-          marketAddress,
-          chain,
-          "pari",
-          timestamp,
-          event.block.number,
-          event.transaction.hash
-        ));
+			// 2) Load (or create) market after successful reads
+			const market =
+				(await context.db.markets.findUnique({ id: marketAddress })) ??
+				(await getOrCreateMinimalMarket(
+					context,
+					marketAddress,
+					chain,
+					"pari",
+					timestamp,
+					event.block.number,
+					event.transaction.hash
+				));
 
-      const oldTvl = market.currentTvl ?? 0n;
-      const delta = tvlNow - oldTvl;
+			const oldTvl = market.currentTvl ?? 0n;
+			const delta = tvlNow - oldTvl;
 
-      const creatorShareBigInt = BigInt(creatorShare ?? 0);
-      const platformShareBigInt = BigInt(platformShare ?? 0);
+			const creatorShareBigInt = BigInt(creatorShare ?? 0);
+			const platformShareBigInt = BigInt(platformShare ?? 0);
 
+			// Apply DB writes last
+			await context.db.markets.update({
+				id: marketAddress,
+				data: {
+					currentTvl: tvlNow,
+					creatorFeesEarned:
+						(market.creatorFeesEarned ?? 0n) + creatorShareBigInt,
+					platformFeesEarned:
+						(market.platformFeesEarned ?? 0n) + platformShareBigInt,
+				},
+			});
 
-      
-      // Apply DB writes last
-      await context.db.markets.update({
-        id: marketAddress,
-        data: {
-          currentTvl: tvlNow,
-          creatorFeesEarned: (market.creatorFeesEarned ?? 0n) + creatorShareBigInt,
-          platformFeesEarned: (market.platformFeesEarned ?? 0n) + platformShareBigInt,
-        },
-      });
+			// Sync poll TVL after market TVL update
+			await updatePollTvl(context, market.pollAddress);
 
-      // Sync poll TVL after market TVL update
-      await updatePollTvl(context, market.pollAddress);
+			if (delta !== 0n) {
+				await updateAggregateStats(context, chain, timestamp, {
+					tvlChange: delta,
+				});
+			}
 
-      if (delta !== 0n) {
-        await updateAggregateStats(context, chain, timestamp, { tvlChange: delta });
-      }
+			//  Update creator's totalCreatorFees if creatorShare > 0
+			if (creatorShareBigInt > 0n && market.creator) {
+				const creatorUser = await getOrCreateUser(
+					context,
+					market.creator,
+					chain
+				);
+				await context.db.users.update({
+					id: creatorUser.id,
+					data: {
+						totalCreatorFees:
+							(creatorUser.totalCreatorFees ?? 0n) +
+							creatorShareBigInt,
+					},
+				});
+			}
 
-      //  Update creator's totalCreatorFees if creatorShare > 0
-      if (creatorShareBigInt > 0n && market.creator) {
-        const creatorUser = await getOrCreateUser(context, market.creator, chain);
-        await context.db.users.update({
-          id: creatorUser.id,
-          data: {
-            totalCreatorFees: (creatorUser.totalCreatorFees ?? 0n) + creatorShareBigInt,
-          },
-        });
-      }
-
-      //  Update platform stats with platformShare
-      if (platformShareBigInt > 0n) {
-        await updateAggregateStats(context, chain, timestamp, { platformFees: platformShareBigInt });
-      }
-    } catch (err) {
-      console.error(
-        `[PredictionPariMutuel:ProtocolFeesWithdrawn] Failed tx=${event.transaction.hash} logIndex=${event.log.logIndex}:`,
-        err
-      );
-      return;
-    }
-  }
+			//  Update platform stats with platformShare
+			if (platformShareBigInt > 0n) {
+				await updateAggregateStats(context, chain, timestamp, {
+					platformFees: platformShareBigInt,
+				});
+			}
+		} catch (err) {
+			console.error(
+				`[PredictionPariMutuel:ProtocolFeesWithdrawn] Failed tx=${event.transaction.hash} logIndex=${event.log.logIndex}:`,
+				err
+			);
+			return;
+		}
+	}
 );

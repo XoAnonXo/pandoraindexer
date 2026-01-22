@@ -100,8 +100,27 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 		// Sync poll TVL (will be 0 initially, but sets up the fields)
 		await updatePollTvl(context, pollAddress);
 
+		// Check if creator is graduated (has Launchpad token that reached $50k TVL)
+		const isGraduated = await context.db.graduatedCreators.findUnique({
+			id: normalizedCreator,
+		});
+
+		// Create marketSystems entry to track referral system
+		await context.db.marketSystems.create({
+			id: marketAddress.toLowerCase() as `0x${string}`,
+			data: {
+				creator: normalizedCreator,
+				system: isGraduated ? "localizer" : "pandora",
+				switchedAt: isGraduated ? timestamp : undefined,
+			},
+		});
+
 		console.log(
-			`[${chain.chainName}] AMM market created: ${marketAddress}`
+			`[${
+				chain.chainName
+			}] AMM market created: ${marketAddress} (system: ${
+				isGraduated ? "localizer" : "pandora"
+			})`
 		);
 	} catch (err) {
 		console.error(
@@ -232,8 +251,27 @@ ponder.on(
 			// Sync poll TVL (will be 0 initially, but sets up the fields)
 			await updatePollTvl(context, pollAddress);
 
+			// Check if creator is graduated (has Launchpad token that reached $50k TVL)
+			const isGraduated = await context.db.graduatedCreators.findUnique({
+				id: normalizedCreator,
+			});
+
+			// Create marketSystems entry to track referral system
+			await context.db.marketSystems.create({
+				id: marketAddress.toLowerCase() as `0x${string}`,
+				data: {
+					creator: normalizedCreator,
+					system: isGraduated ? "localizer" : "pandora",
+					switchedAt: isGraduated ? timestamp : undefined,
+				},
+			});
+
 			console.log(
-				`[${chain.chainName}] PariMutuel market created: ${marketAddress}`
+				`[${
+					chain.chainName
+				}] PariMutuel market created: ${marketAddress} (system: ${
+					isGraduated ? "localizer" : "pandora"
+				})`
 			);
 		} catch (err) {
 			console.error(

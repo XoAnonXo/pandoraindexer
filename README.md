@@ -175,6 +175,79 @@ Disputes automatically update the `polls` table:
 -   Sets `disputedBy`, `disputeStake`, `disputedAt`, `arbitrationStarted`
 -   Updates `status` when resolved
 
+## Referral System
+
+### Overview
+
+The Referral System tracks referrer-referee relationships and distributes rewards via EIP-712 signatures.
+
+**Architecture:**
+
+-   **ReferralFactory** - Manages referral relationships on-chain with signature verification
+-   **ReferralCampaign** - Individual campaign contracts for reward distribution
+
+**Current Deployment:**
+
+-   ReferralFactory: `0x75527046cE73189a8a3a06d8bfdd09d4643c6A01`
+-   RewardToken: `0x25B7Ca1e238bAC63EAA62420BBb86d0afbEba9eB`
+-   First Campaign: `0x203d3BCc55a497BDC7cf49e2a1F5BA142230A165`
+
+### Key Features
+
+**Signature-Based Registration:**
+
+-   Referees must sign EIP-712 message to confirm referral relationship
+-   Prevents spam and ensures consent
+
+**Operator-Signed Rewards:**
+
+-   Backend operator signs claim messages for earned rewards
+-   Users claim rewards by submitting signature to campaign contract
+
+**On-Chain Tracking:**
+
+-   All referral relationships stored on-chain
+-   Enables localizers to switch to their own indexer/operator
+
+### Key Events
+
+| Event                | Description                         |
+| -------------------- | ----------------------------------- |
+| `ReferralRegistered` | New referral relationship confirmed |
+| `CampaignCreated`    | New reward campaign deployed        |
+
+### GraphQL Examples
+
+**Get My Referrals:**
+
+```graphql
+{
+	referrals(where: { referrerAddress: "0xYOUR_ADDRESS" }) {
+		refereeAddress
+		status
+		totalVolumeGenerated
+		totalFeesGenerated
+		totalRewardsEarned
+		referredAt
+	}
+}
+```
+
+**Get Active Campaigns:**
+
+```graphql
+{
+	campaigns(where: { status: 0 }) {
+		id
+		rewardAsset
+		creator
+		totalParticipants
+		totalClaims
+		createdAt
+	}
+}
+```
+
 ## Adding a New Chain
 
 ### 1. Add Chain Config
@@ -199,9 +272,11 @@ export const CHAINS: Record<number, ChainConfig> = {
 			oracle: "0x...", // Deploy and add address
 			marketFactory: "0x...", // Deploy and add address
 			usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-			referralRegistry: "0x...", // Deploy and add address
-			campaignFactory: "0x...", // Deploy and add address
+			referralFactory: "0x...", // Deploy ReferralFactory
+			rewardToken: "0x...", // Reward token for campaigns
 			disputeResolverHome: "0x...", // Sonic only
+			launchpadFactory: "0x...", // Launchpad factory (optional)
+			bondingCurve: "0x...", // Not used directly (dynamic)
 		},
 		startBlock: 12345678, // Block when contracts were deployed
 		enabled: true,
