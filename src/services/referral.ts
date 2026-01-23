@@ -41,20 +41,12 @@ export async function updateReferralVolume(
   chain: ChainInfo,
   entityAddress: `0x${string}`
 ): Promise<void> {
-  // Skip zero volume trades
-  if (volume === 0n) return;
 
-  // ============================================================================
-  // SYSTEM FILTERING: Check if entity belongs to localizer system
-  // ============================================================================
-  // When a creator's Launchpad token graduates, all their entities (markets + tokens)
-  // switch from 'pandora' to 'localizer' system. Localizer trades are NOT tracked
-  // in Pandora's referral system.
+  if (volume === 0n) return;
 
   const normalizedEntity = entityAddress.toLowerCase() as `0x${string}`;
   let system = "pandora"; // Default to pandora
 
-  // Check if it's a prediction market
   const marketSystem = await context.db.marketSystems.findUnique({
     id: normalizedEntity,
   });
@@ -62,7 +54,6 @@ export async function updateReferralVolume(
   if (marketSystem) {
     system = marketSystem.system;
   } else {
-    // Check if it's a Launchpad token (BondingCurve)
     const tokenSystem = await context.db.tokenSystems.findUnique({
       id: normalizedEntity,
     });
@@ -71,7 +62,6 @@ export async function updateReferralVolume(
     }
   }
 
-  // If localizer system, skip tracking in Pandora's referral system
   if (system === "localizer") {
     console.log(
       `[Referral] Skipping localizer entity ${normalizedEntity.slice(
@@ -88,7 +78,6 @@ export async function updateReferralVolume(
   const referralFactoryAddress = getChainConfig(chain.chainId)!.contracts
     .referralFactory;
 
-  // Query the ReferralFactory contract to get the trader's referrer
   let referrer: `0x${string}` | null = null;
   try {
     referrer = await context.client.readContract({
@@ -99,8 +88,6 @@ export async function updateReferralVolume(
       blockNumber: bn,
     });
   } catch (error: any) {
-    // Expected: Contract returns no data for users without referrers
-    // Only log if it's an unexpected error (not "returned no data" or "execution reverted")
     const errorMsg = String(error?.message || error);
     const isExpectedError =
       errorMsg.includes("returned no data") ||
@@ -118,7 +105,6 @@ export async function updateReferralVolume(
     return;
   }
 
-  // If no referrer or zero address, nothing to track
   if (!referrer || referrer === ZERO_ADDRESS) {
     return;
   }
@@ -126,8 +112,6 @@ export async function updateReferralVolume(
   const normalizedReferrer = referrer.toLowerCase() as `0x${string}`;
   const referralId = `${normalizedReferrer}-${normalizedTrader}`;
 
-  // Update or create the referral record
-  // Use upsert to handle edge cases where ReferralRegistered event might not have been indexed yet
   await context.db.referrals.upsert({
     id: referralId,
     create: {
