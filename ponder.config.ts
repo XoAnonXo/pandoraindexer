@@ -28,7 +28,8 @@ import { PredictionPariMutuelAbi } from "./abis/PredictionPariMutuel";
 import { ReferralFactoryAbi } from "./abis/ReferralFactory";
 import { ReferralCampaignAbi } from "./abis/ReferralCampaign";
 import { DisputeResolverHomeAbi } from "./abis/DisputeResolverHome";
-// import { BondingCurveAbi } from "./abis/BondingCurve"; // Commented until LaunchpadFactory is deployed
+import { TokensFactoryAbi } from "./abis/TokensFactory";
+import { BondingCurveAbi } from "./abis/BondingCurve";
 
 // =============================================================================
 // CHAIN CONFIGURATION
@@ -179,20 +180,39 @@ export default createConfig({
       startBlock: sonic.startBlock,
     },
 
+    // =========================================================================
+    // LAUNCHPAD CONTRACTS (Sonic)
+    // =========================================================================
+
     /**
-     * BondingCurve (Sonic) - Dynamic contract via factory
-     * Launchpad bonding curve for token trading and graduation
-     * TODO: Uncomment when LaunchpadFactory is deployed
+     * TokensFactory (Sonic) - Static contract
+     * Creates launchpad tokens with bonding curves (pump.fun style)
+     * Emits: TokenCreated, TokenGraduated, TokenUriSet, etc.
      */
-    // BondingCurve: {
-    //   network: "sonic",
-    //   abi: BondingCurveAbi,
-    //   factory: {
-    //     address: sonic.contracts.launchpadFactory,
-    //     event: LaunchpadFactoryAbi.find((e) => e.type === "event" && e.name === "TokenCreated")!,
-    //     parameter: "bondingCurve",
-    //   },
-    //   startBlock: sonic.startBlock,
-    // },
+    TokensFactory: {
+      network: "sonic",
+      abi: TokensFactoryAbi,
+      address: sonic.contracts.launchpadFactory,
+      startBlock: sonic.startBlock,
+    },
+
+    /**
+     * BondingCurve (Sonic) - Dynamic contract via TokensFactory
+     * Created for each new launchpad token via TokenCreated event
+     * Handles buy/sell trades with constant product formula
+     * Graduates to DEX at $50k market cap
+     */
+    BondingCurve: {
+      network: "sonic",
+      abi: BondingCurveAbi,
+      factory: {
+        address: sonic.contracts.launchpadFactory,
+        event: TokensFactoryAbi.find(
+          (e) => e.type === "event" && e.name === "TokenCreated"
+        )!,
+        parameter: "bondingCurve",
+      },
+      startBlock: sonic.startBlock,
+    },
   },
 });

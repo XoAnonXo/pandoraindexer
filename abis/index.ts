@@ -5,10 +5,10 @@
  * ║  Central export point for all contract ABIs used by the Ponder indexer.    ║
  * ║  These ABIs define the event signatures that Ponder listens for.           ║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
- * 
+ *
  * CONTRACT ARCHITECTURE:
  * ──────────────────────
- * 
+ *
  *   ┌─────────────────────┐
  *   │  PredictionOracle   │  ◄── Creates polls (prediction questions)
  *   └──────────┬──────────┘
@@ -33,7 +33,7 @@
  *   │   └─────────────────┘  └─────────────────┘  │
  *   │                                             │
  *   └─────────────────────────────────────────────┘
- * 
+ *
  * @module abis
  */
 
@@ -61,5 +61,12 @@ export { ReferralCampaignAbi } from "./ReferralCampaign";
 // Dispute Resolver Home - Manages disputes on home chain (Sonic)
 export { DisputeResolverHomeAbi } from "./DisputeResolverHome";
 
-// Bonding Curve - Launchpad token trading
+// =============================================================================
+// LAUNCHPAD CONTRACTS
+// =============================================================================
+
+// TokensFactory - Creates launchpad tokens with bonding curves
+export { TokensFactoryAbi } from "./TokensFactory";
+
+// BondingCurve - Launchpad token trading (dynamic, created by TokensFactory)
 export { BondingCurveAbi } from "./BondingCurve";

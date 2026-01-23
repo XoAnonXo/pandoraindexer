@@ -24,6 +24,7 @@ npm run dev
 -   ✅ **Real-time Indexing** - Polls, markets, trades, users, winnings
 -   ✅ **Referral System** - Track referral codes, campaigns, and rewards
 -   ✅ **Dispute Resolution** - NFT-based voting on oracle decisions
+-   ✅ **Launchpad System** - pump.fun style tokens with bonding curves
 -   ✅ **Platform Statistics** - Per-chain and time-series analytics
 -   ✅ **GraphQL API** - Auto-generated from schema
 -   ✅ **Docker Support** - Easy deployment to Railway
@@ -174,6 +175,102 @@ Disputes automatically update the `polls` table:
 
 -   Sets `disputedBy`, `disputeStake`, `disputedAt`, `arbitrationStarted`
 -   Updates `status` when resolved
+
+## Launchpad System
+
+### Overview
+
+The Launchpad System (pump.fun fork) creates tokens with bonding curves that graduate to DEX at $50k market cap.
+
+**Architecture:**
+
+-   **TokensFactory** - Creates new launchpad tokens with bonding curves
+-   **BondingCurve** - Individual trading contracts with constant product formula
+
+**Current Deployment:**
+
+-   TokensFactory: `0x283d0c80Fd94D3d5281FA2904Dcc97Aa397dAfF0`
+-   Oracle: `0x98f9A771C012C24E638CC5663A30087B146310D7`
+-   Spooky Router: `0xa6AD18C2aC47803E193F75c3677b14BF19B94883`
+
+### Key Features
+
+-   **1 billion token supply** per token
+-   **Bonding curve pricing** with constant product formula
+-   **0.3% swap fee** (50% to creator, 50% to factory)
+-   **Automatic graduation** to DEX at $50k USD market cap
+-   **Dynamic initial reserve** ($4k USD worth)
+
+### Key Events
+
+| Event                    | Contract      | Description                           |
+| ------------------------ | ------------- | ------------------------------------- |
+| `TokenCreated`           | TokensFactory | New launchpad token created           |
+| `TokenGraduated`         | TokensFactory | Token reached $50k and graduated      |
+| `TokenUriSet`            | TokensFactory | Token metadata URI updated            |
+| `TokenImageUriSet`       | TokensFactory | Token image updated                   |
+| `TokenDescriptionSet`    | TokensFactory | Token description updated             |
+| `Buy`                    | BondingCurve  | Token purchase                        |
+| `Sell`                   | BondingCurve  | Token sale                            |
+| `Graduated`              | BondingCurve  | Internal - DEX pair created           |
+| `GraduationFailed`       | BondingCurve  | Graduation attempt failed (slippage)  |
+
+### Launchpad Tables
+
+| Table             | Description              | Key Fields                                         |
+| ----------------- | ------------------------ | -------------------------------------------------- |
+| `launchpadTokens` | Created tokens           | creator, name, symbol, currentTvlNative, isGraduated |
+| `launchpadTrades` | Buy/Sell trades          | bondingCurveAddress, trader, tradeType, nativeAmount |
+| `tokenSystems`    | Token referral system    | system (pandora/localizer)                         |
+| `graduatedCreators` | Graduated creators     | tokenAddress, bondingCurveAddress, status          |
+
+### GraphQL Examples
+
+**Get Launchpad Tokens:**
+
+```graphql
+{
+  launchpadTokens(orderBy: "currentTvlNative", orderDirection: "desc") {
+    id
+    name
+    symbol
+    creator
+    currentTvlNative
+    isGraduated
+    createdAt
+    imageUri
+  }
+}
+```
+
+**Get Graduated Tokens:**
+
+```graphql
+{
+  launchpadTokens(where: { isGraduated: true }) {
+    id
+    name
+    symbol
+    creator
+    graduatedAt
+  }
+}
+```
+
+**Get Token Trades:**
+
+```graphql
+{
+  launchpadTrades(where: { bondingCurveAddress: "0x..." }) {
+    trader
+    tradeType
+    nativeAmount
+    tokenAmount
+    fee
+    timestamp
+  }
+}
+```
 
 ## Referral System
 
@@ -445,16 +542,18 @@ ponder/
 ├── ponder.config.ts    # Ponder setup (networks, contracts)
 ├── ponder.schema.ts    # Database tables
 ├── src/
-│   └── index.ts        # Event handlers
+│   └── index.ts        # Event handlers entry point
 ├── abis/               # Contract ABIs
 │   ├── PredictionOracle.ts
 │   ├── PredictionPoll.ts
 │   ├── MarketFactory.ts
 │   ├── PredictionAMM.ts
 │   ├── PredictionPariMutuel.ts
-│   ├── ReferralRegistry.ts
-│   ├── CampaignFactory.ts
-│   └── DisputeResolverHome.ts
+│   ├── ReferralFactory.ts        # Referral system
+│   ├── ReferralCampaign.ts       # Campaign rewards
+│   ├── DisputeResolverHome.ts    # Dispute voting
+│   ├── TokensFactory.ts          # Launchpad factory
+│   └── BondingCurve.ts           # Launchpad trading
 ├── src/
 │   └── handlers/       # Event handlers
 │       ├── oracle.ts
@@ -464,7 +563,8 @@ ponder/
 │       ├── parimutuel.ts
 │       ├── referral.ts
 │       ├── campaign.ts
-│       └── disputes.ts
+│       ├── disputes.ts
+│       └── launchpad.ts          # Launchpad events
 ├── Dockerfile
 └── docker-compose.yml
 ```

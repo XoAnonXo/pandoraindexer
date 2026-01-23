@@ -7,7 +7,7 @@
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
-import { ReferralRegistryAbi } from "../../abis/ReferralRegistry";
+import { ReferralFactoryAbi } from "../../abis/ReferralFactory";
 import { getChainConfig } from "../../config";
 import { ChainInfo, makeId } from "../utils/helpers";
 import { ZERO_ADDRESS } from "../utils/constants";
@@ -85,15 +85,15 @@ export async function updateReferralVolume(
 	const normalizedTrader = traderAddress.toLowerCase() as `0x${string}`;
 	const bn =
 		typeof blockNumber === "bigint" ? blockNumber : BigInt(blockNumber);
-	const referralRegistryAddress = getChainConfig(chain.chainId)!.contracts
-		.referralRegistry;
+	const referralFactoryAddress = getChainConfig(chain.chainId)!.contracts
+		.referralFactory;
 
-	// Query the ReferralRegistry contract to get the trader's referrer
+	// Query the ReferralFactory contract to get the trader's referrer
 	let referrer: `0x${string}` | null = null;
 	try {
 		referrer = await context.client.readContract({
-			address: referralRegistryAddress,
-			abi: ReferralRegistryAbi,
+			address: referralFactoryAddress,
+			abi: ReferralFactoryAbi,
 			functionName: "getReferrer",
 			args: [traderAddress],
 			blockNumber: bn,

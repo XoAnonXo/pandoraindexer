@@ -1142,8 +1142,6 @@ export default createSchema((p) => ({
     tokenAddress: p.hex(),
     /** BondingCurve contract address */
     bondingCurveAddress: p.hex(),
-    /** TVL at graduation time (USD with 18 decimals) */
-    graduationTvl: p.bigint(),
     /** Block number when graduated */
     graduatedAtBlock: p.bigint(),
     /** Unix timestamp when graduated */
@@ -1232,6 +1230,12 @@ export default createSchema((p) => ({
     name: p.string(),
     /** Token symbol */
     symbol: p.string(),
+    /** Token URI (metadata link) */
+    uri: p.string().optional(),
+    /** Token image URI */
+    imageUri: p.string().optional(),
+    /** Token description */
+    description: p.string().optional(),
     /** Current TVL in native tokens (wei, 18 decimals) - for progress bar */
     currentTvlNative: p.bigint(),
     /** Whether token has graduated to DEX */

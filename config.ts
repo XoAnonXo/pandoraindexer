@@ -16,11 +16,10 @@ export interface ChainConfig {
     oracle: `0x${string}`;
     marketFactory: `0x${string}`;
     usdc: `0x${string}`;
-    referralFactory: `0x${string}`; // ✅ NEW: ReferralFactory with signature-based system
-    rewardToken: `0x${string}`; // ✅ NEW: Reward token for referral campaigns
+    referralFactory: `0x${string}`; // ✅ ReferralFactory with signature-based system
+    rewardToken: `0x${string}`; // ✅ Reward token for referral campaigns
     disputeResolverHome: `0x${string}`;
-    launchpadFactory: `0x${string}`;
-    bondingCurve: `0x${string}`;
+    launchpadFactory: `0x${string}`; // ✅ TokensFactory for Launchpad (BondingCurves are dynamic)
   };
   startBlock: number;
   enabled: boolean;
@@ -48,8 +47,8 @@ export const CHAINS: Record<number, ChainConfig> = {
       referralFactory: "0x75527046cE73189a8a3a06d8bfdd09d4643c6A01", // ✅ NEW: ReferralFactory
       rewardToken: "0x25B7Ca1e238bAC63EAA62420BBb86d0afbEba9eB", // ✅ NEW: Reward token
       disputeResolverHome: "0x2446DC1279Ed900c05CF2D137B07f383d98c0baD", // ✅ DisputeResolverHome (Sonic)
-      launchpadFactory: "0x0000000000000000000000000000000000000000", // TODO: Add deployed address
-      bondingCurve: "0x0000000000000000000000000000000000000000", // TODO: Add deployed address
+      launchpadFactory: "0x283d0c80Fd94D3d5281FA2904Dcc97Aa397dAfF0", // ✅ TokensFactory (Launchpad)
+      // Note: bondingCurve is dynamic - created via TokensFactory:TokenCreated event
     },
     startBlock: 5_507_800,
     enabled: true,
