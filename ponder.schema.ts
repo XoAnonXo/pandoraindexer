@@ -1284,4 +1284,11 @@ export default createSchema((p) => ({
      */
     processedForReferral: p.boolean(),
   }),
+
 }));
+
+// ===========================================================================
+// NOTE: userNonces and claimSignatures tables are managed by pandora-api
+// in a separate schema (app_internal) to prevent data loss on Ponder re-index.
+// See: pandora-api/src/lib/migrations.ts
+// ===========================================================================
