@@ -61,7 +61,11 @@ async function updateMarketReserves(
   return { yesChance, collateralTvl };
 }
 
-ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
+// =============================================================================
+// SHARED HANDLER FUNCTIONS (used by both new and legacy contracts)
+// =============================================================================
+
+const handleBuyTokens = async ({ event, context }: any) => {
   const { trader, isYes, tokenAmount, collateralAmount, fee } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -188,9 +192,9 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
 		chain,
 		marketAddress
 	);
-});
+};
 
-ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
+const handleSellTokens = async ({ event, context }: any) => {
   const { trader, isYes, tokenAmount, collateralAmount, fee } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -332,9 +336,9 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
 		chain,
 		marketAddress
 	);
-});
+};
 
-ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
+const handleSwapTokens = async ({ event, context }: any) => {
   const { trader, yesToNo, amountIn, amountOut, fee } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -443,9 +447,9 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
     fees: fee,
     activeUsers: 1,
   });
-});
+};
 
-ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
+const handleWinningsRedeemed = async ({ event, context }: any) => {
   const { user, yesAmount, noAmount, collateralAmount } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -516,9 +520,9 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
     winningsPaid: collateralAmount,
 		tvlChange: 0n - collateralAmount, // Money leaves the system
   });
-});
+};
 
-ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
+const handleLiquidityAdded = async ({ event, context }: any) => {
   const { provider, collateralAmount, lpTokens, amounts } = event.args;
   const timestamp = event.block.timestamp;
   const marketAddress = event.log.address;
@@ -659,9 +663,9 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
     users: isNewUser ? 1 : 0, // Count LPs as users
     activeUsers: 1,
   });
-});
+};
 
-ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
+const handleLiquidityRemoved = async ({ event, context }: any) => {
 	const { provider, lpTokens, yesAmount, noAmount, collateralToReturn } =
 		event.args;
   const timestamp = event.block.timestamp;
@@ -759,11 +763,11 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
     tvlChange: 0n - collateralToReturn,
     activeUsers: 1,
   });
-});
+};
 
 // Sync event is a fallback - only fires when sync() is called manually
 // Reserve updates are now done via contract reads in trade handlers
-ponder.on("PredictionAMM:Sync", async ({ event, context }: any) => {
+const handleSync = async ({ event, context }: any) => {
 	const { rYes, rNo } = event.args;
 	const marketAddress = event.log.address;
   const chain = getChainInfo(context);
@@ -787,11 +791,9 @@ ponder.on("PredictionAMM:Sync", async ({ event, context }: any) => {
 			},
 		});
 	}
-});
+};
 
-ponder.on(
-	"PredictionAMM:ProtocolFeesWithdrawn",
-	async ({ event, context }: any) => {
+const handleProtocolFeesWithdrawn = async ({ event, context }: any) => {
   try {
     const { platformShare, creatorShare } = event.args;
     const marketAddress = event.log.address;
@@ -889,5 +891,28 @@ ponder.on(
     );
     return;
   }
-	}
-);
+};
+
+// =============================================================================
+// REGISTER HANDLERS -- new contracts
+// =============================================================================
+ponder.on("PredictionAMM:BuyTokens", handleBuyTokens);
+ponder.on("PredictionAMM:SellTokens", handleSellTokens);
+ponder.on("PredictionAMM:SwapTokens", handleSwapTokens);
+ponder.on("PredictionAMM:WinningsRedeemed", handleWinningsRedeemed);
+ponder.on("PredictionAMM:LiquidityAdded", handleLiquidityAdded);
+ponder.on("PredictionAMM:LiquidityRemoved", handleLiquidityRemoved);
+ponder.on("PredictionAMM:Sync", handleSync);
+ponder.on("PredictionAMM:ProtocolFeesWithdrawn", handleProtocolFeesWithdrawn);
+
+// =============================================================================
+// REGISTER HANDLERS -- legacy contracts (old factory, active markets with TVL)
+// =============================================================================
+ponder.on("PredictionAMMLegacy:BuyTokens", handleBuyTokens);
+ponder.on("PredictionAMMLegacy:SellTokens", handleSellTokens);
+ponder.on("PredictionAMMLegacy:SwapTokens", handleSwapTokens);
+ponder.on("PredictionAMMLegacy:WinningsRedeemed", handleWinningsRedeemed);
+ponder.on("PredictionAMMLegacy:LiquidityAdded", handleLiquidityAdded);
+ponder.on("PredictionAMMLegacy:LiquidityRemoved", handleLiquidityRemoved);
+ponder.on("PredictionAMMLegacy:Sync", handleSync);
+ponder.on("PredictionAMMLegacy:ProtocolFeesWithdrawn", handleProtocolFeesWithdrawn);

@@ -24,9 +24,11 @@ function computeYesChanceFromCollateral(params: {
 	return (totalCollateralYes * YES_PRICE_SCALE) / total;
 }
 
-ponder.on(
-	"PredictionPariMutuel:SeedInitialLiquidity",
-	async ({ event, context }: any) => {
+// =============================================================================
+// SHARED HANDLER FUNCTIONS (used by both new and legacy contracts)
+// =============================================================================
+
+const handleSeedInitialLiquidity = async ({ event, context }: any) => {
 		const { yesAmount, noAmount } = event.args;
 		const timestamp = event.block.timestamp;
 		const marketAddress = event.log.address;
@@ -138,12 +140,9 @@ ponder.on(
 		console.log(
 			`[${chain.chainName}] Seed liquidity (volume): ${marketAddress} - ${totalLiquidity}`
 		);
-	}
-);
+};
 
-ponder.on(
-	"PredictionPariMutuel:PositionPurchased",
-	async ({ event, context }: any) => {
+const handlePositionPurchased = async ({ event, context }: any) => {
 		const { buyer, isYes, collateralIn, sharesOut } = event.args;
 		const timestamp = event.block.timestamp;
 		const marketAddress = event.log.address;
@@ -295,12 +294,9 @@ ponder.on(
 			chain,
 			marketAddress
 		);
-	}
-);
+};
 
-ponder.on(
-	"PredictionPariMutuel:WinningsRedeemed",
-	async ({ event, context }: any) => {
+const handlePariWinningsRedeemed = async ({ event, context }: any) => {
 		const { user, collateralAmount, outcome, fee } = event.args;
 		const timestamp = event.block.timestamp;
 		const marketAddress = event.log.address;
@@ -389,12 +385,9 @@ ponder.on(
 			tvlChange: 0n - collateralAmount,
 			fees: fee,
 		});
-	}
-);
+};
 
-ponder.on(
-	"PredictionPariMutuel:ProtocolFeesWithdrawn",
-	async ({ event, context }: any) => {
+const handlePariProtocolFeesWithdrawn = async ({ event, context }: any) => {
 		try {
 			const { platformShare, creatorShare } = event.args;
 			const timestamp = event.block.timestamp;
@@ -482,5 +475,20 @@ ponder.on(
 			);
 			return;
 		}
-	}
-);
+};
+
+// =============================================================================
+// REGISTER HANDLERS -- new contracts
+// =============================================================================
+ponder.on("PredictionPariMutuel:SeedInitialLiquidity", handleSeedInitialLiquidity);
+ponder.on("PredictionPariMutuel:PositionPurchased", handlePositionPurchased);
+ponder.on("PredictionPariMutuel:WinningsRedeemed", handlePariWinningsRedeemed);
+ponder.on("PredictionPariMutuel:ProtocolFeesWithdrawn", handlePariProtocolFeesWithdrawn);
+
+// =============================================================================
+// REGISTER HANDLERS -- legacy contracts (old factory, active markets with TVL)
+// =============================================================================
+ponder.on("PredictionPariMutuelLegacy:SeedInitialLiquidity", handleSeedInitialLiquidity);
+ponder.on("PredictionPariMutuelLegacy:PositionPurchased", handlePositionPurchased);
+ponder.on("PredictionPariMutuelLegacy:WinningsRedeemed", handlePariWinningsRedeemed);
+ponder.on("PredictionPariMutuelLegacy:ProtocolFeesWithdrawn", handlePariProtocolFeesWithdrawn);

@@ -2,7 +2,11 @@ import { ponder } from "@/generated";
 import { getChainInfo } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 
-ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
+// =============================================================================
+// SHARED HANDLER FUNCTIONS (used by both new and legacy contracts)
+// =============================================================================
+
+const handleAnswerSet = async ({ event, context }: any) => {
   const { status, setter, reason } = event.args;
   const pollAddress = event.log.address;
   const timestamp = event.block.timestamp;
@@ -27,9 +31,9 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
   });
 
   console.log(`[${chain.chainName}] Poll resolved: ${pollAddress} -> status ${status}`);
-});
+};
 
-ponder.on("PredictionPoll:ArbitrationStarted", async ({ event, context }: any) => {
+const handleArbitrationStarted = async ({ event, context }: any) => {
   const { arbiter, oldFinalizationEpoch, newFinalizationEpoch } = event.args;
   const pollAddress = event.log.address;
   const timestamp = event.block.timestamp;
@@ -43,5 +47,17 @@ ponder.on("PredictionPoll:ArbitrationStarted", async ({ event, context }: any) =
       finalizationEpoch: Number(newFinalizationEpoch),
     },
   });
-});
+};
+
+// =============================================================================
+// REGISTER HANDLERS -- new contracts
+// =============================================================================
+ponder.on("PredictionPoll:AnswerSet", handleAnswerSet);
+ponder.on("PredictionPoll:ArbitrationStarted", handleArbitrationStarted);
+
+// =============================================================================
+// REGISTER HANDLERS -- legacy contracts (old oracle, active markets with TVL)
+// =============================================================================
+ponder.on("PredictionPollLegacy:AnswerSet", handleAnswerSet);
+ponder.on("PredictionPollLegacy:ArbitrationStarted", handleArbitrationStarted);
 

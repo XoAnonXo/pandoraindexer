@@ -78,12 +78,12 @@ export default createConfig({
     PredictionOracle: {
       network: "sonic",
       abi: PredictionOracleAbi,
-      address: sonic.contracts.oracle,
+      address: [sonic.contracts.legacyOracle, sonic.contracts.oracle],
       startBlock: sonic.startBlock,
     },
 
     /**
-     * PredictionPoll (Sonic) - Dynamic
+     * PredictionPoll (Sonic) - Dynamic (new oracle)
      */
     PredictionPoll: {
       network: "sonic",
@@ -99,17 +99,34 @@ export default createConfig({
     },
 
     /**
+     * PredictionPollLegacy (Sonic) - Dynamic (legacy oracle)
+     * Polls created by the old oracle, still has active markets with TVL
+     */
+    PredictionPollLegacy: {
+      network: "sonic",
+      abi: PredictionPollAbi,
+      factory: {
+        address: sonic.contracts.legacyOracle,
+        event: PredictionOracleAbi.find(
+          (e) => e.type === "event" && e.name === "PollCreated"
+        )!,
+        parameter: "pollAddress",
+      },
+      startBlock: sonic.startBlock,
+    },
+
+    /**
      * MarketFactory (Sonic)
      */
     MarketFactory: {
       network: "sonic",
       abi: MarketFactoryAbi,
-      address: sonic.contracts.marketFactory,
+      address: [sonic.contracts.legacyMarketFactory, sonic.contracts.marketFactory],
       startBlock: sonic.startBlock,
     },
 
     /**
-     * PredictionAMM (Sonic) - Dynamic
+     * PredictionAMM (Sonic) - Dynamic (new factory)
      */
     PredictionAMM: {
       network: "sonic",
@@ -125,13 +142,47 @@ export default createConfig({
     },
 
     /**
-     * PredictionPariMutuel (Sonic) - Dynamic
+     * PredictionAMMLegacy (Sonic) - Dynamic (legacy factory)
+     * AMM markets created by the old factory, still has active markets with TVL
+     */
+    PredictionAMMLegacy: {
+      network: "sonic",
+      abi: PredictionAMMAbi,
+      factory: {
+        address: sonic.contracts.legacyMarketFactory,
+        event: MarketFactoryAbi.find(
+          (e) => e.type === "event" && e.name === "MarketCreated"
+        )!,
+        parameter: "marketAddress",
+      },
+      startBlock: sonic.startBlock,
+    },
+
+    /**
+     * PredictionPariMutuel (Sonic) - Dynamic (new factory)
      */
     PredictionPariMutuel: {
       network: "sonic",
       abi: PredictionPariMutuelAbi,
       factory: {
         address: sonic.contracts.marketFactory,
+        event: MarketFactoryAbi.find(
+          (e) => e.type === "event" && e.name === "PariMutuelCreated"
+        )!,
+        parameter: "marketAddress",
+      },
+      startBlock: sonic.startBlock,
+    },
+
+    /**
+     * PredictionPariMutuelLegacy (Sonic) - Dynamic (legacy factory)
+     * Pari-mutuel markets created by the old factory, still has active markets with TVL
+     */
+    PredictionPariMutuelLegacy: {
+      network: "sonic",
+      abi: PredictionPariMutuelAbi,
+      factory: {
+        address: sonic.contracts.legacyMarketFactory,
         event: MarketFactoryAbi.find(
           (e) => e.type === "event" && e.name === "PariMutuelCreated"
         )!,

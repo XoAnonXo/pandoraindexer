@@ -20,6 +20,9 @@ export interface ChainConfig {
     rewardToken: `0x${string}`; // ✅ Reward token for referral campaigns
     disputeResolverHome: `0x${string}`;
     launchpadFactory: `0x${string}`; // ✅ TokensFactory for Launchpad (BondingCurves are dynamic)
+    // Legacy contracts (previous deployment, still has active markets with TVL)
+    legacyOracle: `0x${string}`;
+    legacyMarketFactory: `0x${string}`;
   };
   startBlock: number;
   enabled: boolean;
@@ -49,6 +52,9 @@ export const CHAINS: Record<number, ChainConfig> = {
       disputeResolverHome: "0x2446DC1279Ed900c05CF2D137B07f383d98c0baD", // ✅ DisputeResolverHome (Sonic)
       launchpadFactory: "0x283d0c80Fd94D3d5281FA2904Dcc97Aa397dAfF0", // ✅ TokensFactory (Launchpad)
       // Note: bondingCurve is dynamic - created via TokensFactory:TokenCreated event
+      // Legacy contracts (previous deployment, still has active markets with ~$157k TVL)
+      legacyOracle: "0x495B372311e3f9647685de3cbc90194915F3BdFE",
+      legacyMarketFactory: "0x1f1E915797F36a3594fFA6D4df953CC7e912b61E",
     },
     startBlock: 5_507_800,
     enabled: true,
