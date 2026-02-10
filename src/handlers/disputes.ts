@@ -250,24 +250,38 @@ ponder.on(
 		const disputeId = `${chainId}-${normalizedOracle}`;
 
 		// Update dispute to resolved state
-		await context.db.disputes.update({
-			id: disputeId,
-			data: {
-				state: 2, // Resolved
-				finalStatus: Number(finalStatus),
-				resolvedAt: timestamp,
-				resolvedBy: normalizedResolver,
-			},
-		});
+		const dispute = await context.db.disputes.findUnique({ id: disputeId });
+		if (dispute) {
+			await context.db.disputes.update({
+				id: disputeId,
+				data: {
+					state: 2, // Resolved
+					finalStatus: Number(finalStatus),
+					resolvedAt: timestamp,
+					resolvedBy: normalizedResolver,
+				},
+			});
+		} else {
+			console.warn(
+				`[${chainName}] Dispute not found for ${normalizedOracle.slice(0, 10)}..., skipping update`
+			);
+		}
 
-		// Update poll status
-		await context.db.polls.update({
-			id: normalizedOracle,
-			data: {
-				status: Number(finalStatus),
-				resolvedAt: timestamp,
-			},
-		});
+		// Update poll status (poll may not exist if created before indexer startBlock)
+		const poll = await context.db.polls.findUnique({ id: normalizedOracle });
+		if (poll) {
+			await context.db.polls.update({
+				id: normalizedOracle,
+				data: {
+					status: Number(finalStatus),
+					resolvedAt: timestamp,
+				},
+			});
+		} else {
+			console.warn(
+				`[${chainName}] Poll not found for ${normalizedOracle.slice(0, 10)}..., skipping status update`
+			);
+		}
 
 		console.log(
 			`[${chainName}] Dispute resolved for oracle ${normalizedOracle.slice(
