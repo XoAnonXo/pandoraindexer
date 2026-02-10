@@ -310,12 +310,19 @@ ponder.on(
 		const disputeId = `${chainId}-${normalizedOracle}`;
 
 		// Update dispute to failed state
-		await context.db.disputes.update({
-			id: disputeId,
-			data: {
-				state: 3, // Failed
-			},
-		});
+		const dispute = await context.db.disputes.findUnique({ id: disputeId });
+		if (dispute) {
+			await context.db.disputes.update({
+				id: disputeId,
+				data: {
+					state: 3, // Failed
+				},
+			});
+		} else {
+			console.warn(
+				`[${chainName}] Dispute not found for ${normalizedOracle.slice(0, 10)}..., skipping fail update`
+			);
+		}
 
 		console.log(
 			`[${chainName}] Dispute failed for oracle ${normalizedOracle.slice(
@@ -402,12 +409,19 @@ ponder.on(
 		const disputeId = `${chainId}-${normalizedOracle}`;
 
 		// Update dispute collateral status
-		await context.db.disputes.update({
-			id: disputeId,
-			data: {
-				isCollateralTaken: true,
-			},
-		});
+		const dispute = await context.db.disputes.findUnique({ id: disputeId });
+		if (dispute) {
+			await context.db.disputes.update({
+				id: disputeId,
+				data: {
+					isCollateralTaken: true,
+				},
+			});
+		} else {
+			console.warn(
+				`[${chainName}] Dispute not found for ${normalizedOracle.slice(0, 10)}..., skipping collateral update`
+			);
+		}
 
 		console.log(
 			`[${chainName}] Collateral taken for oracle ${normalizedOracle.slice(
