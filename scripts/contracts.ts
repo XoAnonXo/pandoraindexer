@@ -6,9 +6,9 @@
 
 // Contract Addresses (Sonic Chain)
 export const CONTRACTS = {
-  oracle: "0x495B372311e3f9647685de3cbc90194915F3BdFE" as const,
-  marketFactory: "0x1f1E915797F36a3594fFA6D4df953CC7e912b61E" as const,
-  usdc: "0xc6020e5492c2892fD63489797ce3d431ae101d5e" as const,
+  oracle: "0x259308E7d8557e4Ba192De1aB8Cf7e0E21896442" as const,
+  marketFactory: "0xaB120F1FD31FB1EC39893B75d80a3822b1Cd8d0c" as const,
+  usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" as const, // USDC (Mainnet)
   referralRegistry: "0x28242629493e6611c764e68352186a3E0639CA30" as const,
   campaignFactory: "0x616196B4643a2FD597DBeA1315c23D949aE80f9C" as const,
   referralRewards: "0xC1528B89345460eC1eF2fb6809F874384491dDfe" as const,

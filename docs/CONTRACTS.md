@@ -6,8 +6,10 @@ This document lists all smart contracts indexed by the Pandora indexer on Sonic 
 
 | Contract | Address | Description |
 |----------|---------|-------------|
-| **PredictionOracle** | `0xD595bd0ad4E9cCD3a0b5b59Be3e79E0284D7e28E` | Creates and manages prediction polls |
-| **MarketFactory** | `0xb81b24B6AB3E59128b29DE67a979F89C6c193fE9` | Factory for creating AMM and PariMutuel markets |
+| **PredictionOracle** | `0x259308E7d8557e4Ba192De1aB8Cf7e0E21896442` | Creates and manages prediction polls |
+| **MarketFactory** | `0xaB120F1FD31FB1EC39893B75d80a3822b1Cd8d0c` | Factory for creating AMM and PariMutuel markets |
+| **USDC (Collateral)** | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` | Collateral token for all markets |
+| **Platform Treasury** | `0x8789F22a0456FEddaf9074FF4cEE55E4122095f0` | Receives protocol fees |
 | **ReferralRegistry** | `0xF3a3930B0FA5D0a53d1204Be1Deea638d939f04f` | Tracks referral codes and relationships |
 | **CampaignFactory** | `0xcc83403203607Ba4DfbeC42d6Af0606363F80617` | Creates and manages reward campaigns |
 | **ReferralRewards** | `0x9a3c55c9d3929B37C817F261e42DcE619aa7d605` | Distributes referral rewards |

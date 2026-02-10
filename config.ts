@@ -41,9 +41,9 @@ export const CHAINS: Record<number, ChainConfig> = {
     ],
     explorerUrl: "https://sonicscan.org",
     contracts: {
-      oracle: "0x495B372311e3f9647685de3cbc90194915F3BdFE",
-      marketFactory: "0x1f1E915797F36a3594fFA6D4df953CC7e912b61E",
-      usdc: "0xc6020e5492c2892fD63489797ce3d431ae101d5e",
+      oracle: "0x259308E7d8557e4Ba192De1aB8Cf7e0E21896442",
+      marketFactory: "0xaB120F1FD31FB1EC39893B75d80a3822b1Cd8d0c",
+      usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC (Mainnet)
       referralFactory: "0x75527046cE73189a8a3a06d8bfdd09d4643c6A01", // ✅ NEW: ReferralFactory
       rewardToken: "0x25B7Ca1e238bAC63EAA62420BBb86d0afbEba9eB", // ✅ NEW: Reward token
       disputeResolverHome: "0x2446DC1279Ed900c05CF2D137B07f383d98c0baD", // ✅ DisputeResolverHome (Sonic)
