@@ -7,9 +7,17 @@
  *
  * These handlers track:
  * 1. Token creation → create launchpadTokens record
- * 2. Token metadata updates → update uri, imageUri, description
- * 3. Buy/Sell trades → referral volume tracking (filtered by system)
+ * 2. Token metadata updates → update uri, imageUri, description (optional, set by creator)
+ * 3. Buy/Sell trades → TVL updates + referral volume tracking (if pandora system)
  * 4. Graduation events → switch creator's markets to localizer system
+ *
+ * GRADUATION FLOW:
+ * - When token reaches $50k market cap → graduates to DEX
+ * - Creator's prediction markets switch from 'pandora' to 'localizer' system
+ * - Volume on localizer markets does NOT count toward Pandora referral rewards
+ * - Creator receives 0.15% fee on all trades (handled by smart contract)
+ * - 95% of creators stay in 'graduated' status forever (no further action needed)
+ * - Only rare partners (~5%) manually set up their own ReferralCampaign
  */
 
 import { ponder } from "@/generated";
@@ -109,6 +117,9 @@ ponder.on("TokensFactory:TokenGraduated", async ({ event, context }: any) => {
   });
 
   // 2. Record graduated creator
+  // NOTE: Most creators (95%) will stay in 'graduated' status forever.
+  // They don't need to "set up" anything - graduation just means their
+  // markets switched to localizer system and they receive 0.15% creator fee.
   await context.db.graduatedCreators.create({
     id: normalizedCreator,
     data: {
@@ -117,7 +128,7 @@ ponder.on("TokensFactory:TokenGraduated", async ({ event, context }: any) => {
       graduatedAtBlock: blockNumber,
       graduatedAt: timestamp,
       graduatedTxHash: event.transaction.hash,
-      status: "pending_setup", // Backend will deploy ReferralFactory
+      status: "graduated",
     },
   });
 
@@ -163,15 +174,18 @@ ponder.on("TokensFactory:TokenGraduated", async ({ event, context }: any) => {
   });
 
   console.log(`[${chain.chainName}] Graduation processed for ${creator}`);
-  console.log(
-    `[${chain.chainName}] Backend should now trigger finalization for creator ${creator}`
-  );
 
-  // Backend will poll graduatedCreators table and:
-  // 1. Run finalization: calculate final Pandora referral rewards
-  // 2. Deploy ReferralFactory for localizer
-  // 3. Deploy ReferralCampaign for localizer
-  // 4. Update status to 'active'
+  // What happens after graduation:
+  // 1. Creator's markets are now in 'localizer' system (done above)
+  // 2. Volume on their markets no longer counts toward Pandora referral rewards
+  // 3. Creator receives 0.15% fee on all trades (handled by smart contract)
+  //
+  // Backend MAY poll graduatedCreators to:
+  // - Finalize Pandora referral rewards (calculate final amounts)
+  // - Update status to 'finalized'
+  //
+  // NOTE: 95% of creators will stay in 'graduated' status forever.
+  // Only rare partners (~5%) will manually set up their own ReferralCampaign.
 });
 
 // ===========================================================================

@@ -353,31 +353,31 @@ Edit `config.ts`:
 
 ```typescript
 export const CHAINS: Record<number, ChainConfig> = {
-	// Existing chain...
+  // Existing chain...
 	146: {
 		/* Sonic */
 	},
 
-	// Add new chain
-	8453: {
-		chainId: 8453,
-		name: "Base",
-		shortName: "base",
-		rpcUrl: process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org",
-		explorerUrl: "https://basescan.org",
-		contracts: {
+  // Add new chain
+  8453: {
+    chainId: 8453,
+    name: "Base",
+    shortName: "base",
+    rpcUrl: process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org",
+    explorerUrl: "https://basescan.org",
+    contracts: {
 			oracle: "0x...", // Deploy and add address
 			marketFactory: "0x...", // Deploy and add address
-			usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
 			referralFactory: "0x...", // Deploy ReferralFactory
 			rewardToken: "0x...", // Reward token for campaigns
 			disputeResolverHome: "0x...", // Sonic only
 			launchpadFactory: "0x...", // Launchpad factory (optional)
 			bondingCurve: "0x...", // Not used directly (dynamic)
-		},
+    },
 		startBlock: 12345678, // Block when contracts were deployed
-		enabled: true,
-	},
+    enabled: true,
+  },
 };
 ```
 
@@ -438,14 +438,14 @@ The indexer will start syncing the new chain from its startBlock.
 
 ```graphql
 query {
-	platformStatss(where: { chainId: 146 }) {
-		items {
-			chainName
-			totalVolume
-			totalMarkets
-			totalUsers
-		}
-	}
+  platformStatss(where: { chainId: 146 }) {
+    items {
+      chainName
+      totalVolume
+      totalMarkets
+      totalUsers
+    }
+  }
 }
 ```
 
@@ -453,16 +453,16 @@ query {
 
 ```graphql
 query {
-	marketss(orderBy: "totalVolume", orderDirection: "desc", limit: 10) {
-		items {
-			id
-			chainId
-			chainName
-			marketType
-			totalVolume
-			totalTrades
-		}
-	}
+  marketss(orderBy: "totalVolume", orderDirection: "desc", limit: 10) {
+    items {
+      id
+      chainId
+      chainName
+      marketType
+      totalVolume
+      totalTrades
+    }
+  }
 }
 ```
 
@@ -470,15 +470,15 @@ query {
 
 ```graphql
 query {
-	userss(where: { address: "0x123...", chainId: 146 }) {
-		items {
-			chainName
-			totalTrades
-			totalVolume
-			totalWinnings
-			bestStreak
-		}
-	}
+  userss(where: { address: "0x123...", chainId: 146 }) {
+    items {
+      chainName
+      totalTrades
+      totalVolume
+      totalWinnings
+      bestStreak
+    }
+  }
 }
 ```
 
@@ -486,19 +486,19 @@ query {
 
 ```graphql
 query {
-	dailyStatss(
-		where: { chainId: 146 }
-		orderBy: "dayTimestamp"
-		orderDirection: "desc"
-		limit: 7
-	) {
-		items {
-			dayTimestamp
-			volume
-			tradesCount
-			newUsers
-		}
-	}
+  dailyStatss(
+    where: { chainId: 146 }
+    orderBy: "dayTimestamp"
+    orderDirection: "desc"
+    limit: 7
+  ) {
+    items {
+      dayTimestamp
+      volume
+      tradesCount
+      newUsers
+    }
+  }
 }
 ```
 
@@ -528,10 +528,10 @@ npm run start
 1. Create PostgreSQL database on Railway
 2. Create new service from this repo
 3. Set environment variables:
-    ```
-    DATABASE_URL=postgresql://...
-    PONDER_RPC_URL_146=https://rpc.soniclabs.com
-    ```
+   ```
+   DATABASE_URL=postgresql://...
+   PONDER_RPC_URL_146=https://rpc.soniclabs.com
+   ```
 4. Deploy
 
 ## Files

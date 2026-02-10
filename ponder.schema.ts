@@ -1148,12 +1148,20 @@ export default createSchema((p) => ({
     graduatedAt: p.bigint(),
     /** Transaction hash of graduation */
     graduatedTxHash: p.hex(),
-    /** ReferralFactory address for this localizer (set by backend) */
+    /**
+     * ReferralFactory address for localizer (optional).
+     * Only set if creator manually creates their own referral program.
+     * 95% of creators will NOT have this - they just graduate and leave.
+     */
     referralFactoryAddress: p.hex().optional(),
     /**
-     * Setup status:
-     * - 'pending_setup': Graduation detected, waiting for backend to deploy contracts
-     * - 'active': ReferralFactory deployed and active
+     * Graduation status:
+     * - 'graduated': Token graduated to DEX, markets switched to localizer system
+     * - 'finalized': Pandora referral rewards calculated and finalized
+     * - 'has_campaign': Creator manually set up their own ReferralCampaign (rare, ~5%)
+     *
+     * NOTE: Most creators (95%) will stay in 'graduated' or 'finalized' status forever.
+     * They don't need to "set up" anything - graduation is automatic.
      */
     status: p.string(),
   }),
@@ -1283,6 +1291,39 @@ export default createSchema((p) => ({
      * Used during finalization when creator graduates.
      */
     processedForReferral: p.boolean(),
+  }),
+
+  // ===========================================================================
+  // CLAIM EVENTS TABLE (for backend sync)
+  // ===========================================================================
+  /**
+   * Records of claim events from ReferralCampaign contracts.
+   * Used by backend sync job to update app_internal.claim_signatures.
+   *
+   * This table is Ponder-managed and will be rolled back on chain reorgs,
+   * ensuring data consistency. Backend only syncs finalized blocks.
+   *
+   * ID FORMAT: txHash-logIndex
+   */
+  claimEvents: p.createTable({
+    /** Unique ID: txHash-logIndex */
+    id: p.string(),
+    /** Campaign contract address */
+    campaignAddress: p.hex(),
+    /** User who claimed */
+    userAddress: p.hex(),
+    /** Amount claimed (in reward token decimals) */
+    amount: p.bigint(),
+    /** Signature used for claim (65 bytes, indexed for fast lookup) */
+    signature: p.hex(),
+    /** Block number (for finalization check) */
+    blockNumber: p.bigint(),
+    /** Block timestamp */
+    timestamp: p.bigint(),
+    /** Transaction hash */
+    txHash: p.hex(),
+    /** Whether this event was synced to app_internal by backend */
+    synced: p.boolean(),
   }),
 
 }));

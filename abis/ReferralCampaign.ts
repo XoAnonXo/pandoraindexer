@@ -1,14 +1,59 @@
 /**
  * ReferralCampaign ABI
- * 
+ *
  * Handles reward distribution via operator signatures with EIP-712 verification.
  * Campaigns are created dynamically by ReferralFactory.
- * 
- * @contract Created by ReferralFactory (0x75527046cE73189a8a3a06d8bfdd09d4643c6A01)
+ *
+ * Updated: Uses bytes signature instead of v,r,s components.
+ *
+ * @contract Created by ReferralFactory
  * @chain Sonic (146)
- * @example First campaign: 0x203d3BCc55a497BDC7cf49e2a1F5BA142230A165
  */
 export const ReferralCampaignAbi = [
+  // =========================================================================
+  // EVENTS
+  // =========================================================================
+  {
+    type: "event",
+    anonymous: false,
+    name: "Claimed",
+    inputs: [
+      { name: "user", type: "address", indexed: false, internalType: "address" },
+      { name: "amount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "signature", type: "bytes", indexed: false, internalType: "bytes" },
+    ],
+  },
+  {
+    type: "event",
+    anonymous: false,
+    name: "ClaimedBatch",
+    inputs: [
+      { name: "user", type: "address", indexed: false, internalType: "address" },
+      { name: "totalAmount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "claimCount", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "signatures", type: "bytes[]", indexed: false, internalType: "bytes[]" },
+    ],
+  },
+  {
+    type: "event",
+    anonymous: false,
+    name: "Withdrawn",
+    inputs: [
+      { name: "token", type: "address", indexed: false, internalType: "address" },
+      { name: "to", type: "address", indexed: false, internalType: "address" },
+      { name: "amount", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+  },
+  {
+    type: "event",
+    anonymous: false,
+    name: "OwnershipTransferred",
+    inputs: [
+      { name: "previousOwner", type: "address", indexed: true, internalType: "address" },
+      { name: "newOwner", type: "address", indexed: true, internalType: "address" },
+    ],
+  },
+
   // =========================================================================
   // VIEW FUNCTIONS
   // =========================================================================
@@ -28,7 +73,7 @@ export const ReferralCampaignAbi = [
   },
   {
     type: "function",
-    name: "creator",
+    name: "owner",
     inputs: [],
     outputs: [{ name: "", type: "address", internalType: "address" }],
     stateMutability: "view",
@@ -42,7 +87,7 @@ export const ReferralCampaignAbi = [
   },
   {
     type: "function",
-    name: "version",
+    name: "campaignType",
     inputs: [],
     outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
     stateMutability: "view",
@@ -68,6 +113,13 @@ export const ReferralCampaignAbi = [
     outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
     stateMutability: "view",
   },
+  {
+    type: "function",
+    name: "MAX_BATCH_SIZE",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
 
   // =========================================================================
   // WRITE FUNCTIONS
@@ -77,9 +129,17 @@ export const ReferralCampaignAbi = [
     name: "claim",
     inputs: [
       { name: "amount", type: "uint256", internalType: "uint256" },
-      { name: "v", type: "uint8", internalType: "uint8" },
-      { name: "r", type: "bytes32", internalType: "bytes32" },
-      { name: "s", type: "bytes32", internalType: "bytes32" },
+      { name: "signature", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "claimBatch",
+    inputs: [
+      { name: "amounts", type: "uint256[]", internalType: "uint256[]" },
+      { name: "signatures", type: "bytes[]", internalType: "bytes[]" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
@@ -88,6 +148,20 @@ export const ReferralCampaignAbi = [
     type: "function",
     name: "withdraw",
     inputs: [{ name: "_token", type: "address", internalType: "address" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "transferOwnership",
+    inputs: [{ name: "newOwner", type: "address", internalType: "address" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "renounceOwnership",
+    inputs: [],
     outputs: [],
     stateMutability: "nonpayable",
   },
@@ -111,9 +185,14 @@ export const ReferralCampaignAbi = [
       { name: "currentNonce", type: "uint256", internalType: "uint256" },
     ],
   },
+  {
+    type: "error",
+    name: "OwnableUnauthorizedAccount",
+    inputs: [{ name: "account", type: "address", internalType: "address" }],
+  },
+  {
+    type: "error",
+    name: "OwnableInvalidOwner",
+    inputs: [{ name: "owner", type: "address", internalType: "address" }],
+  },
 ] as const;
-
-
-
-
-
