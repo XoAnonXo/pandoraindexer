@@ -277,19 +277,4 @@ ponder.on("ReferralCampaign:ClaimedBatch", async ({ event, context }: any) => {
   }
 });
 
-// =============================================================================
-// CAMPAIGN CREATED EVENT (ReferralFactory)
-// =============================================================================
-/**
- * Handles when a new campaign is created.
- * Note: This is also handled in campaigns.ts, this is a secondary handler
- * for logging purposes.
- */
-ponder.on("ReferralFactory:CampaignCreated", async ({ event, context }: any) => {
-  const { campaign, rewardToken, operator, campaignType } = event.args;
-  const chain = getChainInfo(context);
-
-  console.log(
-    `[${chain.chainName}] Campaign created: ${campaign} (type: ${campaignType}, operator: ${operator})`
-  );
-});
+// NOTE: CampaignCreated handler moved to campaign.ts (was duplicate)
