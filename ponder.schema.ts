@@ -622,7 +622,7 @@ export default createSchema((p) => ({
   /**
    * Global platform statistics aggregated per blockchain.
    *
-   * ID FORMAT: chainId as string (e.g., "146" for Sonic)
+   * ID FORMAT: chainId as string (e.g., "1" for Ethereum)
    *
    * One record exists per supported chain. This provides dashboard-level
    * metrics for the entire platform on each chain.

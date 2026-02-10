@@ -3,12 +3,12 @@
  */
 
 import { createPublicClient, http, formatUnits, type Address } from "viem";
-import { sonic } from "viem/chains";
+import { mainnet } from "viem/chains";
 import { RPC_URL, USDC_DECIMALS } from "./contracts.js";
 
-// Create public client for Sonic chain
+// Create public client for Ethereum Mainnet
 export const client = createPublicClient({
-  chain: sonic,
+  chain: mainnet,
   transport: http(RPC_URL),
 });
 
