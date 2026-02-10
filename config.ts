@@ -13,13 +13,15 @@ export interface ChainConfig {
   rpcUrls: string[];
   explorerUrl: string;
   contracts: {
+    // Core prediction market contracts (required)
     oracle: `0x${string}`;
     marketFactory: `0x${string}`;
     usdc: `0x${string}`;
-    referralFactory: `0x${string}`; // ✅ ReferralFactory with signature-based system
-    rewardToken: `0x${string}`; // ✅ Reward token for referral campaigns
-    disputeResolverHome: `0x${string}`;
-    launchpadFactory: `0x${string}`; // ✅ TokensFactory for Launchpad (BondingCurves are dynamic)
+    // Optional — uncomment in ponder.config.ts when deployed
+    referralFactory?: `0x${string}`; // ReferralFactory with signature-based system
+    rewardToken?: `0x${string}`; // Reward token for referral campaigns
+    disputeResolverHome?: `0x${string}`; // DisputeResolverHome
+    launchpadFactory?: `0x${string}`; // TokensFactory for Launchpad
   };
   startBlock: number;
   enabled: boolean;
