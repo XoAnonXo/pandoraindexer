@@ -10,78 +10,95 @@ ponder.on("PredictionOracle:PollCreated", async ({ event, context }: any) => {
   const timestamp = event.block.timestamp;
   const chain = getChainInfo(context);
 
-	let category = 0;
-	let rules = "";
-	let sources = "[]";
-	let finalizationEpoch = 0;
-	let arbiter: `0x${string}` | undefined = undefined;
-	let status = 0;
-	let resolutionReason = "";
+  console.log(`[${chain.chainName}] PollCreated event received: ${pollAddress} block=${event.block.number}`);
+
+  let category = 0;
+  let rules = "";
+  let sources = "[]";
+  let finalizationEpoch = 0;
+  let arbiter: `0x${string}` | undefined = undefined;
+  let status = 0;
+  let resolutionReason = "";
   let checkEpoch = 0;
 
-  const [pollData, checkEpochRaw] = await Promise.all([
-    context.client.readContract({
-      address: pollAddress,
-      abi: PredictionPollAbi,
-      functionName: "getPollData",
-      blockNumber: event.block.number,
-    }),
-    context.client.readContract({
-      address: event.log.address,
-      abi: PredictionOracleAbi,
-      functionName: "getCurrentCheckEpoch",
-      args: [pollAddress],
-      blockNumber: event.block.number,
-    }),
-  ]);
+  try {
+    const [pollData, checkEpochRaw] = await Promise.all([
+      context.client.readContract({
+        address: pollAddress,
+        abi: PredictionPollAbi,
+        functionName: "getPollData",
+        blockNumber: event.block.number,
+      }),
+      context.client.readContract({
+        address: event.log.address,
+        abi: PredictionOracleAbi,
+        functionName: "getCurrentCheckEpoch",
+        args: [pollAddress],
+        blockNumber: event.block.number,
+      }),
+    ]);
 
-  category = Number(pollData.category);
-  rules = (pollData.rules || "").slice(0, 4096);
-  sources = JSON.stringify(pollData.sources || []);
-  finalizationEpoch = Number(pollData.finalizationEpoch);
-  arbiter = (pollData.arbiter?.toLowerCase?.() ?? pollData.arbiter) as `0x${string}`;
-  status = Number(pollData.status);
-  resolutionReason = (pollData.resolutionReason || "").slice(0, 4096);
-  checkEpoch = Number(checkEpochRaw);
+    category = Number(pollData.category);
+    rules = (pollData.rules || "").slice(0, 4096);
+    sources = JSON.stringify(pollData.sources || []);
+    finalizationEpoch = Number(pollData.finalizationEpoch);
+    arbiter = (pollData.arbiter?.toLowerCase?.() ?? pollData.arbiter) as `0x${string}`;
+    status = Number(pollData.status);
+    resolutionReason = (pollData.resolutionReason || "").slice(0, 4096);
+    checkEpoch = Number(checkEpochRaw);
 
-  await context.db.polls.create({
-    id: pollAddress,
-    data: {
-      chainId: chain.chainId,
-      chainName: chain.chainName,
-      creator: creator.toLowerCase(),
-      arbiter,
-      question: question.slice(0, 4096),
-      rules,
-      sources,
-      deadlineEpoch: Number(deadlineEpoch),
-      finalizationEpoch,
-      checkEpoch,
-      category,
-      status,
-      resolutionReason,
-      arbitrationStarted: false,
-      createdAtBlock: event.block.number,
-      createdAt: timestamp,
-      createdTxHash: event.transaction.hash,
-    },
-  });
+    console.log(`[${chain.chainName}] Poll data fetched: category=${category}, status=${status}, arbiter=${arbiter}`);
+  } catch (err) {
+    console.error(`[${chain.chainName}] Failed to fetch poll data for ${pollAddress}:`, err);
+    throw err;
+  }
 
-  const user = await getOrCreateUser(context, creator, chain);
-  await context.db.users.update({
-    id: makeId(chain.chainId, creator.toLowerCase()),
-    data: {
-      pollsCreated: user.pollsCreated + 1,
-    },
-  });
+  try {
+    await context.db.polls.create({
+      id: pollAddress,
+      data: {
+        chainId: chain.chainId,
+        chainName: chain.chainName,
+        creator: creator.toLowerCase(),
+        arbiter,
+        question: question.slice(0, 4096),
+        rules,
+        sources,
+        deadlineEpoch: Number(deadlineEpoch),
+        finalizationEpoch,
+        checkEpoch,
+        category,
+        status,
+        resolutionReason,
+        arbitrationStarted: false,
+        createdAtBlock: event.block.number,
+        createdAt: timestamp,
+        createdTxHash: event.transaction.hash,
+      },
+    });
+    console.log(`[${chain.chainName}] ✅ Poll SAVED to DB: ${pollAddress} (category: ${category})`);
+  } catch (err) {
+    console.error(`[${chain.chainName}] ❌ Failed to save poll ${pollAddress} to DB:`, err);
+    throw err;
+  }
 
-  await updateAggregateStats(context, chain, timestamp, {
-    polls: 1,
-  });
+  try {
+    const user = await getOrCreateUser(context, creator, chain);
+    await context.db.users.update({
+      id: makeId(chain.chainId, creator.toLowerCase()),
+      data: {
+        pollsCreated: user.pollsCreated + 1,
+      },
+    });
 
-	console.log(
-		`[${chain.chainName}] Poll created: ${pollAddress} (category: ${category})`
-	);
+    await updateAggregateStats(context, chain, timestamp, {
+      polls: 1,
+    });
+    console.log(`[${chain.chainName}] ✅ User & stats updated for poll ${pollAddress}`);
+  } catch (err) {
+    console.error(`[${chain.chainName}] ⚠️ Poll saved but failed to update user/stats:`, err);
+    // Don't throw - poll is already saved
+  }
 });
 
 ponder.on("PredictionOracle:PollRefreshed", async ({ event, context }: any) => {
