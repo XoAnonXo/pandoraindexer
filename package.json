@@ -6,7 +6,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "ponder dev",
-		"start": "ponder start --schema deploy_blue",
+		"start": "ponder start",
 		"serve": "ponder serve",
 		"codegen": "ponder codegen",
 		"test:candles": "tsx scripts/test-candles.ts",
