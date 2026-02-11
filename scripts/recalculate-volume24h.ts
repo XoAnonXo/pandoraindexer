@@ -12,7 +12,7 @@
  *
  * Environment:
  *   DATABASE_URL - PostgreSQL connection string (required)
- *   RAILWAY_DEPLOYMENT_ID - Railway deployment ID for schema name (optional)
+ *   DATABASE_SCHEMA - Ponder schema name (e.g., deploy_blue, deploy_green)
  */
 
 import { Pool } from "pg";
@@ -25,12 +25,9 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-// Get Ponder schema name from Railway deployment ID
-// Ponder uses format: {color}-{projectName}_{shortDeploymentId}
-const deploymentId = process.env.RAILWAY_DEPLOYMENT_ID;
-const schemaName = deploymentId
-  ? `blue-sonicmarketindexer_${deploymentId.substring(0, 8)}`
-  : "public";
+// Get Ponder schema name from DATABASE_SCHEMA env var
+// This should match the --schema flag used when starting Ponder
+const schemaName = process.env.DATABASE_SCHEMA || "deploy_blue";
 
 console.log(`[Recalculate] Using database schema: ${schemaName}`);
 
