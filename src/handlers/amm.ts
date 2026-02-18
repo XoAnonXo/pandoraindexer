@@ -7,7 +7,9 @@ import {
 	isNewTraderForMarket,
 	recordMarketInteraction,
 } from "../services/db";
-import { updateReferralVolume } from "../services/referral";
+// TODO: Referral system disabled for now - ReferralFactory not deployed on Ethereum
+// Volume is still tracked in trades/users/markets tables for future referral calculations
+// import { updateReferralVolume } from "../services/referral";
 import { updatePollTvl } from "../services/pollTvl";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
 import { recordAmmPriceTickAndCandles } from "../services/candles";
@@ -177,17 +179,17 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
     activeUsers: 1,
   });
   
-  // Track referral volume if trader has a referrer
-	await updateReferralVolume(
-		context,
-		trader,
-		collateralAmount,
-		fee,
-		timestamp,
-		event.block.number,
-		chain,
-		marketAddress
-	);
+  // TODO: Referral tracking disabled - volume already saved in trades table
+	// await updateReferralVolume(
+	// 	context,
+	// 	trader,
+	// 	collateralAmount,
+	// 	fee,
+	// 	timestamp,
+	// 	event.block.number,
+	// 	chain,
+	// 	marketAddress
+	// );
 });
 
 ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
@@ -321,17 +323,17 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     activeUsers: 1,
   });
   
-  // Track referral volume if trader has a referrer
-	await updateReferralVolume(
-		context,
-		trader,
-		collateralAmount,
-		fee,
-		timestamp,
-		event.block.number,
-		chain,
-		marketAddress
-	);
+  // TODO: Referral tracking disabled - volume already saved in trades table
+	// await updateReferralVolume(
+	// 	context,
+	// 	trader,
+	// 	collateralAmount,
+	// 	fee,
+	// 	timestamp,
+	// 	event.block.number,
+	// 	chain,
+	// 	marketAddress
+	// );
 });
 
 ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {

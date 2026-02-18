@@ -7,7 +7,9 @@ import {
 	isNewTraderForMarket,
 	recordMarketInteraction,
 } from "../services/db";
-import { updateReferralVolume } from "../services/referral";
+// TODO: Referral system disabled for now - ReferralFactory not deployed on Ethereum
+// Volume is still tracked in trades/users/markets tables for future referral calculations
+// import { updateReferralVolume } from "../services/referral";
 import { updatePollTvl } from "../services/pollTvl";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 import { recordPriceTickAndCandles } from "../services/candles";
@@ -123,17 +125,17 @@ ponder.on(
 			volume: totalLiquidity,
 		});
 
-		// Track referral volume if creator has a referrer
-		await updateReferralVolume(
-			context,
-			market.creator,
-			totalLiquidity,
-			0n,
-			timestamp,
-			event.block.number,
-			chain,
-			marketAddress
-		);
+		// TODO: Referral tracking disabled - volume already saved in trades table
+		// await updateReferralVolume(
+		// 	context,
+		// 	market.creator,
+		// 	totalLiquidity,
+		// 	0n,
+		// 	timestamp,
+		// 	event.block.number,
+		// 	chain,
+		// 	marketAddress
+		// );
 
 		console.log(
 			`[${chain.chainName}] Seed liquidity (volume): ${marketAddress} - ${totalLiquidity}`
@@ -284,17 +286,17 @@ ponder.on(
 			activeUsers: 1,
 		});
 
-		// Track referral volume if buyer has a referrer
-		await updateReferralVolume(
-			context,
-			buyer,
-			collateralIn,
-			0n,
-			timestamp,
-			event.block.number,
-			chain,
-			marketAddress
-		);
+		// TODO: Referral tracking disabled - volume already saved in trades table
+		// await updateReferralVolume(
+		// 	context,
+		// 	buyer,
+		// 	collateralIn,
+		// 	0n,
+		// 	timestamp,
+		// 	event.block.number,
+		// 	chain,
+		// 	marketAddress
+		// );
 	}
 );
 
