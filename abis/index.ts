@@ -61,6 +61,9 @@ export { ReferralCampaignAbi } from "./ReferralCampaign";
 // Dispute Resolver Home - Manages disputes on home chain (Sonic)
 export { DisputeResolverHomeAbi } from "./DisputeResolverHome";
 
+// Dispute Resolver Remote - Manages disputes on remote chains (Ethereum, etc.)
+export { DisputeResolverRemoteAbi } from "./DisputeResolverRemote";
+
 // =============================================================================
 // LAUNCHPAD CONTRACTS
 // =============================================================================

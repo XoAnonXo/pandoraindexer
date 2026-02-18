@@ -27,8 +27,8 @@ import "./handlers/poll";
 import "./handlers/factory";
 import "./handlers/amm";
 import "./handlers/parimutuel";
+import "./handlers/disputes";
 // TODO: Uncomment when these contracts are deployed on Ethereum
 // import "./handlers/referral";
 // import "./handlers/campaign";
-// import "./handlers/disputes";
 // import "./handlers/launchpad";

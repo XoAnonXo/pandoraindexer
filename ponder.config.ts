@@ -28,7 +28,7 @@ import { PredictionPariMutuelAbi } from "./abis/PredictionPariMutuel";
 // TODO: Uncomment when these contracts are deployed on Ethereum
 // import { ReferralFactoryAbi } from "./abis/ReferralFactory";
 // import { ReferralCampaignAbi } from "./abis/ReferralCampaign";
-// import { DisputeResolverHomeAbi } from "./abis/DisputeResolverHome";
+import { DisputeResolverRemoteAbi } from "./abis/DisputeResolverRemote"; // For Ethereum (remote chain)
 // import { TokensFactoryAbi } from "./abis/TokensFactory";
 // import { BondingCurveAbi } from "./abis/BondingCurve";
 
@@ -168,12 +168,12 @@ export default createConfig({
     // TODO: DISPUTE CONTRACTS — uncomment when deployed on Ethereum
     // =========================================================================
 
-    // DisputeResolverHome: {
-    //   network: "ethereum",
-    //   abi: DisputeResolverHomeAbi,
-    //   address: ethereum.contracts.disputeResolverHome,
-    //   startBlock: ethereum.startBlock,
-    // },
+    DisputeResolverRemote: {
+      network: "ethereum",
+      abi: DisputeResolverRemoteAbi,
+      address: ethereum.contracts.disputeResolverRemote,
+      startBlock: ethereum.startBlock,
+    },
 
     // =========================================================================
     // TODO: LAUNCHPAD CONTRACTS — uncomment when deployed on Ethereum

@@ -23,7 +23,7 @@
 import { ponder } from "@/generated";
 import { getChainInfo } from "../utils/helpers";
 import { updateReferralVolume } from "../services/referral";
-import { BondingCurveAbi } from "../../abis/BondingCurve";
+import { BondingCurveAbi } from "../abis/BondingCurve";
 
 // ===========================================================================
 // TOKEN CREATED (TokensFactory)

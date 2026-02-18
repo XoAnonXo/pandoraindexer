@@ -18,9 +18,11 @@ export interface ChainConfig {
     marketFactory: `0x${string}`;
     usdc: `0x${string}`;
     // Optional — uncomment in ponder.config.ts when deployed
+    vault?: `0x${string}`; // Vault for dispute collateral
     referralFactory?: `0x${string}`; // ReferralFactory with signature-based system
     rewardToken?: `0x${string}`; // Reward token for referral campaigns
-    disputeResolverHome?: `0x${string}`; // DisputeResolverHome
+    disputeResolverRemote?: `0x${string}`; // DisputeResolverRemote (for remote chains like Ethereum)
+    disputeResolverHome?: `0x${string}`; // DisputeResolverHome (for home chain - Sonic)
     launchpadFactory?: `0x${string}`; // TokensFactory for Launchpad
   };
   startBlock: number;
@@ -45,9 +47,10 @@ export const CHAINS: Record<number, ChainConfig> = {
       oracle: "0x259308E7d8557e4Ba192De1aB8Cf7e0E21896442",
       marketFactory: "0xaB120F1FD31FB1EC39893B75d80a3822b1Cd8d0c",
       usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC (Ethereum Mainnet)
+      vault: "0xA9a69707e996AEC4422FA966629FcBf22fa1180E", // Vault for dispute collateral
       referralFactory: "0x75527046cE73189a8a3a06d8bfdd09d4643c6A01",
       rewardToken: "0x25B7Ca1e238bAC63EAA62420BBb86d0afbEba9eB",
-      disputeResolverHome: "0x2446DC1279Ed900c05CF2D137B07f383d98c0baD",
+      disputeResolverRemote: "0x63f9bf5D8b59D381a7119f25F5eC6a22Dccb5dC9", // DisputeResolverRemote (Ethereum)
       launchpadFactory: "0x283d0c80Fd94D3d5281FA2904Dcc97Aa397dAfF0",
       // Note: bondingCurve is dynamic - created via TokensFactory:TokenCreated event
     },
@@ -67,9 +70,11 @@ export const CHAINS: Record<number, ChainConfig> = {
   //     oracle: "0x...",
   //     marketFactory: "0x...",
   //     usdc: "0x...",
+  //     vault: "0x...",
   //     referralFactory: "0x...",
   //     rewardToken: "0x...",
-  //     disputeResolverHome: "0x...",
+  //     disputeResolverRemote: "0x...", // For remote chains
+  //     // disputeResolverHome: "0x...", // Only for home chain (Sonic)
   //     launchpadFactory: "0x...",
   //   },
   //   startBlock: <deployment_block>,

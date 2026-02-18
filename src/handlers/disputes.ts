@@ -1,13 +1,16 @@
 /**
  * Dispute Handlers
  *
- * Handles events from DisputeResolverHome and DisputeResolverRemote.
+ * Handles events from DisputeResolverRemote (for remote chains like Ethereum).
  * Tracks dispute creation, voting, resolution, and reward claims.
+ *
+ * Note: DisputeResolverHome is only on Sonic (home chain).
+ * This file handles DisputeResolverRemote events for Ethereum and other remote chains.
  */
 
 import { ponder } from "@/generated";
 import { getChainName, CHAINS } from "../../config";
-import { DisputeResolverHomeAbi } from "../../abis/DisputeResolverHome";
+import { DisputeResolverRemoteAbi } from "../../abis/DisputeResolverRemote";
 
 // =============================================================================
 // HELPER TYPES
@@ -19,7 +22,7 @@ interface ChainInfo {
 }
 
 // =============================================================================
-// DisputeResolverHome Events
+// DisputeResolverRemote Events (for Ethereum and other remote chains)
 // =============================================================================
 
 /**
@@ -27,7 +30,7 @@ interface ChainInfo {
  * Emitted when a new dispute is opened against an oracle/poll.
  */
 ponder.on(
-  "DisputeResolverHome:DisputeCreated",
+  "DisputeResolverRemote:DisputeCreated",
   async ({ event, context }: any) => {
     const { disputer, oracle, draftStatus, amount, marketToken } =
       event.args;
@@ -91,7 +94,7 @@ ponder.on(
     let disputeReason = "";
     try {
       const disputeResolverAddress =
-        CHAINS[chainId]?.contracts.disputeResolverHome;
+        CHAINS[chainId]?.contracts.disputeResolverRemote;
       if (
         disputeResolverAddress &&
         disputeResolverAddress !==
@@ -99,7 +102,7 @@ ponder.on(
       ) {
         const disputeInfo = await context.client.readContract({
           address: disputeResolverAddress,
-          abi: DisputeResolverHomeAbi,
+          abi: DisputeResolverRemoteAbi,
           functionName: "getDisputeInfo",
           args: [oracle],
         });
@@ -171,7 +174,7 @@ ponder.on(
  * Event: Vote
  * Emitted when a user votes on a dispute.
  */
-ponder.on("DisputeResolverHome:Vote", async ({ event, context }: any) => {
+ponder.on("DisputeResolverRemote:Vote", async ({ event, context }: any) => {
   const { voter, oracle, power, status } = event.args;
   const { block, transaction } = event;
   const timestamp = block.timestamp;
@@ -237,7 +240,7 @@ ponder.on("DisputeResolverHome:Vote", async ({ event, context }: any) => {
  * Emitted when a dispute is resolved with a final decision.
  */
 ponder.on(
-  "DisputeResolverHome:DisputeResolved",
+  "DisputeResolverRemote:DisputeResolved",
   async ({ event, context }: any) => {
     const { oracle, finalStatus, resolver } = event.args;
     const { block } = event;
@@ -300,7 +303,7 @@ ponder.on(
  * Emitted when a dispute fails (not enough votes or other conditions).
  */
 ponder.on(
-  "DisputeResolverHome:DisputeFailed",
+  "DisputeResolverRemote:DisputeFailed",
   async ({ event, context }: any) => {
     const { oracle, disputer } = event.args;
     const chainId = context.network.chainId;
@@ -338,7 +341,7 @@ ponder.on(
  * Emitted when a voter claims their rewards from a resolved dispute.
  */
 ponder.on(
-  "DisputeResolverHome:VoteRewardClaimed",
+  "DisputeResolverRemote:VoteRewardClaimed",
   async ({ event, context }: any) => {
     const { voter, oracle, tokenId, token, reward } = event.args;
     const { timestamp, block, transaction } = event;
@@ -354,8 +357,8 @@ ponder.on(
     let votedFor = 0; // Default to Pending
     try {
       const voteRecord = await context.client.readContract({
-        address: CHAINS[chainId]?.contracts.disputeResolverHome,
-        abi: DisputeResolverHomeAbi,
+        address: CHAINS[chainId]?.contracts.disputeResolverRemote,
+        abi: DisputeResolverRemoteAbi,
         functionName: "getVoteRecordInfo",
         args: [oracle, tokenId],
       });
@@ -399,7 +402,7 @@ ponder.on(
  * Emitted when disputer's collateral is taken (penalty).
  */
 ponder.on(
-  "DisputeResolverHome:CollateralTaken",
+  "DisputeResolverRemote:CollateralTaken",
   async ({ event, context }: any) => {
     const { oracle } = event.args;
     const chainId = context.network.chainId;
@@ -433,18 +436,18 @@ ponder.on(
 );
 
 /**
- * Event: RemoteVoteSent
- * Emitted when a vote is sent to a remote chain via LayerZero.
+ * Event: CrossChainVoteReceived
+ * Emitted when a vote is received from home chain via LayerZero.
  */
 ponder.on(
-  "DisputeResolverHome:RemoteVoteSent",
+  "DisputeResolverRemote:CrossChainVoteReceived",
   async ({ event, context }: any) => {
-    const { voter, oracle, dstChainEid, tokenIds } = event.args;
+    const { voter, oracle, srcChainEid, tokenIds } = event.args;
     const chainId = context.network.chainId;
     const chainName = getChainName(chainId);
 
     console.log(
-      `[${chainName}] Remote vote sent to EID ${dstChainEid} for oracle ${oracle.slice(
+      `[${chainName}] Cross-chain vote received from EID ${srcChainEid} for oracle ${oracle.slice(
         0,
         10
       )}... by ${voter.slice(0, 10)}... (${tokenIds.length} NFTs)`
@@ -453,18 +456,18 @@ ponder.on(
 );
 
 /**
- * Event: RemoteClaimSent
- * Emitted when a claim request is sent to a remote chain via LayerZero.
+ * Event: CrossChainClaimReceived
+ * Emitted when a claim request is received from home chain via LayerZero.
  */
 ponder.on(
-  "DisputeResolverHome:RemoteClaimSent",
+  "DisputeResolverRemote:CrossChainClaimReceived",
   async ({ event, context }: any) => {
-    const { claimer, oracle, dstChainEid, tokenIds } = event.args;
+    const { claimer, oracle, srcChainEid, tokenIds } = event.args;
     const chainId = context.network.chainId;
     const chainName = getChainName(chainId);
 
     console.log(
-      `[${chainName}] Remote claim sent to EID ${dstChainEid} for oracle ${oracle.slice(
+      `[${chainName}] Cross-chain claim received from EID ${srcChainEid} for oracle ${oracle.slice(
         0,
         10
       )}... by ${claimer.slice(0, 10)}... (${tokenIds.length} NFTs)`
