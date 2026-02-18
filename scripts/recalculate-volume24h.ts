@@ -12,7 +12,8 @@
  *
  * Environment:
  *   DATABASE_URL - PostgreSQL connection string (required)
- *   DATABASE_SCHEMA - Ponder schema name (e.g., deploy_blue, deploy_green)
+ *   RAILWAY_DEPLOYMENT_ID - Railway deployment ID (used by Ponder for schema name)
+ *   DATABASE_SCHEMA - Fallback schema name if RAILWAY_DEPLOYMENT_ID not set
  */
 
 import { Pool } from "pg";
@@ -25,11 +26,32 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-// Get Ponder schema name from DATABASE_SCHEMA env var
-// This should match the --schema flag used when starting Ponder
-const schemaName = process.env.DATABASE_SCHEMA || "deploy_blue";
+/**
+ * Determine Ponder schema name using the same logic as Ponder 0.6.x:
+ * Priority: RAILWAY_DEPLOYMENT_ID > DATABASE_SCHEMA > fallback
+ *
+ * When RAILWAY_DEPLOYMENT_ID is set, Ponder creates schema like:
+ * "blue-sonicmarketindexer_<deployment_id>"
+ */
+function getPonderSchemaName(): string {
+  const railwayDeploymentId = process.env.RAILWAY_DEPLOYMENT_ID;
+  const railwayServiceName = process.env.RAILWAY_SERVICE_NAME || "sonicmarketindexer";
+
+  if (railwayDeploymentId) {
+    // Ponder uses format: "<service_name>_<deployment_id>" but Railway adds "blue-" prefix
+    // Based on observed schemas: "blue-sonicmarketindexer_e2e2d344"
+    return `blue-${railwayServiceName}_${railwayDeploymentId}`;
+  }
+
+  // Fallback to DATABASE_SCHEMA or default
+  return process.env.DATABASE_SCHEMA || "deploy_blue";
+}
+
+const schemaName = getPonderSchemaName();
 
 console.log(`[Recalculate] Using database schema: ${schemaName}`);
+console.log(`[Recalculate] RAILWAY_DEPLOYMENT_ID: ${process.env.RAILWAY_DEPLOYMENT_ID || "(not set)"}`);
+console.log(`[Recalculate] DATABASE_SCHEMA: ${process.env.DATABASE_SCHEMA || "(not set)"}`);
 
 // Create PostgreSQL connection pool with schema
 const pool = new Pool({
