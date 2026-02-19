@@ -4,6 +4,7 @@ import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser } from "../services/db";
 import { updatePollTvl } from "../services/pollTvl";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
+import { PredictionAMMAbi } from "../../abis/PredictionAMM";
 
 const YES_PRICE_SCALE = 1_000_000_000n; // 1e9
 
@@ -22,8 +23,20 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 		const timestamp = event.block.timestamp;
 		const chain = getChainInfo(context);
 
-		// No on-chain reads here; prepare values first, then DB writes.
 		const normalizedCreator = creator.toLowerCase() as `0x${string}`;
+
+		// Read marketCloseTimestamp from AMM contract (same as PariMutuel)
+		// This is set by MarketFactory: (deadlineEpoch - bufferEpochs) * EPOCH_LENGTH
+		const closeTs = await context.client.readContract({
+			address: marketAddress,
+			abi: PredictionAMMAbi,
+			functionName: "marketCloseTimestamp",
+			blockNumber: event.block.number,
+		});
+		const marketCloseTimestamp = BigInt(closeTs);
+
+		// For AMM, market starts when it's created (no explicit startTimestamp in contract)
+		const marketStartTimestamp = timestamp;
 
 		await context.db.markets.upsert({
 			id: marketAddress,
@@ -39,6 +52,8 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 				noToken,
 				feeTier: Number(feeTier),
 				maxPriceImbalancePerHour: Number(maxPriceImbalancePerHour),
+				marketStartTimestamp,
+				marketCloseTimestamp,
 				totalVolume: 0n,
 				volume24h: 0n,
 				totalTrades: 0,
@@ -66,6 +81,9 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 				noToken,
 				feeTier: Number(feeTier),
 				maxPriceImbalancePerHour: Number(maxPriceImbalancePerHour),
+				// Timestamps from contract
+				marketStartTimestamp,
+				marketCloseTimestamp,
 				// Preserve accumulated stats/state.
 				totalVolume: current.totalVolume,
 				volume24h: current.volume24h ?? 0n,

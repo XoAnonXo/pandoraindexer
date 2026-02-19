@@ -392,4 +392,16 @@ export const PredictionAMMAbi = [
     stateMutability: "view",
     type: "function",
   },
+
+  /**
+   * marketCloseTimestamp() - Returns when the market closes for trading
+   * Calculated as: (deadlineEpoch - marketCloseBufferEpochs) * EPOCH_LENGTH
+   */
+  {
+    type: "function",
+    name: "marketCloseTimestamp",
+    inputs: [],
+    outputs: [{ name: "", type: "uint32" }],
+    stateMutability: "view",
+  },
 ] as const;

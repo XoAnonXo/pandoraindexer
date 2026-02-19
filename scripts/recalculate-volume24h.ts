@@ -12,8 +12,8 @@
  *
  * Environment:
  *   DATABASE_URL - PostgreSQL connection string (required)
- *   RAILWAY_DEPLOYMENT_ID - Railway deployment ID (used by Ponder for schema name)
- *   DATABASE_SCHEMA - Fallback schema name if RAILWAY_DEPLOYMENT_ID not set
+ *   RAILWAY_SERVICE_NAME - Railway service name (e.g., "blue-sonicmarketindexer")
+ *   RAILWAY_DEPLOYMENT_ID - Railway deployment ID (used by Ponder for schema suffix)
  */
 
 import { Pool } from "pg";
@@ -28,27 +28,27 @@ if (!DATABASE_URL) {
 
 function getPonderSchemaName(): string {
   const railwayDeploymentId = process.env.RAILWAY_DEPLOYMENT_ID;
-  const railwayServiceName = process.env.RAILWAY_SERVICE_NAME || "sonicmarketindexer";
+  const railwayServiceName = process.env.RAILWAY_SERVICE_NAME;
 
-  if (railwayDeploymentId) {
-    const shortId = railwayDeploymentId.replace(/-/g, "").slice(0, 8);
-    return `blue-${railwayServiceName}_${shortId}`;
+  if (!railwayServiceName || !railwayDeploymentId) {
+    console.error("❌ RAILWAY_SERVICE_NAME and RAILWAY_DEPLOYMENT_ID are required");
+    console.error("   These are automatically set by Railway. Are you running locally?");
+    process.exit(1);
   }
 
-  return process.env.DATABASE_SCHEMA || "deploy_blue";
+
+  const shortId = railwayDeploymentId.replace(/-/g, "").slice(0, 8);
+  // Format: "<service_name>_<short_deployment_id>"
+  return `${railwayServiceName}_${shortId}`;
 }
 
 const schemaName = getPonderSchemaName();
 
 console.log(`[Recalculate] Using database schema: ${schemaName}`);
-if (process.env.RAILWAY_DEPLOYMENT_ID) {
-  const fullId = process.env.RAILWAY_DEPLOYMENT_ID;
-  const shortId = fullId.replace(/-/g, "").slice(0, 8);
-  console.log(`[Recalculate] RAILWAY_DEPLOYMENT_ID: ${fullId} (truncated to: ${shortId})`);
-} else {
-  console.log(`[Recalculate] RAILWAY_DEPLOYMENT_ID: (not set)`);
-}
-console.log(`[Recalculate] DATABASE_SCHEMA: ${process.env.DATABASE_SCHEMA || "(not set)"}`);
+console.log(`[Recalculate] RAILWAY_SERVICE_NAME: ${process.env.RAILWAY_SERVICE_NAME}`);
+const fullId = process.env.RAILWAY_DEPLOYMENT_ID!;
+const shortId = fullId.replace(/-/g, "").slice(0, 8);
+console.log(`[Recalculate] RAILWAY_DEPLOYMENT_ID: ${fullId} (truncated to: ${shortId})`);
 
 // Create PostgreSQL connection pool with schema
 const pool = new Pool({
