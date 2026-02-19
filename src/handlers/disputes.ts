@@ -29,6 +29,7 @@ interface ChainInfo {
  * Event: DisputeCreated
  * Emitted when a new dispute is opened against an oracle/poll.
  */
+
 ponder.on(
   "DisputeResolverRemote:DisputeCreated",
   async ({ event, context }: any) => {

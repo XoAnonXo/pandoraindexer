@@ -26,31 +26,28 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-/**
- * Determine Ponder schema name using the same logic as Ponder 0.6.x:
- * Priority: RAILWAY_DEPLOYMENT_ID > DATABASE_SCHEMA > fallback
- *
- * When RAILWAY_DEPLOYMENT_ID is set, Ponder creates schema like:
- * "blue-sonicmarketindexer_<deployment_id>"
- */
 function getPonderSchemaName(): string {
   const railwayDeploymentId = process.env.RAILWAY_DEPLOYMENT_ID;
   const railwayServiceName = process.env.RAILWAY_SERVICE_NAME || "sonicmarketindexer";
 
   if (railwayDeploymentId) {
-    // Ponder uses format: "<service_name>_<deployment_id>" but Railway adds "blue-" prefix
-    // Based on observed schemas: "blue-sonicmarketindexer_e2e2d344"
-    return `blue-${railwayServiceName}_${railwayDeploymentId}`;
+    const shortId = railwayDeploymentId.replace(/-/g, "").slice(0, 8);
+    return `blue-${railwayServiceName}_${shortId}`;
   }
 
-  // Fallback to DATABASE_SCHEMA or default
   return process.env.DATABASE_SCHEMA || "deploy_blue";
 }
 
 const schemaName = getPonderSchemaName();
 
 console.log(`[Recalculate] Using database schema: ${schemaName}`);
-console.log(`[Recalculate] RAILWAY_DEPLOYMENT_ID: ${process.env.RAILWAY_DEPLOYMENT_ID || "(not set)"}`);
+if (process.env.RAILWAY_DEPLOYMENT_ID) {
+  const fullId = process.env.RAILWAY_DEPLOYMENT_ID;
+  const shortId = fullId.replace(/-/g, "").slice(0, 8);
+  console.log(`[Recalculate] RAILWAY_DEPLOYMENT_ID: ${fullId} (truncated to: ${shortId})`);
+} else {
+  console.log(`[Recalculate] RAILWAY_DEPLOYMENT_ID: (not set)`);
+}
 console.log(`[Recalculate] DATABASE_SCHEMA: ${process.env.DATABASE_SCHEMA || "(not set)"}`);
 
 // Create PostgreSQL connection pool with schema
