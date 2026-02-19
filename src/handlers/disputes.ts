@@ -139,6 +139,7 @@ ponder.on(
         marketTokenSymbol: tokenSymbol,
         marketTokenDecimals: tokenDecimals,
         reason: disputeReason,
+        voteCount: 0,
         votesYes: 0n,
         votesNo: 0n,
         votesUnknown: 0n,
@@ -187,19 +188,15 @@ ponder.on("DisputeResolverRemote:Vote", async ({ event, context }: any) => {
   const disputeId = `${chainId}-${normalizedOracle}`;
   const voteId = `${chainId}-${normalizedOracle}-${normalizedVoter}-${transaction.hash}`;
 
-  // Update vote counts in disputes table
   const dispute = await context.db.disputes.findUnique({ id: disputeId });
   if (dispute) {
-    const updates: any = {};
+    const updates: any = { voteCount: dispute.voteCount + 1 };
 
     if (status === 1) {
-      // Yes
       updates.votesYes = dispute.votesYes + power;
     } else if (status === 2) {
-      // No
       updates.votesNo = dispute.votesNo + power;
     } else if (status === 3) {
-      // Unknown
       updates.votesUnknown = dispute.votesUnknown + power;
     }
 

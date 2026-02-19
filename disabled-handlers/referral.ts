@@ -194,7 +194,7 @@ ponder.on("ReferralCampaign:Claimed", async ({ event, context }: any) => {
   });
 
   // Create claimEvents record for backend sync
-  // Backend will read this table and update app_internal.claim_signatures
+  // Backend reads this table (READ-only) and updates app_internal.claim_signatures
   await context.db.claimEvents.create({
     id: eventId,
     data: {
@@ -205,7 +205,6 @@ ponder.on("ReferralCampaign:Claimed", async ({ event, context }: any) => {
       blockNumber,
       timestamp,
       txHash,
-      synced: false,
     },
   });
 });
@@ -265,12 +264,11 @@ ponder.on("ReferralCampaign:ClaimedBatch", async ({ event, context }: any) => {
         data: {
           campaignAddress,
           userAddress: normalizedUser,
-          amount: 0n, // Individual amounts not available in batch event
+          amount: 0n,
           signature: normalizedSignature,
           blockNumber,
           timestamp,
           txHash,
-          synced: false,
         },
       });
     }

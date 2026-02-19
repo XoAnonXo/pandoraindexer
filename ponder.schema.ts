@@ -1043,11 +1043,13 @@ export default createSchema((p) => ({
     marketTokenDecimals: p.int(),
     /** Reason for dispute */
     reason: p.string(),
-    /** Vote count - Yes (raw bigint) */
+    /** Total number of vote transactions */
+    voteCount: p.int(),
+    /** Vote power - Yes (raw bigint) */
     votesYes: p.bigint(),
-    /** Vote count - No (raw bigint) */
+    /** Vote power - No (raw bigint) */
     votesNo: p.bigint(),
-    /** Vote count - Unknown (raw bigint) */
+    /** Vote power - Unknown (raw bigint) */
     votesUnknown: p.bigint(),
     /** Created timestamp */
     createdAt: p.bigint(),
@@ -1322,8 +1324,6 @@ export default createSchema((p) => ({
     timestamp: p.bigint(),
     /** Transaction hash */
     txHash: p.hex(),
-    /** Whether this event was synced to app_internal by backend */
-    synced: p.boolean(),
   }),
 
 }));
