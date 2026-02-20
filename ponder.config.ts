@@ -54,6 +54,7 @@ export default createConfig({
       chainId: 1,
       transport: http(rpcUrl),
       pollingInterval: 6_000, // Ethereum L1: ~12s blocks
+      maxRequestsPerSecond: 300
     },
 
     // To add more networks:
