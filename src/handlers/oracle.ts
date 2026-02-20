@@ -104,17 +104,28 @@ ponder.on("PredictionOracle:PollCreated", async ({ event, context }: any) => {
 ponder.on("PredictionOracle:PollRefreshed", async ({ event, context }: any) => {
   const { pollAddress, oldCheckEpoch, newCheckEpoch, wasFree } = event.args;
   const chain = getChainInfo(context);
-  
+
+  console.log(
+    `[${chain.chainName}] PollRefreshed: ${pollAddress} checkEpoch ${oldCheckEpoch} -> ${newCheckEpoch} (wasFree: ${wasFree})`
+  );
+
   const poll = await context.db.polls.findUnique({ id: pollAddress });
   if (poll) {
     await context.db.polls.update({
       id: pollAddress,
       data: {
+        status: 0,
+        resolvedAt: null,
+        resolutionReason: "",
+        setter: null,
         checkEpoch: Number(newCheckEpoch),
         lastRefreshWasFree: Boolean(wasFree),
         lastRefreshOldCheckEpoch: Number(oldCheckEpoch),
       },
     });
+    console.log(
+      `[${chain.chainName}] ✅ Poll reset to Pending: ${pollAddress}`
+    );
   }
 });
 
