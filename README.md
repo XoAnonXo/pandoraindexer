@@ -20,14 +20,14 @@ npm run dev
 
 ## Features
 
--   ✅ **Multi-Chain Ready** - Tables support multiple EVM chains
--   ✅ **Real-time Indexing** - Polls, markets, trades, users, winnings
--   ✅ **Referral System** - Track referral codes, campaigns, and rewards
--   ✅ **Dispute Resolution** - NFT-based voting on oracle decisions
--   ✅ **Launchpad System** - pump.fun style tokens with bonding curves
--   ✅ **Platform Statistics** - Per-chain and time-series analytics
--   ✅ **GraphQL API** - Auto-generated from schema
--   ✅ **Docker Support** - Easy deployment to Railway
+- ✅ **Multi-Chain Ready** - Tables support multiple EVM chains
+- ✅ **Real-time Indexing** - Polls, markets, trades, users, winnings
+- ✅ **Referral System** - Track referral codes, campaigns, and rewards
+- ✅ **Dispute Resolution** - NFT-based voting on oracle decisions
+- ✅ **Launchpad System** - pump.fun style tokens with bonding curves
+- ✅ **Platform Statistics** - Per-chain and time-series analytics
+- ✅ **GraphQL API** - Auto-generated from schema
+- ✅ **Docker Support** - Easy deployment to Railway
 
 ## Architecture
 
@@ -108,13 +108,13 @@ The Dispute Resolution System allows NFT holders to challenge oracle/poll decisi
 
 **Architecture:**
 
--   **DisputeResolverHome** (Sonic) - Manages disputes on Sonic, wraps AnonStaking NFTs
+- **DisputeResolverHome** (Sonic) - Manages disputes on Sonic, wraps AnonStaking NFTs
 
 **Current Deployment:**
 
--   Sonic: `0x2446DC1279Ed900c05CF2D137B07f383d98c0baD` (DisputeResolverHome)
--   AnonStaking: `0x5170F242c0246FD9427fB94c595d9b50fb48AA91`
--   Vault: `0xeb9404fF82e576F6b8623814AdCF10B61A5c7d44`
+- Sonic: `0x2446DC1279Ed900c05CF2D137B07f383d98c0baD` (DisputeResolverHome)
+- AnonStaking: `0x5170F242c0246FD9427fB94c595d9b50fb48AA91`
+- Vault: `0xeb9404fF82e576F6b8623814AdCF10B61A5c7d44`
 
 ### Key Events
 
@@ -173,8 +173,8 @@ The Dispute Resolution System allows NFT holders to challenge oracle/poll decisi
 
 Disputes automatically update the `polls` table:
 
--   Sets `disputedBy`, `disputeStake`, `disputedAt`, `arbitrationStarted`
--   Updates `status` when resolved
+- Sets `disputedBy`, `disputeStake`, `disputedAt`, `arbitrationStarted`
+- Updates `status` when resolved
 
 ## Launchpad System
 
@@ -184,45 +184,45 @@ The Launchpad System (pump.fun fork) creates tokens with bonding curves that gra
 
 **Architecture:**
 
--   **TokensFactory** - Creates new launchpad tokens with bonding curves
--   **BondingCurve** - Individual trading contracts with constant product formula
+- **TokensFactory** - Creates new launchpad tokens with bonding curves
+- **BondingCurve** - Individual trading contracts with constant product formula
 
 **Current Deployment:**
 
--   TokensFactory: `0x283d0c80Fd94D3d5281FA2904Dcc97Aa397dAfF0`
--   Oracle: `0x98f9A771C012C24E638CC5663A30087B146310D7`
--   Spooky Router: `0xa6AD18C2aC47803E193F75c3677b14BF19B94883`
+- TokensFactory: `0x283d0c80Fd94D3d5281FA2904Dcc97Aa397dAfF0`
+- Oracle: `0x98f9A771C012C24E638CC5663A30087B146310D7`
+- Spooky Router: `0xa6AD18C2aC47803E193F75c3677b14BF19B94883`
 
 ### Key Features
 
--   **1 billion token supply** per token
--   **Bonding curve pricing** with constant product formula
--   **0.3% swap fee** (50% to creator, 50% to factory)
--   **Automatic graduation** to DEX at $50k USD market cap
--   **Dynamic initial reserve** ($4k USD worth)
+- **1 billion token supply** per token
+- **Bonding curve pricing** with constant product formula
+- **0.3% swap fee** (50% to creator, 50% to factory)
+- **Automatic graduation** to DEX at $50k USD market cap
+- **Dynamic initial reserve** ($4k USD worth)
 
 ### Key Events
 
-| Event                    | Contract      | Description                           |
-| ------------------------ | ------------- | ------------------------------------- |
-| `TokenCreated`           | TokensFactory | New launchpad token created           |
-| `TokenGraduated`         | TokensFactory | Token reached $50k and graduated      |
-| `TokenUriSet`            | TokensFactory | Token metadata URI updated            |
-| `TokenImageUriSet`       | TokensFactory | Token image updated                   |
-| `TokenDescriptionSet`    | TokensFactory | Token description updated             |
-| `Buy`                    | BondingCurve  | Token purchase                        |
-| `Sell`                   | BondingCurve  | Token sale                            |
-| `Graduated`              | BondingCurve  | Internal - DEX pair created           |
-| `GraduationFailed`       | BondingCurve  | Graduation attempt failed (slippage)  |
+| Event                 | Contract      | Description                          |
+| --------------------- | ------------- | ------------------------------------ |
+| `TokenCreated`        | TokensFactory | New launchpad token created          |
+| `TokenGraduated`      | TokensFactory | Token reached $50k and graduated     |
+| `TokenUriSet`         | TokensFactory | Token metadata URI updated           |
+| `TokenImageUriSet`    | TokensFactory | Token image updated                  |
+| `TokenDescriptionSet` | TokensFactory | Token description updated            |
+| `Buy`                 | BondingCurve  | Token purchase                       |
+| `Sell`                | BondingCurve  | Token sale                           |
+| `Graduated`           | BondingCurve  | Internal - DEX pair created          |
+| `GraduationFailed`    | BondingCurve  | Graduation attempt failed (slippage) |
 
 ### Launchpad Tables
 
-| Table             | Description              | Key Fields                                         |
-| ----------------- | ------------------------ | -------------------------------------------------- |
-| `launchpadTokens` | Created tokens           | creator, name, symbol, currentTvlNative, isGraduated |
-| `launchpadTrades` | Buy/Sell trades          | bondingCurveAddress, trader, tradeType, nativeAmount |
-| `tokenSystems`    | Token referral system    | system (pandora/localizer)                         |
-| `graduatedCreators` | Graduated creators     | tokenAddress, bondingCurveAddress, status          |
+| Table               | Description           | Key Fields                                           |
+| ------------------- | --------------------- | ---------------------------------------------------- |
+| `launchpadTokens`   | Created tokens        | creator, name, symbol, currentTvlNative, isGraduated |
+| `launchpadTrades`   | Buy/Sell trades       | bondingCurveAddress, trader, tradeType, nativeAmount |
+| `tokenSystems`      | Token referral system | system (pandora/localizer)                           |
+| `graduatedCreators` | Graduated creators    | tokenAddress, bondingCurveAddress, status            |
 
 ### GraphQL Examples
 
@@ -230,16 +230,16 @@ The Launchpad System (pump.fun fork) creates tokens with bonding curves that gra
 
 ```graphql
 {
-  launchpadTokens(orderBy: "currentTvlNative", orderDirection: "desc") {
-    id
-    name
-    symbol
-    creator
-    currentTvlNative
-    isGraduated
-    createdAt
-    imageUri
-  }
+	launchpadTokens(orderBy: "currentTvlNative", orderDirection: "desc") {
+		id
+		name
+		symbol
+		creator
+		currentTvlNative
+		isGraduated
+		createdAt
+		imageUri
+	}
 }
 ```
 
@@ -247,13 +247,13 @@ The Launchpad System (pump.fun fork) creates tokens with bonding curves that gra
 
 ```graphql
 {
-  launchpadTokens(where: { isGraduated: true }) {
-    id
-    name
-    symbol
-    creator
-    graduatedAt
-  }
+	launchpadTokens(where: { isGraduated: true }) {
+		id
+		name
+		symbol
+		creator
+		graduatedAt
+	}
 }
 ```
 
@@ -261,14 +261,14 @@ The Launchpad System (pump.fun fork) creates tokens with bonding curves that gra
 
 ```graphql
 {
-  launchpadTrades(where: { bondingCurveAddress: "0x..." }) {
-    trader
-    tradeType
-    nativeAmount
-    tokenAmount
-    fee
-    timestamp
-  }
+	launchpadTrades(where: { bondingCurveAddress: "0x..." }) {
+		trader
+		tradeType
+		nativeAmount
+		tokenAmount
+		fee
+		timestamp
+	}
 }
 ```
 
@@ -280,31 +280,31 @@ The Referral System tracks referrer-referee relationships and distributes reward
 
 **Architecture:**
 
--   **ReferralFactory** - Manages referral relationships on-chain with signature verification
--   **ReferralCampaign** - Individual campaign contracts for reward distribution
+- **ReferralFactory** - Manages referral relationships on-chain with signature verification
+- **ReferralCampaign** - Individual campaign contracts for reward distribution
 
 **Current Deployment:**
 
--   ReferralFactory: `0x75527046cE73189a8a3a06d8bfdd09d4643c6A01`
--   RewardToken: `0x25B7Ca1e238bAC63EAA62420BBb86d0afbEba9eB`
--   First Campaign: `0x203d3BCc55a497BDC7cf49e2a1F5BA142230A165`
+- ReferralFactory: `0x0dB357ed191A5191791f68A1eE45BD9F4Ef20196`
+- RewardToken: `0x25B7Ca1e238bAC63EAA62420BBb86d0afbEba9eB`
+- First Campaign: `0x203d3BCc55a497BDC7cf49e2a1F5BA142230A165`
 
 ### Key Features
 
 **Signature-Based Registration:**
 
--   Referees must sign EIP-712 message to confirm referral relationship
--   Prevents spam and ensures consent
+- Referees must sign EIP-712 message to confirm referral relationship
+- Prevents spam and ensures consent
 
 **Operator-Signed Rewards:**
 
--   Backend operator signs claim messages for earned rewards
--   Users claim rewards by submitting signature to campaign contract
+- Backend operator signs claim messages for earned rewards
+- Users claim rewards by submitting signature to campaign contract
 
 **On-Chain Tracking:**
 
--   All referral relationships stored on-chain
--   Enables localizers to switch to their own indexer/operator
+- All referral relationships stored on-chain
+- Enables localizers to switch to their own indexer/operator
 
 ### Key Events
 
@@ -353,31 +353,31 @@ Edit `config.ts`:
 
 ```typescript
 export const CHAINS: Record<number, ChainConfig> = {
-  // Existing chain...
+	// Existing chain...
 	146: {
 		/* Sonic */
 	},
 
-  // Add new chain
-  8453: {
-    chainId: 8453,
-    name: "Base",
-    shortName: "base",
-    rpcUrl: process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org",
-    explorerUrl: "https://basescan.org",
-    contracts: {
+	// Add new chain
+	8453: {
+		chainId: 8453,
+		name: "Base",
+		shortName: "base",
+		rpcUrl: process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org",
+		explorerUrl: "https://basescan.org",
+		contracts: {
 			oracle: "0x...", // Deploy and add address
 			marketFactory: "0x...", // Deploy and add address
-      usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+			usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
 			referralFactory: "0x...", // Deploy ReferralFactory
 			rewardToken: "0x...", // Reward token for campaigns
 			disputeResolverHome: "0x...", // Sonic only
 			launchpadFactory: "0x...", // Launchpad factory (optional)
 			bondingCurve: "0x...", // Not used directly (dynamic)
-    },
+		},
 		startBlock: 12345678, // Block when contracts were deployed
-    enabled: true,
-  },
+		enabled: true,
+	},
 };
 ```
 
@@ -438,14 +438,14 @@ The indexer will start syncing the new chain from its startBlock.
 
 ```graphql
 query {
-  platformStatss(where: { chainId: 146 }) {
-    items {
-      chainName
-      totalVolume
-      totalMarkets
-      totalUsers
-    }
-  }
+	platformStatss(where: { chainId: 146 }) {
+		items {
+			chainName
+			totalVolume
+			totalMarkets
+			totalUsers
+		}
+	}
 }
 ```
 
@@ -453,16 +453,16 @@ query {
 
 ```graphql
 query {
-  marketss(orderBy: "totalVolume", orderDirection: "desc", limit: 10) {
-    items {
-      id
-      chainId
-      chainName
-      marketType
-      totalVolume
-      totalTrades
-    }
-  }
+	marketss(orderBy: "totalVolume", orderDirection: "desc", limit: 10) {
+		items {
+			id
+			chainId
+			chainName
+			marketType
+			totalVolume
+			totalTrades
+		}
+	}
 }
 ```
 
@@ -470,15 +470,15 @@ query {
 
 ```graphql
 query {
-  userss(where: { address: "0x123...", chainId: 146 }) {
-    items {
-      chainName
-      totalTrades
-      totalVolume
-      totalWinnings
-      bestStreak
-    }
-  }
+	userss(where: { address: "0x123...", chainId: 146 }) {
+		items {
+			chainName
+			totalTrades
+			totalVolume
+			totalWinnings
+			bestStreak
+		}
+	}
 }
 ```
 
@@ -486,19 +486,14 @@ query {
 
 ```graphql
 query {
-  dailyStatss(
-    where: { chainId: 146 }
-    orderBy: "dayTimestamp"
-    orderDirection: "desc"
-    limit: 7
-  ) {
-    items {
-      dayTimestamp
-      volume
-      tradesCount
-      newUsers
-    }
-  }
+	dailyStatss(where: { chainId: 146 }, orderBy: "dayTimestamp", orderDirection: "desc", limit: 7) {
+		items {
+			dayTimestamp
+			volume
+			tradesCount
+			newUsers
+		}
+	}
 }
 ```
 
@@ -528,10 +523,10 @@ npm run start
 1. Create PostgreSQL database on Railway
 2. Create new service from this repo
 3. Set environment variables:
-   ```
-   DATABASE_URL=postgresql://...
-   PONDER_RPC_URL_146=https://rpc.soniclabs.com
-   ```
+    ```
+    DATABASE_URL=postgresql://...
+    PONDER_RPC_URL_146=https://rpc.soniclabs.com
+    ```
 4. Deploy
 
 ## Files
@@ -575,8 +570,8 @@ ponder/
 
 Check that these events are being indexed:
 
--   `SeedInitialLiquidity` for PariMutuel initial volume
--   `LiquidityAdded` imbalance for AMM (non-50/50 liquidity)
+- `SeedInitialLiquidity` for PariMutuel initial volume
+- `LiquidityAdded` imbalance for AMM (non-50/50 liquidity)
 
 See `docs/INDEXER_VOLUME_TRACKING.md` for details.
 
