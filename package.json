@@ -6,7 +6,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "ponder dev",
-		"start": "ponder start",
+		"start": "ponder start & tsx cron.ts",
 		"serve": "ponder serve",
 		"codegen": "ponder codegen",
 		"test:candles": "tsx scripts/test-candles.ts",
