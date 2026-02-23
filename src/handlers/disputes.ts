@@ -21,6 +21,49 @@ interface ChainInfo {
   chainName: string;
 }
 
+interface ContractDisputeInfo {
+  state: number;
+  finalStatus: number;
+  isCollateralTaken: boolean;
+  endAt: bigint | null;
+  reason: string;
+}
+
+/**
+ * Read dispute state directly from the contract via getDisputeInfo.
+ * Returns authoritative on-chain values for state, finalStatus, etc.
+ */
+async function readDisputeFromContract(
+  context: any,
+  chainId: number,
+  oracle: `0x${string}`,
+  blockNumber?: bigint
+): Promise<ContractDisputeInfo | null> {
+  const addr = CHAINS[chainId]?.contracts.disputeResolverRemote;
+  if (!addr || addr === "0x0000000000000000000000000000000000000000") return null;
+
+  try {
+    const info = await context.client.readContract({
+      address: addr,
+      abi: DisputeResolverRemoteAbi,
+      functionName: "getDisputeInfo",
+      args: [oracle],
+      ...(blockNumber ? { blockNumber } : {}),
+    });
+    // tuple: [disputer, isCollateralTaken, state, draftStatus, finalStatus, disputerDeposit, endAt, marketToken, reason]
+    return {
+      isCollateralTaken: info[1] as boolean,
+      state: Number(info[2]),
+      finalStatus: Number(info[4]),
+      endAt: BigInt(info[6]),
+      reason: info[8] as string,
+    };
+  } catch (err) {
+    console.error(`[Dispute] Failed to read contract state for ${(oracle as string).slice(0, 10)}...:`, err);
+    return null;
+  }
+}
+
 // =============================================================================
 // DisputeResolverRemote Events (for Ethereum and other remote chains)
 // =============================================================================
@@ -91,34 +134,7 @@ ponder.on(
       );
     }
 
-    // Get dispute info from contract (endAt + reason)
-    let disputeReason = "";
-    let endAt: bigint | null = null;
-    try {
-      const disputeResolverAddress =
-        CHAINS[chainId]?.contracts.disputeResolverRemote;
-      if (disputeResolverAddress && disputeResolverAddress !== "0x0000000000000000000000000000000000000000") {
-        const disputeInfo = await context.client.readContract({
-          address: disputeResolverAddress,
-          abi: DisputeResolverRemoteAbi,
-          functionName: "getDisputeInfo",
-          args: [oracle],
-          blockNumber: block.number,
-        });
-
-        // disputeInfo tuple: [disputer, isCollateralTaken, state, draftStatus, finalStatus, disputerDeposit, endAt, marketToken, reason]
-        endAt = BigInt(disputeInfo[6]);
-        disputeReason = disputeInfo[8] as string;
-      }
-    } catch (err) {
-      console.error(
-        `[Dispute] Failed to fetch disputeInfo for oracle ${normalizedOracle.slice(
-          0,
-          10
-        )}...:`,
-        err
-      );
-    }
+    const contractInfo = await readDisputeFromContract(context, chainId, oracle, block.number);
 
     await context.db.disputes.create({
       id: disputeId,
@@ -126,16 +142,16 @@ ponder.on(
         chainId,
         oracle: normalizedOracle,
         disputer: normalizedDisputer,
-        isCollateralTaken: false,
-        state: 1, // Active
+        isCollateralTaken: contractInfo?.isCollateralTaken ?? false,
+        state: contractInfo?.state ?? 1,
         draftStatus: Number(draftStatus),
-        finalStatus: 0, // Pending
+        finalStatus: contractInfo?.finalStatus ?? 0,
         disputerDeposit: amount,
-        endAt,
+        endAt: contractInfo?.endAt ?? null,
         marketToken: normalizedToken,
         marketTokenSymbol: tokenSymbol,
         marketTokenDecimals: tokenDecimals,
-        reason: disputeReason,
+        reason: contractInfo?.reason ?? "",
         voteCount: 0,
         votesYes: 0n,
         votesNo: 0n,
@@ -243,21 +259,25 @@ ponder.on(
     const normalizedResolver = resolver.toLowerCase() as `0x${string}`;
     const disputeId = `${chainId}-${normalizedOracle}`;
 
-    // Update dispute to resolved state
+    const contractInfo = await readDisputeFromContract(context, chainId, oracle, block.number);
+    const resolvedState = contractInfo?.state ?? 2;
+    const resolvedFinalStatus = contractInfo?.finalStatus ?? Number(finalStatus);
+
     const dispute = await context.db.disputes.findUnique({ id: disputeId });
     if (dispute) {
       await context.db.disputes.update({
         id: disputeId,
         data: {
-          state: 2, // Resolved
-          finalStatus: Number(finalStatus),
+          state: resolvedState,
+          finalStatus: resolvedFinalStatus,
+          isCollateralTaken: contractInfo?.isCollateralTaken ?? dispute.isCollateralTaken,
           resolvedAt: timestamp,
           resolvedBy: normalizedResolver,
         },
       });
     } else {
       console.warn(
-        `[${chainName}] Dispute not found for ${normalizedOracle.slice(0, 10)}..., skipping update`
+        `[${chainName}] Dispute not found for ${normalizedOracle.slice(0, 10)}..., skipping resolve (DisputeCreated event missing)`
       );
     }
 
@@ -297,24 +317,29 @@ ponder.on(
   "DisputeResolverRemote:DisputeFailed",
   async ({ event, context }: any) => {
     const { oracle, disputer } = event.args;
+    const { block } = event;
     const chainId = context.network.chainId;
     const chainName = getChainName(chainId);
 
     const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
     const disputeId = `${chainId}-${normalizedOracle}`;
 
-    // Update dispute to failed state
+    const contractInfo = await readDisputeFromContract(context, chainId, oracle, block.number);
+    const failedState = contractInfo?.state ?? 3;
+
     const dispute = await context.db.disputes.findUnique({ id: disputeId });
     if (dispute) {
       await context.db.disputes.update({
         id: disputeId,
         data: {
-          state: 3, // Failed
+          state: failedState,
+          isCollateralTaken: contractInfo?.isCollateralTaken ?? dispute.isCollateralTaken,
+          finalStatus: contractInfo?.finalStatus ?? dispute.finalStatus,
         },
       });
     } else {
       console.warn(
-        `[${chainName}] Dispute not found for ${normalizedOracle.slice(0, 10)}..., skipping fail update`
+        `[${chainName}] Dispute not found for ${normalizedOracle.slice(0, 10)}..., skipping fail (DisputeCreated event missing)`
       );
     }
 
@@ -322,7 +347,7 @@ ponder.on(
       `[${chainName}] Dispute failed for oracle ${normalizedOracle.slice(
         0,
         10
-      )}...`
+      )}... (contract state: ${failedState})`
     );
   }
 );
@@ -396,19 +421,23 @@ ponder.on(
   "DisputeResolverRemote:CollateralTaken",
   async ({ event, context }: any) => {
     const { oracle } = event.args;
+    const { block } = event;
     const chainId = context.network.chainId;
     const chainName = getChainName(chainId);
 
     const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
     const disputeId = `${chainId}-${normalizedOracle}`;
 
-    // Update dispute collateral status
+    const contractInfo = await readDisputeFromContract(context, chainId, oracle, block.number);
+
     const dispute = await context.db.disputes.findUnique({ id: disputeId });
     if (dispute) {
       await context.db.disputes.update({
         id: disputeId,
         data: {
           isCollateralTaken: true,
+          state: contractInfo?.state ?? dispute.state,
+          finalStatus: contractInfo?.finalStatus ?? dispute.finalStatus,
         },
       });
     } else {
