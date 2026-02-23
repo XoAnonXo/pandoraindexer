@@ -89,6 +89,14 @@ export const DisputeResolverRemoteAbi = [
 			{ name: "tokenIds", type: "uint256[]", indexed: false },
 		],
 	},
+	{
+		type: "event",
+		name: "EmergencyResolved",
+		inputs: [
+			{ name: "oracle", type: "address", indexed: false },
+			{ name: "caller", type: "address", indexed: false },
+		],
+	},
 	// =============================================================================
 	// VIEW FUNCTIONS
 	// =============================================================================

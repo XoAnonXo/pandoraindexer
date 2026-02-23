@@ -456,6 +456,46 @@ ponder.on(
 );
 
 /**
+ * Event: EmergencyResolved
+ * Emitted when the contract owner force-fails a dispute via emergencyResolve().
+ * Sets dispute state to Failed (3) without normal resolution flow.
+ */
+ponder.on(
+  "DisputeResolverRemote:EmergencyResolved",
+  async ({ event, context }: any) => {
+    const { oracle, caller } = event.args;
+    const { block } = event;
+    const chainId = context.network.chainId;
+    const chainName = getChainName(chainId);
+
+    const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
+    const disputeId = `${chainId}-${normalizedOracle}`;
+
+    const contractInfo = await readDisputeFromContract(context, chainId, oracle, block.number);
+
+    const dispute = await context.db.disputes.findUnique({ id: disputeId });
+    if (dispute) {
+      await context.db.disputes.update({
+        id: disputeId,
+        data: {
+          state: contractInfo?.state ?? 3,
+          finalStatus: contractInfo?.finalStatus ?? dispute.finalStatus,
+          isCollateralTaken: contractInfo?.isCollateralTaken ?? dispute.isCollateralTaken,
+        },
+      });
+    } else {
+      console.warn(
+        `[${chainName}] Dispute not found for ${normalizedOracle.slice(0, 10)}..., skipping emergency resolve`
+      );
+    }
+
+    console.log(
+      `[${chainName}] Dispute emergency-resolved for oracle ${normalizedOracle.slice(0, 10)}... by ${(caller as string).slice(0, 10)}... (state: ${contractInfo?.state ?? 3})`
+    );
+  }
+);
+
+/**
  * Event: CrossChainVoteReceived
  * Emitted in the same tx as Vote when a vote arrives via LayerZero.
  * Updates the vote record created by the Vote handler with tokenIds and cross-chain info.
