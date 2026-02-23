@@ -1093,6 +1093,8 @@ export default createSchema((p) => ({
     isCrossChain: p.boolean(),
     /** Source chain EID (if cross-chain) */
     sourceChainEid: p.int().optional(),
+    /** NFT token IDs used for voting (JSON array string) */
+    tokenIds: p.string().optional(),
   }),
 
   // ===========================================================================

@@ -91,37 +91,34 @@ ponder.on(
       );
     }
 
-    // Get dispute reason from contract state
+    // Get dispute info from contract (endAt + reason)
     let disputeReason = "";
+    let endAt: bigint | null = null;
     try {
       const disputeResolverAddress =
         CHAINS[chainId]?.contracts.disputeResolverRemote;
-      if (
-        disputeResolverAddress &&
-        disputeResolverAddress !==
-        "0x0000000000000000000000000000000000000000"
-      ) {
+      if (disputeResolverAddress && disputeResolverAddress !== "0x0000000000000000000000000000000000000000") {
         const disputeInfo = await context.client.readContract({
           address: disputeResolverAddress,
           abi: DisputeResolverRemoteAbi,
           functionName: "getDisputeInfo",
           args: [oracle],
+          blockNumber: block.number,
         });
 
-        // disputeInfo is a tuple: [disputer, isCollateralTaken, state, draftStatus, finalStatus, disputerDeposit, endAt, marketToken, reason]
+        // disputeInfo tuple: [disputer, isCollateralTaken, state, draftStatus, finalStatus, disputerDeposit, endAt, marketToken, reason]
+        endAt = BigInt(disputeInfo[6]);
         disputeReason = disputeInfo[8] as string;
       }
     } catch (err) {
       console.error(
-        `[Dispute] Failed to fetch reason for oracle ${normalizedOracle.slice(
+        `[Dispute] Failed to fetch disputeInfo for oracle ${normalizedOracle.slice(
           0,
           10
         )}...:`,
         err
       );
     }
-
-    const endAt = timestamp ? BigInt(timestamp) + 7200n : null;
 
     await context.db.disputes.create({
       id: disputeId,
@@ -175,6 +172,9 @@ ponder.on(
 /**
  * Event: Vote
  * Emitted when a user votes on a dispute.
+ * tokenIds are not in this event — they come from CrossChainVoteReceived
+ * in the same transaction. We create the vote record here, then
+ * CrossChainVoteReceived updates it with tokenIds.
  */
 ponder.on("DisputeResolverRemote:Vote", async ({ event, context }: any) => {
   const { voter, oracle, power, status } = event.args;
@@ -206,7 +206,6 @@ ponder.on("DisputeResolverRemote:Vote", async ({ event, context }: any) => {
     });
   }
 
-  // Create vote record
   await context.db.disputeVotes.create({
     id: voteId,
     data: {
@@ -223,13 +222,7 @@ ponder.on("DisputeResolverRemote:Vote", async ({ event, context }: any) => {
   });
 
   console.log(
-    `[${chainName}] Vote cast for oracle ${normalizedOracle.slice(
-      0,
-      10
-    )}... by ${normalizedVoter.slice(
-      0,
-      10
-    )}... (power: ${power}, option: ${status})`
+    `[${chainName}] Vote: ${normalizedVoter.slice(0, 10)}... on ${normalizedOracle.slice(0, 10)}... (power: ${power}, option: ${status})`
   );
 });
 
@@ -435,20 +428,37 @@ ponder.on(
 
 /**
  * Event: CrossChainVoteReceived
- * Emitted when a vote is received from home chain via LayerZero.
+ * Emitted in the same tx as Vote when a vote arrives via LayerZero.
+ * Updates the vote record created by the Vote handler with tokenIds and cross-chain info.
  */
 ponder.on(
   "DisputeResolverRemote:CrossChainVoteReceived",
   async ({ event, context }: any) => {
     const { voter, oracle, srcChainEid, tokenIds } = event.args;
+    const { transaction } = event;
     const chainId = context.network.chainId;
     const chainName = getChainName(chainId);
 
+    const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
+    const normalizedVoter = voter.toLowerCase() as `0x${string}`;
+    const voteId = `${chainId}-${normalizedOracle}-${normalizedVoter}-${transaction.hash}`;
+
+    const tokenIdStrings = tokenIds.map((id: bigint) => id.toString());
+
+    const existing = await context.db.disputeVotes.findUnique({ id: voteId });
+    if (existing) {
+      await context.db.disputeVotes.update({
+        id: voteId,
+        data: {
+          isCrossChain: true,
+          sourceChainEid: Number(srcChainEid),
+          tokenIds: JSON.stringify(tokenIdStrings),
+        },
+      });
+    }
+
     console.log(
-      `[${chainName}] Cross-chain vote received from EID ${srcChainEid} for oracle ${oracle.slice(
-        0,
-        10
-      )}... by ${voter.slice(0, 10)}... (${tokenIds.length} NFTs)`
+      `[${chainName}] CrossChainVote: ${normalizedVoter.slice(0, 10)}... on ${normalizedOracle.slice(0, 10)}... (EID: ${srcChainEid}, NFTs: [${tokenIdStrings.join(",")}])`
     );
   }
 );
