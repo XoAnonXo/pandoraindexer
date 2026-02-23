@@ -52,7 +52,7 @@ export const CHAINS: Record<number, ChainConfig> = {
       referralFactory: "0x0dB357ed191A5191791f68A1eE45BD9F4Ef20196",
       referralCampaignFactory: "0xf9a6CF1943fc9320bCdA0bB09055b37F464F0b2f",
       rewardToken: "0x25B7Ca1e238bAC63EAA62420BBb86d0afbEba9eB",
-      disputeResolverRemote: "0x818457C9e2b18D87981CCB09b75AE183D107b257", // DisputeResolverRemote (Ethereum)
+      disputeResolverRemote: "0x0D7B957C47Da86c2968dc52111D633D42cb7a5F7", // DisputeResolverRemote (Ethereum)
       launchpadFactory: "0x283d0c80Fd94D3d5281FA2904Dcc97Aa397dAfF0",
       // Note: bondingCurve is dynamic - created via TokensFactory:TokenCreated event
     },
