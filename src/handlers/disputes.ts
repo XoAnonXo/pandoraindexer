@@ -284,13 +284,27 @@ ponder.on(
     // Update poll status (poll may not exist if created before indexer startBlock)
     const poll = await context.db.polls.findUnique({ id: normalizedOracle });
     if (poll) {
+      const newStatus = Number(finalStatus);
+      const statusChanged = poll.status !== newStatus;
+
       await context.db.polls.update({
         id: normalizedOracle,
         data: {
-          status: Number(finalStatus),
+          ...(statusChanged && {
+            preDisputeStatus: poll.status,
+            preDisputeResolutionReason: poll.resolutionReason ?? null,
+          }),
+          status: newStatus,
+          resolutionReason: "arbiter decision",
           resolvedAt: timestamp,
         },
       });
+
+      if (statusChanged) {
+        console.log(
+          `[${chainName}] Poll ${normalizedOracle.slice(0, 10)}... overturned: status ${poll.status} → ${newStatus}`
+        );
+      }
     } else {
       console.warn(
         `[${chainName}] Poll not found for ${normalizedOracle.slice(0, 10)}..., skipping status update`

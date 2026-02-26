@@ -145,6 +145,11 @@ export default createSchema((p) => ({
     /** Timestamp when resolved (null if pending) */
     resolvedAt: p.bigint().optional(),
 
+    /** Original poll status before dispute overturned it (null if never disputed or dispute agreed) */
+    preDisputeStatus: p.int().optional(),
+    /** Original resolution reason before dispute overturned it */
+    preDisputeResolutionReason: p.string().optional(),
+
     /** Maximum TVL among all markets for this poll (6 decimals) - for filtering/sorting */
     maxMarketTvl: p.bigint().optional(),
     /** Total TVL across all markets for this poll (6 decimals) - for analytics */
