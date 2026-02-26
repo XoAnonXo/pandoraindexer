@@ -166,15 +166,20 @@ export default createConfig({
     // },
 
     // =========================================================================
-    // TODO: DISPUTE CONTRACTS — uncomment when deployed on Ethereum
+    // DISPUTE CONTRACTS
+    // Only registered when DISPUTE_RESOLVER_REMOTE_ADDRESS_1 is set (or prod default exists).
     // =========================================================================
 
-    DisputeResolverRemote: {
-      network: "ethereum",
-      abi: DisputeResolverRemoteAbi,
-      address: ethereum.contracts.disputeResolverRemote,
-      startBlock: ethereum.startBlock,
-    },
+    ...(ethereum.contracts.disputeResolverRemote
+      ? {
+          DisputeResolverRemote: {
+            network: "ethereum" as const,
+            abi: DisputeResolverRemoteAbi,
+            address: ethereum.contracts.disputeResolverRemote,
+            startBlock: ethereum.startBlock,
+          },
+        }
+      : {}),
 
     // =========================================================================
     // TODO: LAUNCHPAD CONTRACTS — uncomment when deployed on Ethereum
