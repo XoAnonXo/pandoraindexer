@@ -303,6 +303,10 @@ ponder.on(
       await context.db.polls.update({
         id: normalizedOracle,
         data: {
+          ...(statusChanged && {
+            preDisputeStatus: poll.status,
+            preDisputeResolutionReason: poll.resolutionReason ?? null,
+          }),
           status: newStatus,
           resolutionReason: "arbiter decision",
           resolvedAt: timestamp,
@@ -312,10 +316,6 @@ ponder.on(
       if (statusChanged) {
         console.log(
           `[${chainName}] Poll ${normalizedOracle.slice(0, 10)}... overturned: status ${poll.status} → ${newStatus}`
-        );
-      } else {
-        console.log(
-          `[${chainName}] Poll ${normalizedOracle.slice(0, 10)}... dispute resolved, status confirmed: ${newStatus}`
         );
       }
     } else {
