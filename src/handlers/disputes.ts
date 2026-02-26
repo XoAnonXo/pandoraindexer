@@ -165,6 +165,10 @@ ponder.on(
       id: normalizedOracle,
     });
     if (poll) {
+      // Capture the original AI decision before any dispute changes it.
+      // Only save if not already captured by a previous dispute.
+      const shouldSavePreDispute = poll.preDisputeStatus == null;
+
       await context.db.polls.update({
         id: normalizedOracle,
         data: {
@@ -172,8 +176,18 @@ ponder.on(
           disputeStake: amount,
           disputedAt: timestamp,
           arbitrationStarted: true,
+          ...(shouldSavePreDispute && {
+            preDisputeStatus: poll.status,
+            preDisputeResolutionReason: poll.resolutionReason ?? null,
+          }),
         },
       });
+
+      if (shouldSavePreDispute) {
+        console.log(
+          `[${chainName}] Saved original AI decision for ${normalizedOracle.slice(0, 10)}...: status=${poll.status}, reason="${poll.resolutionReason?.slice(0, 50)}..."`
+        );
+      }
     }
 
     console.log(
@@ -281,16 +295,29 @@ ponder.on(
       );
     }
 
-    // Update poll status (poll may not exist if created before indexer startBlock)
     const poll = await context.db.polls.findUnique({ id: normalizedOracle });
     if (poll) {
+      const newStatus = Number(finalStatus);
+      const statusChanged = poll.status !== newStatus;
+
       await context.db.polls.update({
         id: normalizedOracle,
         data: {
-          status: Number(finalStatus),
+          status: newStatus,
+          resolutionReason: "arbiter decision",
           resolvedAt: timestamp,
         },
       });
+
+      if (statusChanged) {
+        console.log(
+          `[${chainName}] Poll ${normalizedOracle.slice(0, 10)}... overturned: status ${poll.status} → ${newStatus}`
+        );
+      } else {
+        console.log(
+          `[${chainName}] Poll ${normalizedOracle.slice(0, 10)}... dispute resolved, status confirmed: ${newStatus}`
+        );
+      }
     } else {
       console.warn(
         `[${chainName}] Poll not found for ${normalizedOracle.slice(0, 10)}..., skipping status update`
@@ -298,7 +325,7 @@ ponder.on(
     }
 
     console.log(
-      `[${chainName}] Dispute resolved for oracle ${normalizedOracle.slice(
+      `[${chainName}] Dispute resolved (remote) for oracle ${normalizedOracle.slice(
         0,
         10
       )}... (finalStatus: ${finalStatus}, resolver: ${normalizedResolver.slice(
