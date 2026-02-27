@@ -27,19 +27,19 @@ if (!DATABASE_URL) {
 }
 
 function getPonderSchemaName(): string {
-  const railwayDeploymentId = process.env.RAILWAY_DEPLOYMENT_ID;
-  const railwayServiceName = process.env.RAILWAY_SERVICE_NAME;
-
-  if (!railwayServiceName || !railwayDeploymentId) {
-    console.error("❌ RAILWAY_SERVICE_NAME and RAILWAY_DEPLOYMENT_ID are required");
-    console.error("   These are automatically set by Railway. Are you running locally?");
-    process.exit(1);
+  if (process.env.PONDER_SCHEMA) {
+    return process.env.PONDER_SCHEMA;
   }
 
+  const railwayServiceName = process.env.RAILWAY_SERVICE_NAME;
+  const railwayDeploymentId = process.env.RAILWAY_DEPLOYMENT_ID;
 
-  const shortId = railwayDeploymentId.replace(/-/g, "").slice(0, 8);
-  // Format: "<service_name>_<short_deployment_id>"
-  return `${railwayServiceName}_${shortId}`;
+  if (railwayServiceName && railwayDeploymentId) {
+    const shortId = railwayDeploymentId.replace(/-/g, "").slice(0, 8);
+    return `${railwayServiceName}_${shortId}`;
+  }
+
+  return "public";
 }
 
 const schemaName = getPonderSchemaName();

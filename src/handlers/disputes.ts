@@ -317,6 +317,10 @@ ponder.on(
         console.log(
           `[${chainName}] Poll ${normalizedOracle.slice(0, 10)}... overturned: status ${poll.status} → ${newStatus}`
         );
+      } else {
+        console.log(
+          `[${chainName}] Poll ${normalizedOracle.slice(0, 10)}... dispute resolved, status confirmed: ${newStatus}`
+        );
       }
     } else {
       console.warn(
