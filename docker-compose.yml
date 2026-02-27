@@ -37,9 +37,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
-      - PONDER_RPC_URL_146=https://rpc.soniclabs.com
-      - DATABASE_URL=postgresql://ponder:ponder@postgres:5432/anymarket
+    env_file:
+      - .env
     ports:
       - "42069:42069"
     restart: unless-stopped

@@ -54,6 +54,7 @@ export const DisputeResolverRemoteAbi = [
 		inputs: [
 			{ name: "voter", type: "address", indexed: false },
 			{ name: "oracle", type: "address", indexed: false },
+			{ name: "srcEid", type: "uint32", indexed: false },
 			{ name: "tokenId", type: "uint256", indexed: false },
 			{ name: "token", type: "address", indexed: false },
 			{ name: "reward", type: "uint256", indexed: false },
@@ -122,6 +123,7 @@ export const DisputeResolverRemoteAbi = [
 		name: "getVoteRecordInfo",
 		inputs: [
 			{ name: "oracle", type: "address" },
+			{ name: "srcEid", type: "uint32" },
 			{ name: "tokenId", type: "uint256" },
 		],
 		outputs: [
@@ -163,6 +165,7 @@ export const DisputeResolverRemoteAbi = [
 		name: "hasVoted",
 		inputs: [
 			{ name: "oracle", type: "address" },
+			{ name: "srcEid", type: "uint32" },
 			{ name: "tokenId", type: "uint256" },
 		],
 		outputs: [{ name: "", type: "bool" }],

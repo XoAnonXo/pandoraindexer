@@ -29,6 +29,7 @@ import { PredictionPariMutuelAbi } from "./abis/PredictionPariMutuel";
 // import { ReferralFactoryAbi } from "./abis/ReferralFactory";
 // import { ReferralCampaignAbi } from "./abis/ReferralCampaign";
 import { DisputeResolverRemoteAbi } from "./abis/DisputeResolverRemote"; // For Ethereum (remote chain)
+import { DisputeResolverHomeAbi } from "./abis/DisputeResolverHome"; // For Ethereum (home chain)
 // import { TokensFactoryAbi } from "./abis/TokensFactory";
 // import { BondingCurveAbi } from "./abis/BondingCurve";
 
@@ -40,6 +41,26 @@ import { CHAINS } from "./config";
 
 const ethereum = CHAINS[1];
 const rpcUrl = process.env.PONDER_RPC_URL_1 ?? ethereum.rpcUrls[0];
+
+// =============================================================================
+// STARTUP LOG — resolved addresses going into Ponder
+// =============================================================================
+console.log("\n╔══════════════════════════════════════════════════════════════╗");
+console.log("║           PONDER INDEXER — RESOLVED CONFIGURATION          ║");
+console.log("╠══════════════════════════════════════════════════════════════╣");
+console.log(`║  Chain:            ${ethereum.name} (id: ${ethereum.chainId})`);
+console.log(`║  RPC:              ${rpcUrl}`);
+console.log(`║  Start Block:      ${ethereum.startBlock}`);
+console.log("╠══════════════════════════════════════════════════════════════╣");
+console.log(`║  Oracle:           ${ethereum.contracts.oracle}`);
+console.log(`║  MarketFactory:    ${ethereum.contracts.marketFactory}`);
+console.log(`║  USDC:             ${ethereum.contracts.usdc}`);
+console.log(`║  Vault:            ${ethereum.contracts.vault ?? "—"}`);
+console.log(`║  DisputeRemote:    ${ethereum.contracts.disputeResolverRemote ?? "—"}`);
+console.log(`║  DisputeHome:      ${ethereum.contracts.disputeResolverHome ?? "—"}`);
+console.log(`║  ReferralFactory:  ${ethereum.contracts.referralFactory ?? "—"}`);
+console.log(`║  LaunchpadFactory: ${ethereum.contracts.launchpadFactory ?? "—"}`);
+console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
 // =============================================================================
 // CONFIGURATION
@@ -167,7 +188,8 @@ export default createConfig({
 
     // =========================================================================
     // DISPUTE CONTRACTS
-    // Only registered when DISPUTE_RESOLVER_REMOTE_ADDRESS_1 is set (or prod default exists).
+    // DisputeResolverRemote: receives cross-chain votes from home chain
+    // DisputeResolverHome: handles local disputes and sends cross-chain messages
     // =========================================================================
 
     ...(ethereum.contracts.disputeResolverRemote
@@ -176,6 +198,17 @@ export default createConfig({
             network: "ethereum" as const,
             abi: DisputeResolverRemoteAbi,
             address: ethereum.contracts.disputeResolverRemote,
+            startBlock: ethereum.startBlock,
+          },
+        }
+      : {}),
+
+    ...(ethereum.contracts.disputeResolverHome
+      ? {
+          DisputeResolverHome: {
+            network: "ethereum" as const,
+            abi: DisputeResolverHomeAbi,
+            address: ethereum.contracts.disputeResolverHome,
             startBlock: ethereum.startBlock,
           },
         }

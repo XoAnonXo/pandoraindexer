@@ -23,12 +23,21 @@ type Hex = `0x${string}`;
 
 /** Read an address from env, falling back to a hardcoded default. */
 function addr(envKey: string, fallback: string): Hex {
-  return (process.env[envKey] || fallback) as Hex;
+  const fromEnv = process.env[envKey];
+  const value = (fromEnv || fallback) as Hex;
+  const source = fromEnv ? "env" : "fallback";
+  console.log(`[config] ${envKey} = ${value} (${source})`);
+  return value;
 }
 
 /** Read an optional address from env or hardcoded default. */
 function optAddr(envKey: string, fallback?: string): Hex | undefined {
-  const v = process.env[envKey] || fallback;
+  const fromEnv = process.env[envKey];
+  const v = fromEnv || fallback;
+  if (v) {
+    const source = fromEnv ? "env" : "fallback";
+    console.log(`[config] ${envKey} = ${v} (${source})`);
+  }
   return v ? (v as Hex) : undefined;
 }
 
@@ -87,6 +96,7 @@ export const CHAINS: Record<number, ChainConfig> = {
       referralCampaignFactory:  optAddr("REFERRAL_CAMPAIGN_FACTORY_ADDRESS_1","0xf9a6CF1943fc9320bCdA0bB09055b37F464F0b2f"),
       rewardToken:              optAddr("REWARD_TOKEN_ADDRESS_1",             "0x25B7Ca1e238bAC63EAA62420BBb86d0afbEba9eB"),
       disputeResolverRemote:    optAddr("DISPUTE_RESOLVER_REMOTE_ADDRESS_1",  "0x0D7B957C47Da86c2968dc52111D633D42cb7a5F7"),
+      disputeResolverHome:      optAddr("DISPUTE_RESOLVER_HOME_ADDRESS_1",    "0xb8B5E4f0FdF369eF3378a4441a8D9EF2F50dD7D9"),
       launchpadFactory:         optAddr("LAUNCHPAD_FACTORY_ADDRESS_1",        "0x283d0c80Fd94D3d5281FA2904Dcc97Aa397dAfF0"),
     },
     startBlock: Number(process.env.START_BLOCK_1 || 24_426_990),
