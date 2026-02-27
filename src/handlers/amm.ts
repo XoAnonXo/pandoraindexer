@@ -7,6 +7,7 @@ import {
 	isNewTraderForMarket,
 	recordMarketInteraction,
 } from "../services/db";
+import { recordPosition, reducePosition, markPositionRedeemed } from "../services/positions";
 // TODO: Referral system disabled for now - ReferralFactory not deployed on Ethereum
 // Volume is still tracked in trades/users/markets tables for future referral calculations
 // import { updateReferralVolume } from "../services/referral";
@@ -86,6 +87,10 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
 	);
   const pollAddress = market.pollAddress;
 
+  const buyPrice = tokenAmount > 0n
+    ? (collateralAmount * 1_000_000_000n) / tokenAmount
+    : 0n;
+
   await context.db.trades.create({
     id: tradeId,
     data: {
@@ -98,12 +103,19 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
       side: isYes ? "yes" : "no",
       collateralAmount,
       tokenAmount,
+      buyPrice,
       feeAmount: fee,
       txHash: event.transaction.hash,
       blockNumber: event.block.number,
       timestamp,
     },
   });
+
+  await recordPosition(
+    context, chain, marketAddress, pollAddress,
+    trader.toLowerCase() as `0x${string}`,
+    isYes ? "yes" : "no", collateralAmount, tokenAmount, timestamp
+  );
 
   // Read reserves (spot price) pinned to this block, update market, and record spot-price tick/candles.
   const { yesChance: spotYesChance } = await updateMarketReserves(
@@ -233,6 +245,12 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
       timestamp,
     },
   });
+
+  await reducePosition(
+    context, chain, marketAddress,
+    trader.toLowerCase() as `0x${string}`,
+    isYes ? "yes" : "no", tokenAmount, timestamp
+  );
 
   // Read reserves (spot price) pinned to this block, update market, and record spot-price tick/candles.
   const { yesChance: spotYesChance } = await updateMarketReserves(
@@ -379,6 +397,12 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
     },
   });
 
+  const normalizedTrader = trader.toLowerCase() as `0x${string}`;
+  const sellingSide = yesToNo ? "yes" : "no";
+  const buyingSide = yesToNo ? "no" : "yes";
+  await reducePosition(context, chain, marketAddress, normalizedTrader, sellingSide, amountIn, timestamp);
+  await recordPosition(context, chain, marketAddress, pollAddress, normalizedTrader, buyingSide, 0n, amountOut, timestamp);
+
   const user = await getOrCreateUser(context, trader, chain);
 	const isNewTrader = await isNewTraderForMarket(
 		context,
@@ -480,6 +504,8 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
       timestamp,
     },
   });
+
+  await markPositionRedeemed(context, chain, marketAddress, user.toLowerCase() as `0x${string}`);
 
   if (market) {
     // Update reserves + currentTvl from contract state at this block.

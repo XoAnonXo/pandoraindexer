@@ -282,6 +282,8 @@ export default createSchema((p) => ({
     tokenAmount: p.bigint().optional(),
     /** Fee paid */
     feeAmount: p.bigint(),
+    /** Execution price per token at time of buy (scaled 1e9, AMM buy only) */
+    buyPrice: p.bigint().optional(),
     /** Output token amount (for swaps) */
     tokenAmountOut: p.bigint().optional(),
     /** Transaction hash */
@@ -1316,6 +1318,50 @@ export default createSchema((p) => ({
    *
    * ID FORMAT: txHash-logIndex
    */
+  // ===========================================================================
+  // USER MARKET POSITIONS TABLE
+  // ===========================================================================
+  /**
+   * Aggregated per-user per-market position tracking.
+   * Maintained incrementally on each buy/sell/swap/redeem.
+   * Allows frontend to show position details without aggregating trades.
+   *
+   * ID FORMAT: chainId-marketAddress-userAddress
+   *
+   * BUY PRICE:
+   * avgBuyPriceYes/No = yesAmount / yesTokens (or noAmount / noTokens)
+   * Both amount and tokens are reduced proportionally on sell,
+   * so the ratio stays correct as a weighted average buy price.
+   */
+  userMarketPositions: p.createTable({
+    /** Composite ID: chainId-marketAddress-userAddress */
+    id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** Market contract address */
+    marketAddress: p.hex(),
+    /** Poll address (denormalized for querying by poll) */
+    pollAddress: p.hex(),
+    /** User wallet address */
+    user: p.hex(),
+    /** Total USDC spent on YES side (6 decimals) */
+    yesAmount: p.bigint(),
+    /** Total USDC spent on NO side (6 decimals) */
+    noAmount: p.bigint(),
+    /** YES outcome tokens held (6 decimals) */
+    yesTokens: p.bigint(),
+    /** NO outcome tokens held (6 decimals) */
+    noTokens: p.bigint(),
+    /** Whether user has redeemed winnings */
+    hasRedeemed: p.boolean(),
+    /** Whether loss has been recorded for user stats */
+    lossRecorded: p.boolean(),
+    /** Timestamp of first position */
+    firstPositionAt: p.bigint(),
+    /** Timestamp of last update */
+    lastUpdatedAt: p.bigint(),
+  }),
+
   claimEvents: p.createTable({
     /** Unique ID: txHash-logIndex */
     id: p.string(),
