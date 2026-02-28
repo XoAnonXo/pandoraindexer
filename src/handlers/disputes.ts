@@ -387,7 +387,8 @@ ponder.on(
   "DisputeResolverRemote:VoteRewardClaimed",
   async ({ event, context }: any) => {
     const { voter, oracle, tokenId, token, reward } = event.args;
-    const { timestamp, block, transaction } = event;
+    const { block, transaction } = event;
+    const timestamp = block.timestamp;
     const chainId = context.network.chainId;
     const chainName = getChainName(chainId);
 
