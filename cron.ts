@@ -42,3 +42,16 @@ setTimeout(async () => {
 		console.error("[Cron] ❌ Initial calculation failed:", error);
 	}
 }, 60000); // 60 секунд = 1 минута
+
+// Sync event IDs after Ponder tables are ready (90s delay)
+setTimeout(async () => {
+	console.log("[Cron] Running initial event sync...");
+	try {
+		const { stdout, stderr } = await execAsync("npm run sync:events");
+		if (stdout) console.log("[Cron] Event sync output:", stdout);
+		if (stderr && stderr.trim()) console.error("[Cron] Event sync errors:", stderr);
+		console.log("[Cron] ✅ Event sync completed");
+	} catch (error) {
+		console.error("[Cron] ❌ Event sync failed:", error);
+	}
+}, 90000); // 90 секунд

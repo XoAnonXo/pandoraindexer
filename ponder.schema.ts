@@ -91,6 +91,49 @@ export default createSchema((p) => ({
   }),
 
   // ===========================================================================
+  // EVENTS TABLE (off-chain, synced from pandora-api)
+  // ===========================================================================
+  /**
+   * Multi-market event groupings.
+   * Populated by sync-events.ts from app_internal.events.
+   * NOT filled by on-chain indexing — purely off-chain metadata.
+   *
+   * ID FORMAT: UUID (from pandora-api)
+   */
+  events: p.createTable({
+    /** Event UUID (primary key) */
+    id: p.string(),
+    /** Creator wallet address */
+    creator: p.string(),
+    /** Shared market type: 'amm' or 'pari' */
+    marketType: p.string(),
+    /** Shared arbiter address */
+    arbiter: p.string(),
+    /** Shared source URLs (JSON array) */
+    sources: p.string(),
+    /** Shared category (0-11) */
+    category: p.int(),
+    /** AMM: fee tier */
+    feeTier: p.int().optional(),
+    /** AMM: max price imbalance per hour */
+    maxPriceImbalance: p.int().optional(),
+    /** PariMutuel: curve flattener */
+    curveFlattener: p.int().optional(),
+    /** PariMutuel: curve offset */
+    curveOffset: p.int().optional(),
+    /** Linked poll addresses (JSON array) */
+    pollAddresses: p.string(),
+    /** Linked market addresses (JSON array) */
+    marketAddresses: p.string(),
+    /** Event status: 'pending', 'partial', 'completed' */
+    status: p.string(),
+    /** Number of markets in this event */
+    marketCount: p.int(),
+    /** Timestamp when created (ISO string) */
+    createdAt: p.string(),
+  }),
+
+  // ===========================================================================
   // POLLS TABLE
   // ===========================================================================
   /**
@@ -149,6 +192,9 @@ export default createSchema((p) => ({
     preDisputeStatus: p.int().optional(),
     /** Original resolution reason before dispute overturned it */
     preDisputeResolutionReason: p.string().optional(),
+
+    /** Event ID for multi-market grouping (set externally by pandora-api) */
+    eventId: p.string().optional(),
 
     /** Maximum TVL among all markets for this poll (6 decimals) - for filtering/sorting */
     maxMarketTvl: p.bigint().optional(),
@@ -243,6 +289,9 @@ export default createSchema((p) => ({
      * Example: 500_000_000 = 50%
      */
     yesChance: p.bigint().optional(),
+
+    /** Event ID for multi-market grouping (set externally by pandora-api) */
+    eventId: p.string().optional(),
 
     /** Block when created */
     createdAtBlock: p.bigint(),
