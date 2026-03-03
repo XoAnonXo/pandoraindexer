@@ -124,6 +124,7 @@ export const DisputeResolverHomeAbi = [
 			{ name: "finalStatus", type: "uint8" },
 			{ name: "disputerDeposit", type: "uint256" },
 			{ name: "endAt", type: "uint256" },
+			{ name: "emergencyAfterHours", type: "uint256" },
 			{ name: "marketToken", type: "address" },
 			{ name: "reason", type: "string" },
 		],
