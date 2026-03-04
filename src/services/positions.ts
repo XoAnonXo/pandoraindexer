@@ -181,16 +181,12 @@ interface LossResult {
 
 /**
  * Process losses for a resolved poll.
- * 
- * Called when a poll is resolved (AnswerSet event).
- * Finds all users who had positions on the losing side and:
- * 1. Returns their loss amounts
- * 2. Marks their positions as lossRecorded
- * 
- * Performance: Uses Promise.all to parallelize position updates.
- * 
+ *
+ * Uses `trades` (buy-side) and `winnings` tables to determine losers:
+ * users who bought on the losing side and never redeemed winnings.
+ *
  * @param pollStatus - The resolved status (1=YES wins, 2=NO wins, 3=Unknown/refund)
- * @returns Array of users who lost and their loss amounts
+ * @returns Deduplicated array of users who lost
  */
 export async function processLossesForPoll(
   context: PonderContext,
@@ -198,71 +194,49 @@ export async function processLossesForPoll(
   pollAddress: `0x${string}`,
   pollStatus: number
 ): Promise<LossResult[]> {
-  // Skip if outcome is unknown (refund - no losses)
   if (pollStatus === PollStatus.UNKNOWN || pollStatus === PollStatus.PENDING) {
     return [];
   }
 
+  const losingSide = pollStatus === PollStatus.YES ? 'no' : 'yes';
   const losses: LossResult[] = [];
 
-  // Determine which side lost
-  const losingSide = pollStatus === PollStatus.YES ? 'no' : 'yes';
-
   await withRetry(async () => {
-    // Find all markets linked to this poll
     const markets = await context.db.markets.findMany({
-      where: {
-        pollAddress: pollAddress,
-        chainId: chain.chainId,
-      },
+      where: { pollAddress, chainId: chain.chainId },
     });
 
-    // Collect all positions from all markets in parallel
-    const allPositionsResults = await Promise.all(
-      markets.items.map((market: { id: `0x${string}` }) => 
-        context.db.userMarketPositions.findMany({
-          where: {
-            marketAddress: market.id,
-            chainId: chain.chainId,
-            lossRecorded: false,
-            hasRedeemed: false, // Users who redeemed are winners, not losers
-          },
-        })
-      )
-    );
+    for (const market of markets.items) {
+      const losingTrades = await context.db.trades.findMany({
+        where: {
+          marketAddress: market.id,
+          chainId: chain.chainId,
+          side: losingSide,
+        },
+      });
 
-    // Flatten all positions and identify losers
-    const updatePromises: Promise<unknown>[] = [];
-    
-    for (const positionsResult of allPositionsResults) {
-      for (const position of positionsResult.items) {
-        // Check if user had a position on the losing side
-        const lostAmount = losingSide === 'yes' 
-          ? position.yesAmount 
-          : position.noAmount;
+      const winningsForMarket = await context.db.winnings.findMany({
+        where: {
+          marketAddress: market.id,
+          chainId: chain.chainId,
+        },
+      });
 
-        if (lostAmount > 0n) {
-          losses.push({
-            user: position.user,
-            lostAmount,
-          });
+      const winners = new Set(
+        winningsForMarket.items.map((w: { user: string }) => w.user.toLowerCase()),
+      );
 
-          // Queue position update for parallel execution
-          updatePromises.push(
-            context.db.userMarketPositions.update({
-              id: position.id,
-              data: {
-                lossRecorded: true,
-              },
-            })
-          );
-        }
+      const seenUsers = new Set<string>();
+      for (const trade of losingTrades.items) {
+        const addr = trade.trader.toLowerCase();
+        if (winners.has(addr) || seenUsers.has(addr)) continue;
+        seenUsers.add(addr);
+
+        losses.push({
+          user: addr as `0x${string}`,
+          lostAmount: trade.collateralAmount,
+        });
       }
-    }
-
-    // Execute all position updates in parallel
-    if (updatePromises.length > 0) {
-      await Promise.all(updatePromises);
     }
   });
 

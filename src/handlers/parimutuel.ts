@@ -355,17 +355,6 @@ ponder.on(
 
 		const userData = await getOrCreateUser(context, user, chain);
 		const isWin = outcome !== 3;
-		const newStreak = isWin
-			? userData.currentStreak >= 0
-				? userData.currentStreak + 1
-				: 1
-			: userData.currentStreak <= 0
-			? userData.currentStreak - 1
-			: -1;
-		const bestStreak = Math.max(
-			userData.bestStreak,
-			newStreak > 0 ? newStreak : 0
-		);
 
 		const newTotalWinnings =
 			(userData.totalWinnings ?? 0n) + collateralAmount;
@@ -374,11 +363,30 @@ ponder.on(
 			newTotalWinnings -
 			(userData.totalDeposited ?? 0n);
 
+		const priorWinnings = await context.db.winnings.findMany({
+			where: {
+				user: user.toLowerCase() as `0x${string}`,
+				marketAddress,
+				chainId: chain.chainId,
+			},
+		});
+		const isFirstWinForMarket = isWin && priorWinnings.items.length <= 1;
+
+		const newStreak = isFirstWinForMarket
+			? (userData.currentStreak >= 0 ? userData.currentStreak + 1 : 1)
+			: !isWin
+			? (userData.currentStreak <= 0 ? userData.currentStreak - 1 : -1)
+			: userData.currentStreak;
+		const bestStreak = Math.max(
+			userData.bestStreak,
+			newStreak > 0 ? newStreak : 0
+		);
+
 		await context.db.users.update({
 			id: makeId(chain.chainId, user.toLowerCase()),
 			data: {
 				totalWinnings: newTotalWinnings,
-				totalWins: isWin ? userData.totalWins + 1 : userData.totalWins,
+				totalWins: isFirstWinForMarket ? userData.totalWins + 1 : userData.totalWins,
 				currentStreak: newStreak,
 				bestStreak,
 				realizedPnL: newRealizedPnL,

@@ -493,20 +493,31 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
   }
 
   const userData = await getOrCreateUser(context, user, chain);
-	const newStreak =
-		userData.currentStreak >= 0 ? userData.currentStreak + 1 : 1;
-  const bestStreak = Math.max(userData.bestStreak, newStreak);
   const newTotalWinnings = (userData.totalWinnings ?? 0n) + collateralAmount;
 	const newRealizedPnL =
 		(userData.totalWithdrawn ?? 0n) +
 		newTotalWinnings -
 		(userData.totalDeposited ?? 0n);
-  
+
+  const priorWinnings = await context.db.winnings.findMany({
+    where: {
+      user: user.toLowerCase() as `0x${string}`,
+      marketAddress,
+      chainId: chain.chainId,
+    },
+  });
+  const isFirstWinForMarket = priorWinnings.items.length <= 1;
+
+  const newStreak = isFirstWinForMarket
+    ? (userData.currentStreak >= 0 ? userData.currentStreak + 1 : 1)
+    : userData.currentStreak;
+  const bestStreak = Math.max(userData.bestStreak, newStreak > 0 ? newStreak : 0);
+
   await context.db.users.update({
     id: makeId(chain.chainId, user.toLowerCase()),
     data: {
       totalWinnings: newTotalWinnings,
-      totalWins: userData.totalWins + 1,
+      totalWins: isFirstWinForMarket ? userData.totalWins + 1 : userData.totalWins,
       currentStreak: newStreak,
       bestStreak,
       realizedPnL: newRealizedPnL,

@@ -33,7 +33,10 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
     try {
       const losses = await processLossesForPoll(context, chain, pollAddress, resolvedStatus);
       for (const loss of losses) {
-        await recordUserLoss(context, chain, loss.user as `0x${string}`);
+        await recordUserLoss(context, chain, loss.user);
+      }
+      if (losses.length > 0) {
+        console.log(`[${chain.chainName}] 📉 Recorded ${losses.length} losses for poll ${pollAddress}`);
       }
     } catch (err) {
       console.error(`[${chain.chainName}] ❌ Failed to process losses for ${pollAddress}:`, err);
