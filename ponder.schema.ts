@@ -1411,6 +1411,41 @@ export default createSchema((p) => ({
     lastUpdatedAt: p.bigint(),
   }),
 
+  userLiquidityPositions: p.createTable({
+    /** Composite ID: chainId-marketAddress-userAddress */
+    id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** Market contract address */
+    marketAddress: p.hex(),
+    /** Poll address (denormalized for querying by poll) */
+    pollAddress: p.hex(),
+    /** User wallet address */
+    user: p.hex(),
+    /** Net LP tokens held (adds - removes) */
+    lpTokens: p.bigint(),
+    /** Sum of collateral from all adds (6 decimals) */
+    totalCollateralDeposited: p.bigint(),
+    /** Sum of collateral from all removes (6 decimals) */
+    totalCollateralWithdrawn: p.bigint(),
+    /** Cumulative dust YES tokens received on adds */
+    yesTokensReceived: p.bigint(),
+    /** Cumulative dust NO tokens received on adds */
+    noTokensReceived: p.bigint(),
+    /** yesChance at first add (initial pool price, scaled 1e9) */
+    initialYesChance: p.bigint(),
+    /** Sum of (yesChance * collateralAmount) for weighted avg entry price */
+    weightedYesChanceSum: p.bigint(),
+    /** Number of add liquidity events */
+    addCount: p.int(),
+    /** Number of remove liquidity events */
+    removeCount: p.int(),
+    /** Timestamp of first add */
+    firstAddAt: p.bigint(),
+    /** Timestamp of last update */
+    lastUpdatedAt: p.bigint(),
+  }),
+
   claimEvents: p.createTable({
     /** Unique ID: txHash-logIndex */
     id: p.string(),

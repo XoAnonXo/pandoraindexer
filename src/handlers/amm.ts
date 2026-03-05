@@ -8,6 +8,7 @@ import {
 	recordMarketInteraction,
 } from "../services/db";
 import { recordPosition, reducePosition, markPositionRedeemed } from "../services/positions";
+import { TradeSide } from "../utils/constants";
 // TODO: Referral system disabled for now - ReferralFactory not deployed on Ethereum
 // Volume is still tracked in trades/users/markets tables for future referral calculations
 // import { updateReferralVolume } from "../services/referral";
@@ -603,6 +604,64 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
     },
   });
 
+  const PRICE_SCALE = 1_000_000_000n;
+  const normalizedProvider = provider.toLowerCase() as `0x${string}`;
+  const currentYesChance = market.yesChance ?? (PRICE_SCALE / 2n);
+
+  // Record dust tokens (yesToReturn/noToReturn) in userMarketPositions
+  const yesToReturn = BigInt(amounts.yesToReturn ?? 0);
+  const noToReturn = BigInt(amounts.noToReturn ?? 0);
+
+  if (yesToReturn > 0n) {
+    const yesCost = (yesToReturn * currentYesChance) / PRICE_SCALE;
+    await recordPosition(
+      context, chain, marketAddress, pollAddress,
+      normalizedProvider, TradeSide.YES, yesCost, yesToReturn, timestamp
+    );
+  }
+  if (noToReturn > 0n) {
+    const noCost = (noToReturn * (PRICE_SCALE - currentYesChance)) / PRICE_SCALE;
+    await recordPosition(
+      context, chain, marketAddress, pollAddress,
+      normalizedProvider, TradeSide.NO, noCost, noToReturn, timestamp
+    );
+  }
+
+  // Upsert userLiquidityPositions
+  const lpId = makeId(chain.chainId, marketAddress, normalizedProvider);
+  const existingLp = await context.db.userLiquidityPositions.findUnique({ id: lpId });
+  const weightedChance = currentYesChance * collateralAmount;
+
+  await context.db.userLiquidityPositions.upsert({
+    id: lpId,
+    create: {
+      chainId: chain.chainId,
+      marketAddress,
+      pollAddress,
+      user: normalizedProvider,
+      lpTokens,
+      totalCollateralDeposited: collateralAmount,
+      totalCollateralWithdrawn: 0n,
+      yesTokensReceived: yesToReturn,
+      noTokensReceived: noToReturn,
+      initialYesChance: currentYesChance,
+      weightedYesChanceSum: weightedChance,
+      addCount: 1,
+      removeCount: 0,
+      firstAddAt: timestamp,
+      lastUpdatedAt: timestamp,
+    },
+    update: {
+      lpTokens: (existingLp?.lpTokens ?? 0n) + lpTokens,
+      totalCollateralDeposited: (existingLp?.totalCollateralDeposited ?? 0n) + collateralAmount,
+      yesTokensReceived: (existingLp?.yesTokensReceived ?? 0n) + yesToReturn,
+      noTokensReceived: (existingLp?.noTokensReceived ?? 0n) + noToReturn,
+      weightedYesChanceSum: (existingLp?.weightedYesChanceSum ?? 0n) + weightedChance,
+      addCount: (existingLp?.addCount ?? 0) + 1,
+      lastUpdatedAt: timestamp,
+    },
+  });
+
   // Update User Stats (LP logic)
   const user = await getOrCreateUser(context, provider, chain);
   const isNewUser = user.totalTrades === 0 && user.totalDeposited === 0n; // Is new if no activity before
@@ -741,6 +800,44 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
       timestamp,
     },
   });
+
+  const PRICE_SCALE_RM = 1_000_000_000n;
+  const normalizedProvider = provider.toLowerCase() as `0x${string}`;
+  const currentYesChance = market.yesChance ?? (PRICE_SCALE_RM / 2n);
+
+  // Record received YES/NO tokens in userMarketPositions with cost basis at pool price
+  const yesAmountBI = BigInt(yesAmount ?? 0);
+  const noAmountBI = BigInt(noAmount ?? 0);
+
+  if (yesAmountBI > 0n) {
+    const yesCost = (yesAmountBI * currentYesChance) / PRICE_SCALE_RM;
+    await recordPosition(
+      context, chain, marketAddress, pollAddress,
+      normalizedProvider, TradeSide.YES, yesCost, yesAmountBI, timestamp
+    );
+  }
+  if (noAmountBI > 0n) {
+    const noCost = (noAmountBI * (PRICE_SCALE_RM - currentYesChance)) / PRICE_SCALE_RM;
+    await recordPosition(
+      context, chain, marketAddress, pollAddress,
+      normalizedProvider, TradeSide.NO, noCost, noAmountBI, timestamp
+    );
+  }
+
+  // Update userLiquidityPositions
+  const lpId = makeId(chain.chainId, marketAddress, normalizedProvider);
+  const existingLp = await context.db.userLiquidityPositions.findUnique({ id: lpId });
+  if (existingLp) {
+    await context.db.userLiquidityPositions.update({
+      id: lpId,
+      data: {
+        lpTokens: existingLp.lpTokens > lpTokens ? existingLp.lpTokens - lpTokens : 0n,
+        totalCollateralWithdrawn: existingLp.totalCollateralWithdrawn + collateralToReturn,
+        removeCount: existingLp.removeCount + 1,
+        lastUpdatedAt: timestamp,
+      },
+    });
+  }
 
   // Update User Stats (LP Exit)
   const user = await getOrCreateUser(context, provider, chain);
