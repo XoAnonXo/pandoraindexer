@@ -1160,17 +1160,15 @@ export default createSchema((p) => ({
    * Reward claims from successful dispute voting.
    * Tracks when voters claim their rewards.
    *
-   * ID FORMAT: chainId-oracleAddress-srcEid-tokenId-txHash
+   * ID FORMAT: chainId-oracleAddress-tokenId-txHash
    */
   disputeRewardClaims: p.createTable({
-    /** Composite key: chainId-oracleAddress-srcEid-tokenId-txHash */
+    /** Composite key: chainId-oracleAddress-tokenId-txHash */
     id: p.string(),
     /** Chain ID where claim was made */
     chainId: p.int(),
     /** Oracle address */
     oracle: p.hex(),
-    /** Source chain EID where NFT was staked (for cross-chain vote uniqueness) */
-    srcEid: p.int(),
     /** Token ID used for voting */
     tokenId: p.bigint(),
     /** Claimer address */
