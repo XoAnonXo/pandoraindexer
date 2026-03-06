@@ -194,25 +194,15 @@ export default createConfig({
 
     ...(ethereum.contracts.disputeResolverRemote
       ? {
-          DisputeResolverRemote: {
-            network: "ethereum" as const,
-            abi: DisputeResolverRemoteAbi,
-            address: ethereum.contracts.disputeResolverRemote,
-            startBlock: ethereum.startBlock,
-          },
-        }
+        DisputeResolverRemote: {
+          network: "ethereum" as const,
+          abi: DisputeResolverRemoteAbi,
+          address: ethereum.contracts.disputeResolverRemote,
+          startBlock: ethereum.startBlock,
+        },
+      }
       : {}),
 
-    ...(ethereum.contracts.disputeResolverHome
-      ? {
-          DisputeResolverHome: {
-            network: "ethereum" as const,
-            abi: DisputeResolverHomeAbi,
-            address: ethereum.contracts.disputeResolverHome,
-            startBlock: ethereum.startBlock,
-          },
-        }
-      : {}),
 
     // =========================================================================
     // TODO: LAUNCHPAD CONTRACTS — uncomment when deployed on Ethereum

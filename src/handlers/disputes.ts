@@ -3,9 +3,6 @@
  *
  * Handles events from DisputeResolverRemote (for remote chains like Ethereum).
  * Tracks dispute creation, voting, resolution, and reward claims.
- *
- * Note: DisputeResolverHome is only on Sonic (home chain).
- * This file handles DisputeResolverRemote events for Ethereum and other remote chains.
  */
 
 import { ponder } from "@/generated";
