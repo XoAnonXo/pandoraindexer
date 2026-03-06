@@ -50,13 +50,13 @@ async function readDisputeFromContract(
       args: [oracle],
       ...(blockNumber ? { blockNumber } : {}),
     });
-    // tuple: [disputer, isCollateralTaken, state, draftStatus, finalStatus, disputerDeposit, endAt, marketToken, reason]
+    // tuple: [disputer, isCollateralTaken, state, draftStatus, finalStatus, disputerDeposit, endAt, emergencyAfterHours, marketToken, reason]
     return {
       isCollateralTaken: info[1] as boolean,
       state: Number(info[2]),
       finalStatus: Number(info[4]),
       endAt: BigInt(info[6]),
-      reason: info[8] as string,
+      reason: info[9] as string,
     };
   } catch (err) {
     console.error(`[Dispute] Failed to read contract state for ${(oracle as string).slice(0, 10)}...:`, err);
@@ -303,6 +303,10 @@ ponder.on(
       await context.db.polls.update({
         id: normalizedOracle,
         data: {
+          ...(statusChanged && {
+            preDisputeStatus: poll.status,
+            preDisputeResolutionReason: poll.resolutionReason ?? null,
+          }),
           status: newStatus,
           resolutionReason: "arbiter decision",
           resolvedAt: timestamp,

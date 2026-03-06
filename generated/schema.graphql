@@ -1,10 +1,24 @@
 type Query {
+  oracleFeeEvents(id: String!): oracleFeeEvents
+  oracleFeeEventss(where: oracleFeeEventsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): oracleFeeEventsPage!
+  events(id: String!): events
+  eventss(where: eventsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): eventsPage!
   polls(id: String!): polls
   pollss(where: pollsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): pollsPage!
   markets(id: String!): markets
   marketss(where: marketsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): marketsPage!
   trades(id: String!): trades
   tradess(where: tradesFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): tradesPage!
+  priceTicks(id: String!): priceTicks
+  priceTickss(where: priceTicksFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): priceTicksPage!
+  candles1m(id: String!): candles1m
+  candles1ms(where: candles1mFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): candles1mPage!
+  candles5m(id: String!): candles5m
+  candles5ms(where: candles5mFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): candles5mPage!
+  candles1h(id: String!): candles1h
+  candles1hs(where: candles1hFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): candles1hPage!
+  candles1d(id: String!): candles1d
+  candles1ds(where: candles1dFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): candles1dPage!
   users(id: String!): users
   userss(where: usersFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): usersPage!
   marketUsers(id: String!): marketUsers
@@ -31,40 +45,47 @@ type Query {
   campaignClaimss(where: campaignClaimsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): campaignClaimsPage!
   campaignStats(id: String!): campaignStats
   campaignStatss(where: campaignStatsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): campaignStatsPage!
+  disputes(id: String!): disputes
+  disputess(where: disputesFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): disputesPage!
+  disputeVotes(id: String!): disputeVotes
+  disputeVotess(where: disputeVotesFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): disputeVotesPage!
+  disputeRewardClaims(id: String!): disputeRewardClaims
+  disputeRewardClaimss(where: disputeRewardClaimsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): disputeRewardClaimsPage!
+  graduatedCreators(id: String!): graduatedCreators
+  graduatedCreatorss(where: graduatedCreatorsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): graduatedCreatorsPage!
+  marketSystems(id: String!): marketSystems
+  marketSystemss(where: marketSystemsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): marketSystemsPage!
+  tokenSystems(id: String!): tokenSystems
+  tokenSystemss(where: tokenSystemsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): tokenSystemsPage!
+  launchpadTokens(id: String!): launchpadTokens
+  launchpadTokenss(where: launchpadTokensFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): launchpadTokensPage!
+  launchpadTrades(id: String!): launchpadTrades
+  launchpadTradess(where: launchpadTradesFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): launchpadTradesPage!
+  userMarketPositions(id: String!): userMarketPositions
+  userMarketPositionss(where: userMarketPositionsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): userMarketPositionsPage!
+  claimEvents(id: String!): claimEvents
+  claimEventss(where: claimEventsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): claimEventsPage!
   _meta: _meta
 }
 
-type polls {
+type oracleFeeEvents {
   id: String!
   chainId: Int!
   chainName: String!
-  creator: String!
-  question: String!
-  rules: String!
-  sources: String!
-  deadlineEpoch: Int!
-  finalizationEpoch: Int!
-  checkEpoch: Int!
-  lastRefreshWasFree: Boolean
-  category: Int!
-  status: Int!
-  resolutionReason: String
-  setter: String
-  isDisputed: Boolean
-  disputedBy: String
-  disputeReason: String
-  disputeStake: BigInt
-  disputedAt: BigInt
-  resolvedAt: BigInt
-  createdAtBlock: BigInt!
-  createdAt: BigInt!
-  createdTxHash: String!
+  oracleAddress: String!
+  eventName: String!
+  newFee: BigInt
+  to: String
+  amount: BigInt
+  txHash: String!
+  blockNumber: BigInt!
+  timestamp: BigInt!
 }
 
 scalar BigInt
 
-type pollsPage {
-  items: [polls!]!
+type oracleFeeEventsPage {
+  items: [oracleFeeEvents!]!
   pageInfo: PageInfo!
 }
 
@@ -73,6 +94,310 @@ type PageInfo {
   hasPreviousPage: Boolean!
   startCursor: String
   endCursor: String
+}
+
+input oracleFeeEventsFilter {
+  AND: [oracleFeeEventsFilter]
+  OR: [oracleFeeEventsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  chainId: Int
+  chainId_not: Int
+  chainId_in: [Int]
+  chainId_not_in: [Int]
+  chainId_gt: Int
+  chainId_lt: Int
+  chainId_gte: Int
+  chainId_lte: Int
+  chainName: String
+  chainName_not: String
+  chainName_in: [String]
+  chainName_not_in: [String]
+  chainName_contains: String
+  chainName_not_contains: String
+  chainName_starts_with: String
+  chainName_ends_with: String
+  chainName_not_starts_with: String
+  chainName_not_ends_with: String
+  oracleAddress: String
+  oracleAddress_not: String
+  oracleAddress_in: [String]
+  oracleAddress_not_in: [String]
+  oracleAddress_gt: String
+  oracleAddress_lt: String
+  oracleAddress_gte: String
+  oracleAddress_lte: String
+  eventName: String
+  eventName_not: String
+  eventName_in: [String]
+  eventName_not_in: [String]
+  eventName_contains: String
+  eventName_not_contains: String
+  eventName_starts_with: String
+  eventName_ends_with: String
+  eventName_not_starts_with: String
+  eventName_not_ends_with: String
+  newFee: BigInt
+  newFee_not: BigInt
+  newFee_in: [BigInt]
+  newFee_not_in: [BigInt]
+  newFee_gt: BigInt
+  newFee_lt: BigInt
+  newFee_gte: BigInt
+  newFee_lte: BigInt
+  to: String
+  to_not: String
+  to_in: [String]
+  to_not_in: [String]
+  to_gt: String
+  to_lt: String
+  to_gte: String
+  to_lte: String
+  amount: BigInt
+  amount_not: BigInt
+  amount_in: [BigInt]
+  amount_not_in: [BigInt]
+  amount_gt: BigInt
+  amount_lt: BigInt
+  amount_gte: BigInt
+  amount_lte: BigInt
+  txHash: String
+  txHash_not: String
+  txHash_in: [String]
+  txHash_not_in: [String]
+  txHash_gt: String
+  txHash_lt: String
+  txHash_gte: String
+  txHash_lte: String
+  blockNumber: BigInt
+  blockNumber_not: BigInt
+  blockNumber_in: [BigInt]
+  blockNumber_not_in: [BigInt]
+  blockNumber_gt: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lte: BigInt
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_in: [BigInt]
+  timestamp_not_in: [BigInt]
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+}
+
+type events {
+  id: String!
+  creator: String!
+  marketType: String!
+  arbiter: String!
+  sources: String!
+  category: Int!
+  feeTier: Int
+  maxPriceImbalance: Int
+  curveFlattener: Int
+  curveOffset: Int
+  pollAddresses: String!
+  marketAddresses: String!
+  status: String!
+  marketCount: Int!
+  createdAt: String!
+}
+
+type eventsPage {
+  items: [events!]!
+  pageInfo: PageInfo!
+}
+
+input eventsFilter {
+  AND: [eventsFilter]
+  OR: [eventsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  creator: String
+  creator_not: String
+  creator_in: [String]
+  creator_not_in: [String]
+  creator_contains: String
+  creator_not_contains: String
+  creator_starts_with: String
+  creator_ends_with: String
+  creator_not_starts_with: String
+  creator_not_ends_with: String
+  marketType: String
+  marketType_not: String
+  marketType_in: [String]
+  marketType_not_in: [String]
+  marketType_contains: String
+  marketType_not_contains: String
+  marketType_starts_with: String
+  marketType_ends_with: String
+  marketType_not_starts_with: String
+  marketType_not_ends_with: String
+  arbiter: String
+  arbiter_not: String
+  arbiter_in: [String]
+  arbiter_not_in: [String]
+  arbiter_contains: String
+  arbiter_not_contains: String
+  arbiter_starts_with: String
+  arbiter_ends_with: String
+  arbiter_not_starts_with: String
+  arbiter_not_ends_with: String
+  sources: String
+  sources_not: String
+  sources_in: [String]
+  sources_not_in: [String]
+  sources_contains: String
+  sources_not_contains: String
+  sources_starts_with: String
+  sources_ends_with: String
+  sources_not_starts_with: String
+  sources_not_ends_with: String
+  category: Int
+  category_not: Int
+  category_in: [Int]
+  category_not_in: [Int]
+  category_gt: Int
+  category_lt: Int
+  category_gte: Int
+  category_lte: Int
+  feeTier: Int
+  feeTier_not: Int
+  feeTier_in: [Int]
+  feeTier_not_in: [Int]
+  feeTier_gt: Int
+  feeTier_lt: Int
+  feeTier_gte: Int
+  feeTier_lte: Int
+  maxPriceImbalance: Int
+  maxPriceImbalance_not: Int
+  maxPriceImbalance_in: [Int]
+  maxPriceImbalance_not_in: [Int]
+  maxPriceImbalance_gt: Int
+  maxPriceImbalance_lt: Int
+  maxPriceImbalance_gte: Int
+  maxPriceImbalance_lte: Int
+  curveFlattener: Int
+  curveFlattener_not: Int
+  curveFlattener_in: [Int]
+  curveFlattener_not_in: [Int]
+  curveFlattener_gt: Int
+  curveFlattener_lt: Int
+  curveFlattener_gte: Int
+  curveFlattener_lte: Int
+  curveOffset: Int
+  curveOffset_not: Int
+  curveOffset_in: [Int]
+  curveOffset_not_in: [Int]
+  curveOffset_gt: Int
+  curveOffset_lt: Int
+  curveOffset_gte: Int
+  curveOffset_lte: Int
+  pollAddresses: String
+  pollAddresses_not: String
+  pollAddresses_in: [String]
+  pollAddresses_not_in: [String]
+  pollAddresses_contains: String
+  pollAddresses_not_contains: String
+  pollAddresses_starts_with: String
+  pollAddresses_ends_with: String
+  pollAddresses_not_starts_with: String
+  pollAddresses_not_ends_with: String
+  marketAddresses: String
+  marketAddresses_not: String
+  marketAddresses_in: [String]
+  marketAddresses_not_in: [String]
+  marketAddresses_contains: String
+  marketAddresses_not_contains: String
+  marketAddresses_starts_with: String
+  marketAddresses_ends_with: String
+  marketAddresses_not_starts_with: String
+  marketAddresses_not_ends_with: String
+  status: String
+  status_not: String
+  status_in: [String]
+  status_not_in: [String]
+  status_contains: String
+  status_not_contains: String
+  status_starts_with: String
+  status_ends_with: String
+  status_not_starts_with: String
+  status_not_ends_with: String
+  marketCount: Int
+  marketCount_not: Int
+  marketCount_in: [Int]
+  marketCount_not_in: [Int]
+  marketCount_gt: Int
+  marketCount_lt: Int
+  marketCount_gte: Int
+  marketCount_lte: Int
+  createdAt: String
+  createdAt_not: String
+  createdAt_in: [String]
+  createdAt_not_in: [String]
+  createdAt_contains: String
+  createdAt_not_contains: String
+  createdAt_starts_with: String
+  createdAt_ends_with: String
+  createdAt_not_starts_with: String
+  createdAt_not_ends_with: String
+}
+
+type polls {
+  id: String!
+  chainId: Int!
+  chainName: String!
+  creator: String!
+  arbiter: String
+  question: String!
+  rules: String!
+  sources: String!
+  deadlineEpoch: Int!
+  finalizationEpoch: Int!
+  checkEpoch: Int!
+  lastRefreshWasFree: Boolean
+  lastRefreshOldCheckEpoch: Int
+  arbitrationStarted: Boolean!
+  category: Int!
+  status: Int!
+  resolutionReason: String
+  setter: String
+  disputedBy: String
+  disputeReason: String
+  disputeStake: BigInt
+  disputedAt: BigInt
+  resolvedAt: BigInt
+  preDisputeStatus: Int
+  preDisputeResolutionReason: String
+  eventId: String
+  maxMarketTvl: BigInt
+  totalMarketsTvl: BigInt
+  createdAtBlock: BigInt!
+  createdAt: BigInt!
+  createdTxHash: String!
+}
+
+type pollsPage {
+  items: [polls!]!
+  pageInfo: PageInfo!
 }
 
 input pollsFilter {
@@ -112,6 +437,14 @@ input pollsFilter {
   creator_lt: String
   creator_gte: String
   creator_lte: String
+  arbiter: String
+  arbiter_not: String
+  arbiter_in: [String]
+  arbiter_not_in: [String]
+  arbiter_gt: String
+  arbiter_lt: String
+  arbiter_gte: String
+  arbiter_lte: String
   question: String
   question_not: String
   question_in: [String]
@@ -170,6 +503,18 @@ input pollsFilter {
   lastRefreshWasFree_not: Boolean
   lastRefreshWasFree_in: [Boolean]
   lastRefreshWasFree_not_in: [Boolean]
+  lastRefreshOldCheckEpoch: Int
+  lastRefreshOldCheckEpoch_not: Int
+  lastRefreshOldCheckEpoch_in: [Int]
+  lastRefreshOldCheckEpoch_not_in: [Int]
+  lastRefreshOldCheckEpoch_gt: Int
+  lastRefreshOldCheckEpoch_lt: Int
+  lastRefreshOldCheckEpoch_gte: Int
+  lastRefreshOldCheckEpoch_lte: Int
+  arbitrationStarted: Boolean
+  arbitrationStarted_not: Boolean
+  arbitrationStarted_in: [Boolean]
+  arbitrationStarted_not_in: [Boolean]
   category: Int
   category_not: Int
   category_in: [Int]
@@ -204,10 +549,6 @@ input pollsFilter {
   setter_lt: String
   setter_gte: String
   setter_lte: String
-  isDisputed: Boolean
-  isDisputed_not: Boolean
-  isDisputed_in: [Boolean]
-  isDisputed_not_in: [Boolean]
   disputedBy: String
   disputedBy_not: String
   disputedBy_in: [String]
@@ -250,6 +591,50 @@ input pollsFilter {
   resolvedAt_lt: BigInt
   resolvedAt_gte: BigInt
   resolvedAt_lte: BigInt
+  preDisputeStatus: Int
+  preDisputeStatus_not: Int
+  preDisputeStatus_in: [Int]
+  preDisputeStatus_not_in: [Int]
+  preDisputeStatus_gt: Int
+  preDisputeStatus_lt: Int
+  preDisputeStatus_gte: Int
+  preDisputeStatus_lte: Int
+  preDisputeResolutionReason: String
+  preDisputeResolutionReason_not: String
+  preDisputeResolutionReason_in: [String]
+  preDisputeResolutionReason_not_in: [String]
+  preDisputeResolutionReason_contains: String
+  preDisputeResolutionReason_not_contains: String
+  preDisputeResolutionReason_starts_with: String
+  preDisputeResolutionReason_ends_with: String
+  preDisputeResolutionReason_not_starts_with: String
+  preDisputeResolutionReason_not_ends_with: String
+  eventId: String
+  eventId_not: String
+  eventId_in: [String]
+  eventId_not_in: [String]
+  eventId_contains: String
+  eventId_not_contains: String
+  eventId_starts_with: String
+  eventId_ends_with: String
+  eventId_not_starts_with: String
+  eventId_not_ends_with: String
+  maxMarketTvl: BigInt
+  maxMarketTvl_not: BigInt
+  maxMarketTvl_in: [BigInt]
+  maxMarketTvl_not_in: [BigInt]
+  maxMarketTvl_gt: BigInt
+  maxMarketTvl_lt: BigInt
+  maxMarketTvl_gte: BigInt
+  maxMarketTvl_lte: BigInt
+  totalMarketsTvl: BigInt
+  totalMarketsTvl_not: BigInt
+  totalMarketsTvl_in: [BigInt]
+  totalMarketsTvl_not_in: [BigInt]
+  totalMarketsTvl_gt: BigInt
+  totalMarketsTvl_lt: BigInt
+  totalMarketsTvl_gte: BigInt
+  totalMarketsTvl_lte: BigInt
   createdAtBlock: BigInt
   createdAtBlock_not: BigInt
   createdAtBlock_in: [BigInt]
@@ -291,18 +676,24 @@ type markets {
   maxPriceImbalancePerHour: Int
   curveFlattener: Int
   curveOffset: Int
+  marketStartTimestamp: BigInt
+  marketCloseTimestamp: BigInt
   totalVolume: BigInt!
+  volume24h: BigInt!
   totalTrades: Int!
   currentTvl: BigInt!
   uniqueTraders: Int!
   initialLiquidity: BigInt!
   reserveYes: BigInt
   reserveNo: BigInt
+  creatorFeesEarned: BigInt!
+  platformFeesEarned: BigInt!
   totalCollateralYes: BigInt
   totalCollateralNo: BigInt
   totalSharesYes: BigInt
   totalSharesNo: BigInt
   yesChance: BigInt
+  eventId: String
   createdAtBlock: BigInt!
   createdAt: BigInt!
   createdTxHash: String!
@@ -428,6 +819,22 @@ input marketsFilter {
   curveOffset_lt: Int
   curveOffset_gte: Int
   curveOffset_lte: Int
+  marketStartTimestamp: BigInt
+  marketStartTimestamp_not: BigInt
+  marketStartTimestamp_in: [BigInt]
+  marketStartTimestamp_not_in: [BigInt]
+  marketStartTimestamp_gt: BigInt
+  marketStartTimestamp_lt: BigInt
+  marketStartTimestamp_gte: BigInt
+  marketStartTimestamp_lte: BigInt
+  marketCloseTimestamp: BigInt
+  marketCloseTimestamp_not: BigInt
+  marketCloseTimestamp_in: [BigInt]
+  marketCloseTimestamp_not_in: [BigInt]
+  marketCloseTimestamp_gt: BigInt
+  marketCloseTimestamp_lt: BigInt
+  marketCloseTimestamp_gte: BigInt
+  marketCloseTimestamp_lte: BigInt
   totalVolume: BigInt
   totalVolume_not: BigInt
   totalVolume_in: [BigInt]
@@ -436,6 +843,14 @@ input marketsFilter {
   totalVolume_lt: BigInt
   totalVolume_gte: BigInt
   totalVolume_lte: BigInt
+  volume24h: BigInt
+  volume24h_not: BigInt
+  volume24h_in: [BigInt]
+  volume24h_not_in: [BigInt]
+  volume24h_gt: BigInt
+  volume24h_lt: BigInt
+  volume24h_gte: BigInt
+  volume24h_lte: BigInt
   totalTrades: Int
   totalTrades_not: Int
   totalTrades_in: [Int]
@@ -484,6 +899,22 @@ input marketsFilter {
   reserveNo_lt: BigInt
   reserveNo_gte: BigInt
   reserveNo_lte: BigInt
+  creatorFeesEarned: BigInt
+  creatorFeesEarned_not: BigInt
+  creatorFeesEarned_in: [BigInt]
+  creatorFeesEarned_not_in: [BigInt]
+  creatorFeesEarned_gt: BigInt
+  creatorFeesEarned_lt: BigInt
+  creatorFeesEarned_gte: BigInt
+  creatorFeesEarned_lte: BigInt
+  platformFeesEarned: BigInt
+  platformFeesEarned_not: BigInt
+  platformFeesEarned_in: [BigInt]
+  platformFeesEarned_not_in: [BigInt]
+  platformFeesEarned_gt: BigInt
+  platformFeesEarned_lt: BigInt
+  platformFeesEarned_gte: BigInt
+  platformFeesEarned_lte: BigInt
   totalCollateralYes: BigInt
   totalCollateralYes_not: BigInt
   totalCollateralYes_in: [BigInt]
@@ -524,6 +955,16 @@ input marketsFilter {
   yesChance_lt: BigInt
   yesChance_gte: BigInt
   yesChance_lte: BigInt
+  eventId: String
+  eventId_not: String
+  eventId_in: [String]
+  eventId_not_in: [String]
+  eventId_contains: String
+  eventId_not_contains: String
+  eventId_starts_with: String
+  eventId_ends_with: String
+  eventId_not_starts_with: String
+  eventId_not_ends_with: String
   createdAtBlock: BigInt
   createdAtBlock_not: BigInt
   createdAtBlock_in: [BigInt]
@@ -562,6 +1003,7 @@ type trades {
   collateralAmount: BigInt!
   tokenAmount: BigInt
   feeAmount: BigInt!
+  buyPrice: BigInt
   tokenAmountOut: BigInt
   txHash: String!
   blockNumber: BigInt!
@@ -672,6 +1114,14 @@ input tradesFilter {
   feeAmount_lt: BigInt
   feeAmount_gte: BigInt
   feeAmount_lte: BigInt
+  buyPrice: BigInt
+  buyPrice_not: BigInt
+  buyPrice_in: [BigInt]
+  buyPrice_not_in: [BigInt]
+  buyPrice_gt: BigInt
+  buyPrice_lt: BigInt
+  buyPrice_gte: BigInt
+  buyPrice_lte: BigInt
   tokenAmountOut: BigInt
   tokenAmountOut_not: BigInt
   tokenAmountOut_in: [BigInt]
@@ -706,6 +1156,571 @@ input tradesFilter {
   timestamp_lte: BigInt
 }
 
+type priceTicks {
+  id: String!
+  marketAddress: String!
+  timestamp: BigInt!
+  seq: BigInt!
+  yesPrice: BigInt!
+  volume: BigInt!
+  side: String!
+  tradeType: String!
+  txHash: String!
+  blockNumber: BigInt!
+}
+
+type priceTicksPage {
+  items: [priceTicks!]!
+  pageInfo: PageInfo!
+}
+
+input priceTicksFilter {
+  AND: [priceTicksFilter]
+  OR: [priceTicksFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  marketAddress: String
+  marketAddress_not: String
+  marketAddress_in: [String]
+  marketAddress_not_in: [String]
+  marketAddress_gt: String
+  marketAddress_lt: String
+  marketAddress_gte: String
+  marketAddress_lte: String
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_in: [BigInt]
+  timestamp_not_in: [BigInt]
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  seq: BigInt
+  seq_not: BigInt
+  seq_in: [BigInt]
+  seq_not_in: [BigInt]
+  seq_gt: BigInt
+  seq_lt: BigInt
+  seq_gte: BigInt
+  seq_lte: BigInt
+  yesPrice: BigInt
+  yesPrice_not: BigInt
+  yesPrice_in: [BigInt]
+  yesPrice_not_in: [BigInt]
+  yesPrice_gt: BigInt
+  yesPrice_lt: BigInt
+  yesPrice_gte: BigInt
+  yesPrice_lte: BigInt
+  volume: BigInt
+  volume_not: BigInt
+  volume_in: [BigInt]
+  volume_not_in: [BigInt]
+  volume_gt: BigInt
+  volume_lt: BigInt
+  volume_gte: BigInt
+  volume_lte: BigInt
+  side: String
+  side_not: String
+  side_in: [String]
+  side_not_in: [String]
+  side_contains: String
+  side_not_contains: String
+  side_starts_with: String
+  side_ends_with: String
+  side_not_starts_with: String
+  side_not_ends_with: String
+  tradeType: String
+  tradeType_not: String
+  tradeType_in: [String]
+  tradeType_not_in: [String]
+  tradeType_contains: String
+  tradeType_not_contains: String
+  tradeType_starts_with: String
+  tradeType_ends_with: String
+  tradeType_not_starts_with: String
+  tradeType_not_ends_with: String
+  txHash: String
+  txHash_not: String
+  txHash_in: [String]
+  txHash_not_in: [String]
+  txHash_gt: String
+  txHash_lt: String
+  txHash_gte: String
+  txHash_lte: String
+  blockNumber: BigInt
+  blockNumber_not: BigInt
+  blockNumber_in: [BigInt]
+  blockNumber_not_in: [BigInt]
+  blockNumber_gt: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lte: BigInt
+}
+
+type candles1m {
+  id: String!
+  marketAddress: String!
+  bucketStart: BigInt!
+  open: BigInt!
+  high: BigInt!
+  low: BigInt!
+  close: BigInt!
+  volume: BigInt!
+  trades: Int!
+  firstSeq: BigInt!
+  lastSeq: BigInt!
+}
+
+type candles1mPage {
+  items: [candles1m!]!
+  pageInfo: PageInfo!
+}
+
+input candles1mFilter {
+  AND: [candles1mFilter]
+  OR: [candles1mFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  marketAddress: String
+  marketAddress_not: String
+  marketAddress_in: [String]
+  marketAddress_not_in: [String]
+  marketAddress_gt: String
+  marketAddress_lt: String
+  marketAddress_gte: String
+  marketAddress_lte: String
+  bucketStart: BigInt
+  bucketStart_not: BigInt
+  bucketStart_in: [BigInt]
+  bucketStart_not_in: [BigInt]
+  bucketStart_gt: BigInt
+  bucketStart_lt: BigInt
+  bucketStart_gte: BigInt
+  bucketStart_lte: BigInt
+  open: BigInt
+  open_not: BigInt
+  open_in: [BigInt]
+  open_not_in: [BigInt]
+  open_gt: BigInt
+  open_lt: BigInt
+  open_gte: BigInt
+  open_lte: BigInt
+  high: BigInt
+  high_not: BigInt
+  high_in: [BigInt]
+  high_not_in: [BigInt]
+  high_gt: BigInt
+  high_lt: BigInt
+  high_gte: BigInt
+  high_lte: BigInt
+  low: BigInt
+  low_not: BigInt
+  low_in: [BigInt]
+  low_not_in: [BigInt]
+  low_gt: BigInt
+  low_lt: BigInt
+  low_gte: BigInt
+  low_lte: BigInt
+  close: BigInt
+  close_not: BigInt
+  close_in: [BigInt]
+  close_not_in: [BigInt]
+  close_gt: BigInt
+  close_lt: BigInt
+  close_gte: BigInt
+  close_lte: BigInt
+  volume: BigInt
+  volume_not: BigInt
+  volume_in: [BigInt]
+  volume_not_in: [BigInt]
+  volume_gt: BigInt
+  volume_lt: BigInt
+  volume_gte: BigInt
+  volume_lte: BigInt
+  trades: Int
+  trades_not: Int
+  trades_in: [Int]
+  trades_not_in: [Int]
+  trades_gt: Int
+  trades_lt: Int
+  trades_gte: Int
+  trades_lte: Int
+  firstSeq: BigInt
+  firstSeq_not: BigInt
+  firstSeq_in: [BigInt]
+  firstSeq_not_in: [BigInt]
+  firstSeq_gt: BigInt
+  firstSeq_lt: BigInt
+  firstSeq_gte: BigInt
+  firstSeq_lte: BigInt
+  lastSeq: BigInt
+  lastSeq_not: BigInt
+  lastSeq_in: [BigInt]
+  lastSeq_not_in: [BigInt]
+  lastSeq_gt: BigInt
+  lastSeq_lt: BigInt
+  lastSeq_gte: BigInt
+  lastSeq_lte: BigInt
+}
+
+type candles5m {
+  id: String!
+  marketAddress: String!
+  bucketStart: BigInt!
+  open: BigInt!
+  high: BigInt!
+  low: BigInt!
+  close: BigInt!
+  volume: BigInt!
+  trades: Int!
+  firstSeq: BigInt!
+  lastSeq: BigInt!
+}
+
+type candles5mPage {
+  items: [candles5m!]!
+  pageInfo: PageInfo!
+}
+
+input candles5mFilter {
+  AND: [candles5mFilter]
+  OR: [candles5mFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  marketAddress: String
+  marketAddress_not: String
+  marketAddress_in: [String]
+  marketAddress_not_in: [String]
+  marketAddress_gt: String
+  marketAddress_lt: String
+  marketAddress_gte: String
+  marketAddress_lte: String
+  bucketStart: BigInt
+  bucketStart_not: BigInt
+  bucketStart_in: [BigInt]
+  bucketStart_not_in: [BigInt]
+  bucketStart_gt: BigInt
+  bucketStart_lt: BigInt
+  bucketStart_gte: BigInt
+  bucketStart_lte: BigInt
+  open: BigInt
+  open_not: BigInt
+  open_in: [BigInt]
+  open_not_in: [BigInt]
+  open_gt: BigInt
+  open_lt: BigInt
+  open_gte: BigInt
+  open_lte: BigInt
+  high: BigInt
+  high_not: BigInt
+  high_in: [BigInt]
+  high_not_in: [BigInt]
+  high_gt: BigInt
+  high_lt: BigInt
+  high_gte: BigInt
+  high_lte: BigInt
+  low: BigInt
+  low_not: BigInt
+  low_in: [BigInt]
+  low_not_in: [BigInt]
+  low_gt: BigInt
+  low_lt: BigInt
+  low_gte: BigInt
+  low_lte: BigInt
+  close: BigInt
+  close_not: BigInt
+  close_in: [BigInt]
+  close_not_in: [BigInt]
+  close_gt: BigInt
+  close_lt: BigInt
+  close_gte: BigInt
+  close_lte: BigInt
+  volume: BigInt
+  volume_not: BigInt
+  volume_in: [BigInt]
+  volume_not_in: [BigInt]
+  volume_gt: BigInt
+  volume_lt: BigInt
+  volume_gte: BigInt
+  volume_lte: BigInt
+  trades: Int
+  trades_not: Int
+  trades_in: [Int]
+  trades_not_in: [Int]
+  trades_gt: Int
+  trades_lt: Int
+  trades_gte: Int
+  trades_lte: Int
+  firstSeq: BigInt
+  firstSeq_not: BigInt
+  firstSeq_in: [BigInt]
+  firstSeq_not_in: [BigInt]
+  firstSeq_gt: BigInt
+  firstSeq_lt: BigInt
+  firstSeq_gte: BigInt
+  firstSeq_lte: BigInt
+  lastSeq: BigInt
+  lastSeq_not: BigInt
+  lastSeq_in: [BigInt]
+  lastSeq_not_in: [BigInt]
+  lastSeq_gt: BigInt
+  lastSeq_lt: BigInt
+  lastSeq_gte: BigInt
+  lastSeq_lte: BigInt
+}
+
+type candles1h {
+  id: String!
+  marketAddress: String!
+  bucketStart: BigInt!
+  open: BigInt!
+  high: BigInt!
+  low: BigInt!
+  close: BigInt!
+  volume: BigInt!
+  trades: Int!
+  firstSeq: BigInt!
+  lastSeq: BigInt!
+}
+
+type candles1hPage {
+  items: [candles1h!]!
+  pageInfo: PageInfo!
+}
+
+input candles1hFilter {
+  AND: [candles1hFilter]
+  OR: [candles1hFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  marketAddress: String
+  marketAddress_not: String
+  marketAddress_in: [String]
+  marketAddress_not_in: [String]
+  marketAddress_gt: String
+  marketAddress_lt: String
+  marketAddress_gte: String
+  marketAddress_lte: String
+  bucketStart: BigInt
+  bucketStart_not: BigInt
+  bucketStart_in: [BigInt]
+  bucketStart_not_in: [BigInt]
+  bucketStart_gt: BigInt
+  bucketStart_lt: BigInt
+  bucketStart_gte: BigInt
+  bucketStart_lte: BigInt
+  open: BigInt
+  open_not: BigInt
+  open_in: [BigInt]
+  open_not_in: [BigInt]
+  open_gt: BigInt
+  open_lt: BigInt
+  open_gte: BigInt
+  open_lte: BigInt
+  high: BigInt
+  high_not: BigInt
+  high_in: [BigInt]
+  high_not_in: [BigInt]
+  high_gt: BigInt
+  high_lt: BigInt
+  high_gte: BigInt
+  high_lte: BigInt
+  low: BigInt
+  low_not: BigInt
+  low_in: [BigInt]
+  low_not_in: [BigInt]
+  low_gt: BigInt
+  low_lt: BigInt
+  low_gte: BigInt
+  low_lte: BigInt
+  close: BigInt
+  close_not: BigInt
+  close_in: [BigInt]
+  close_not_in: [BigInt]
+  close_gt: BigInt
+  close_lt: BigInt
+  close_gte: BigInt
+  close_lte: BigInt
+  volume: BigInt
+  volume_not: BigInt
+  volume_in: [BigInt]
+  volume_not_in: [BigInt]
+  volume_gt: BigInt
+  volume_lt: BigInt
+  volume_gte: BigInt
+  volume_lte: BigInt
+  trades: Int
+  trades_not: Int
+  trades_in: [Int]
+  trades_not_in: [Int]
+  trades_gt: Int
+  trades_lt: Int
+  trades_gte: Int
+  trades_lte: Int
+  firstSeq: BigInt
+  firstSeq_not: BigInt
+  firstSeq_in: [BigInt]
+  firstSeq_not_in: [BigInt]
+  firstSeq_gt: BigInt
+  firstSeq_lt: BigInt
+  firstSeq_gte: BigInt
+  firstSeq_lte: BigInt
+  lastSeq: BigInt
+  lastSeq_not: BigInt
+  lastSeq_in: [BigInt]
+  lastSeq_not_in: [BigInt]
+  lastSeq_gt: BigInt
+  lastSeq_lt: BigInt
+  lastSeq_gte: BigInt
+  lastSeq_lte: BigInt
+}
+
+type candles1d {
+  id: String!
+  marketAddress: String!
+  bucketStart: BigInt!
+  open: BigInt!
+  high: BigInt!
+  low: BigInt!
+  close: BigInt!
+  volume: BigInt!
+  trades: Int!
+  firstSeq: BigInt!
+  lastSeq: BigInt!
+}
+
+type candles1dPage {
+  items: [candles1d!]!
+  pageInfo: PageInfo!
+}
+
+input candles1dFilter {
+  AND: [candles1dFilter]
+  OR: [candles1dFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  marketAddress: String
+  marketAddress_not: String
+  marketAddress_in: [String]
+  marketAddress_not_in: [String]
+  marketAddress_gt: String
+  marketAddress_lt: String
+  marketAddress_gte: String
+  marketAddress_lte: String
+  bucketStart: BigInt
+  bucketStart_not: BigInt
+  bucketStart_in: [BigInt]
+  bucketStart_not_in: [BigInt]
+  bucketStart_gt: BigInt
+  bucketStart_lt: BigInt
+  bucketStart_gte: BigInt
+  bucketStart_lte: BigInt
+  open: BigInt
+  open_not: BigInt
+  open_in: [BigInt]
+  open_not_in: [BigInt]
+  open_gt: BigInt
+  open_lt: BigInt
+  open_gte: BigInt
+  open_lte: BigInt
+  high: BigInt
+  high_not: BigInt
+  high_in: [BigInt]
+  high_not_in: [BigInt]
+  high_gt: BigInt
+  high_lt: BigInt
+  high_gte: BigInt
+  high_lte: BigInt
+  low: BigInt
+  low_not: BigInt
+  low_in: [BigInt]
+  low_not_in: [BigInt]
+  low_gt: BigInt
+  low_lt: BigInt
+  low_gte: BigInt
+  low_lte: BigInt
+  close: BigInt
+  close_not: BigInt
+  close_in: [BigInt]
+  close_not_in: [BigInt]
+  close_gt: BigInt
+  close_lt: BigInt
+  close_gte: BigInt
+  close_lte: BigInt
+  volume: BigInt
+  volume_not: BigInt
+  volume_in: [BigInt]
+  volume_not_in: [BigInt]
+  volume_gt: BigInt
+  volume_lt: BigInt
+  volume_gte: BigInt
+  volume_lte: BigInt
+  trades: Int
+  trades_not: Int
+  trades_in: [Int]
+  trades_not_in: [Int]
+  trades_gt: Int
+  trades_lt: Int
+  trades_gte: Int
+  trades_lte: Int
+  firstSeq: BigInt
+  firstSeq_not: BigInt
+  firstSeq_in: [BigInt]
+  firstSeq_not_in: [BigInt]
+  firstSeq_gt: BigInt
+  firstSeq_lt: BigInt
+  firstSeq_gte: BigInt
+  firstSeq_lte: BigInt
+  lastSeq: BigInt
+  lastSeq_not: BigInt
+  lastSeq_in: [BigInt]
+  lastSeq_not_in: [BigInt]
+  lastSeq_gt: BigInt
+  lastSeq_lt: BigInt
+  lastSeq_gte: BigInt
+  lastSeq_lte: BigInt
+}
+
 type users {
   id: String!
   chainId: Int!
@@ -723,6 +1738,7 @@ type users {
   bestStreak: Int!
   marketsCreated: Int!
   pollsCreated: Int!
+  totalCreatorFees: BigInt!
   referrerAddress: String
   referralCodeHash: String
   totalReferrals: Int!
@@ -874,6 +1890,14 @@ input usersFilter {
   pollsCreated_lt: Int
   pollsCreated_gte: Int
   pollsCreated_lte: Int
+  totalCreatorFees: BigInt
+  totalCreatorFees_not: BigInt
+  totalCreatorFees_in: [BigInt]
+  totalCreatorFees_not_in: [BigInt]
+  totalCreatorFees_gt: BigInt
+  totalCreatorFees_lt: BigInt
+  totalCreatorFees_gte: BigInt
+  totalCreatorFees_lte: BigInt
   referrerAddress: String
   referrerAddress_not: String
   referrerAddress_in: [String]
@@ -1324,6 +2348,7 @@ type platformStats {
   totalLiquidity: BigInt!
   totalFees: BigInt!
   totalWinningsPaid: BigInt!
+  totalPlatformFeesEarned: BigInt!
   lastUpdatedAt: BigInt!
   resyncVersion: Int
 }
@@ -1452,6 +2477,14 @@ input platformStatsFilter {
   totalWinningsPaid_lt: BigInt
   totalWinningsPaid_gte: BigInt
   totalWinningsPaid_lte: BigInt
+  totalPlatformFeesEarned: BigInt
+  totalPlatformFeesEarned_not: BigInt
+  totalPlatformFeesEarned_in: [BigInt]
+  totalPlatformFeesEarned_not_in: [BigInt]
+  totalPlatformFeesEarned_gt: BigInt
+  totalPlatformFeesEarned_lt: BigInt
+  totalPlatformFeesEarned_gte: BigInt
+  totalPlatformFeesEarned_lte: BigInt
   lastUpdatedAt: BigInt
   lastUpdatedAt_not: BigInt
   lastUpdatedAt_in: [BigInt]
@@ -1757,7 +2790,7 @@ type referrals {
   id: String!
   referrerAddress: String!
   refereeAddress: String!
-  referralCodeHash: String!
+  referralCodeHash: String
   status: String!
   totalVolumeGenerated: BigInt!
   totalFeesGenerated: BigInt!
@@ -2333,6 +3366,1111 @@ input campaignStatsFilter {
   updatedAt_lt: BigInt
   updatedAt_gte: BigInt
   updatedAt_lte: BigInt
+}
+
+type disputes {
+  id: String!
+  chainId: Int!
+  oracle: String!
+  disputer: String!
+  isCollateralTaken: Boolean!
+  state: Int!
+  draftStatus: Int!
+  finalStatus: Int!
+  disputerDeposit: BigInt!
+  endAt: BigInt!
+  marketToken: String!
+  marketTokenSymbol: String!
+  marketTokenDecimals: Int!
+  reason: String!
+  voteCount: Int!
+  votesYes: BigInt!
+  votesNo: BigInt!
+  votesUnknown: BigInt!
+  createdAt: BigInt!
+  createdAtBlock: BigInt!
+  resolvedAt: BigInt
+  resolvedBy: String
+}
+
+type disputesPage {
+  items: [disputes!]!
+  pageInfo: PageInfo!
+}
+
+input disputesFilter {
+  AND: [disputesFilter]
+  OR: [disputesFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  chainId: Int
+  chainId_not: Int
+  chainId_in: [Int]
+  chainId_not_in: [Int]
+  chainId_gt: Int
+  chainId_lt: Int
+  chainId_gte: Int
+  chainId_lte: Int
+  oracle: String
+  oracle_not: String
+  oracle_in: [String]
+  oracle_not_in: [String]
+  oracle_gt: String
+  oracle_lt: String
+  oracle_gte: String
+  oracle_lte: String
+  disputer: String
+  disputer_not: String
+  disputer_in: [String]
+  disputer_not_in: [String]
+  disputer_gt: String
+  disputer_lt: String
+  disputer_gte: String
+  disputer_lte: String
+  isCollateralTaken: Boolean
+  isCollateralTaken_not: Boolean
+  isCollateralTaken_in: [Boolean]
+  isCollateralTaken_not_in: [Boolean]
+  state: Int
+  state_not: Int
+  state_in: [Int]
+  state_not_in: [Int]
+  state_gt: Int
+  state_lt: Int
+  state_gte: Int
+  state_lte: Int
+  draftStatus: Int
+  draftStatus_not: Int
+  draftStatus_in: [Int]
+  draftStatus_not_in: [Int]
+  draftStatus_gt: Int
+  draftStatus_lt: Int
+  draftStatus_gte: Int
+  draftStatus_lte: Int
+  finalStatus: Int
+  finalStatus_not: Int
+  finalStatus_in: [Int]
+  finalStatus_not_in: [Int]
+  finalStatus_gt: Int
+  finalStatus_lt: Int
+  finalStatus_gte: Int
+  finalStatus_lte: Int
+  disputerDeposit: BigInt
+  disputerDeposit_not: BigInt
+  disputerDeposit_in: [BigInt]
+  disputerDeposit_not_in: [BigInt]
+  disputerDeposit_gt: BigInt
+  disputerDeposit_lt: BigInt
+  disputerDeposit_gte: BigInt
+  disputerDeposit_lte: BigInt
+  endAt: BigInt
+  endAt_not: BigInt
+  endAt_in: [BigInt]
+  endAt_not_in: [BigInt]
+  endAt_gt: BigInt
+  endAt_lt: BigInt
+  endAt_gte: BigInt
+  endAt_lte: BigInt
+  marketToken: String
+  marketToken_not: String
+  marketToken_in: [String]
+  marketToken_not_in: [String]
+  marketToken_gt: String
+  marketToken_lt: String
+  marketToken_gte: String
+  marketToken_lte: String
+  marketTokenSymbol: String
+  marketTokenSymbol_not: String
+  marketTokenSymbol_in: [String]
+  marketTokenSymbol_not_in: [String]
+  marketTokenSymbol_contains: String
+  marketTokenSymbol_not_contains: String
+  marketTokenSymbol_starts_with: String
+  marketTokenSymbol_ends_with: String
+  marketTokenSymbol_not_starts_with: String
+  marketTokenSymbol_not_ends_with: String
+  marketTokenDecimals: Int
+  marketTokenDecimals_not: Int
+  marketTokenDecimals_in: [Int]
+  marketTokenDecimals_not_in: [Int]
+  marketTokenDecimals_gt: Int
+  marketTokenDecimals_lt: Int
+  marketTokenDecimals_gte: Int
+  marketTokenDecimals_lte: Int
+  reason: String
+  reason_not: String
+  reason_in: [String]
+  reason_not_in: [String]
+  reason_contains: String
+  reason_not_contains: String
+  reason_starts_with: String
+  reason_ends_with: String
+  reason_not_starts_with: String
+  reason_not_ends_with: String
+  voteCount: Int
+  voteCount_not: Int
+  voteCount_in: [Int]
+  voteCount_not_in: [Int]
+  voteCount_gt: Int
+  voteCount_lt: Int
+  voteCount_gte: Int
+  voteCount_lte: Int
+  votesYes: BigInt
+  votesYes_not: BigInt
+  votesYes_in: [BigInt]
+  votesYes_not_in: [BigInt]
+  votesYes_gt: BigInt
+  votesYes_lt: BigInt
+  votesYes_gte: BigInt
+  votesYes_lte: BigInt
+  votesNo: BigInt
+  votesNo_not: BigInt
+  votesNo_in: [BigInt]
+  votesNo_not_in: [BigInt]
+  votesNo_gt: BigInt
+  votesNo_lt: BigInt
+  votesNo_gte: BigInt
+  votesNo_lte: BigInt
+  votesUnknown: BigInt
+  votesUnknown_not: BigInt
+  votesUnknown_in: [BigInt]
+  votesUnknown_not_in: [BigInt]
+  votesUnknown_gt: BigInt
+  votesUnknown_lt: BigInt
+  votesUnknown_gte: BigInt
+  votesUnknown_lte: BigInt
+  createdAt: BigInt
+  createdAt_not: BigInt
+  createdAt_in: [BigInt]
+  createdAt_not_in: [BigInt]
+  createdAt_gt: BigInt
+  createdAt_lt: BigInt
+  createdAt_gte: BigInt
+  createdAt_lte: BigInt
+  createdAtBlock: BigInt
+  createdAtBlock_not: BigInt
+  createdAtBlock_in: [BigInt]
+  createdAtBlock_not_in: [BigInt]
+  createdAtBlock_gt: BigInt
+  createdAtBlock_lt: BigInt
+  createdAtBlock_gte: BigInt
+  createdAtBlock_lte: BigInt
+  resolvedAt: BigInt
+  resolvedAt_not: BigInt
+  resolvedAt_in: [BigInt]
+  resolvedAt_not_in: [BigInt]
+  resolvedAt_gt: BigInt
+  resolvedAt_lt: BigInt
+  resolvedAt_gte: BigInt
+  resolvedAt_lte: BigInt
+  resolvedBy: String
+  resolvedBy_not: String
+  resolvedBy_in: [String]
+  resolvedBy_not_in: [String]
+  resolvedBy_gt: String
+  resolvedBy_lt: String
+  resolvedBy_gte: String
+  resolvedBy_lte: String
+}
+
+type disputeVotes {
+  id: String!
+  chainId: Int!
+  oracle: String!
+  voter: String!
+  votedFor: Int!
+  power: BigInt!
+  votedAt: BigInt!
+  votedAtBlock: BigInt!
+  txHash: String!
+  isCrossChain: Boolean!
+  sourceChainEid: Int
+  tokenIds: String
+}
+
+type disputeVotesPage {
+  items: [disputeVotes!]!
+  pageInfo: PageInfo!
+}
+
+input disputeVotesFilter {
+  AND: [disputeVotesFilter]
+  OR: [disputeVotesFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  chainId: Int
+  chainId_not: Int
+  chainId_in: [Int]
+  chainId_not_in: [Int]
+  chainId_gt: Int
+  chainId_lt: Int
+  chainId_gte: Int
+  chainId_lte: Int
+  oracle: String
+  oracle_not: String
+  oracle_in: [String]
+  oracle_not_in: [String]
+  oracle_gt: String
+  oracle_lt: String
+  oracle_gte: String
+  oracle_lte: String
+  voter: String
+  voter_not: String
+  voter_in: [String]
+  voter_not_in: [String]
+  voter_gt: String
+  voter_lt: String
+  voter_gte: String
+  voter_lte: String
+  votedFor: Int
+  votedFor_not: Int
+  votedFor_in: [Int]
+  votedFor_not_in: [Int]
+  votedFor_gt: Int
+  votedFor_lt: Int
+  votedFor_gte: Int
+  votedFor_lte: Int
+  power: BigInt
+  power_not: BigInt
+  power_in: [BigInt]
+  power_not_in: [BigInt]
+  power_gt: BigInt
+  power_lt: BigInt
+  power_gte: BigInt
+  power_lte: BigInt
+  votedAt: BigInt
+  votedAt_not: BigInt
+  votedAt_in: [BigInt]
+  votedAt_not_in: [BigInt]
+  votedAt_gt: BigInt
+  votedAt_lt: BigInt
+  votedAt_gte: BigInt
+  votedAt_lte: BigInt
+  votedAtBlock: BigInt
+  votedAtBlock_not: BigInt
+  votedAtBlock_in: [BigInt]
+  votedAtBlock_not_in: [BigInt]
+  votedAtBlock_gt: BigInt
+  votedAtBlock_lt: BigInt
+  votedAtBlock_gte: BigInt
+  votedAtBlock_lte: BigInt
+  txHash: String
+  txHash_not: String
+  txHash_in: [String]
+  txHash_not_in: [String]
+  txHash_gt: String
+  txHash_lt: String
+  txHash_gte: String
+  txHash_lte: String
+  isCrossChain: Boolean
+  isCrossChain_not: Boolean
+  isCrossChain_in: [Boolean]
+  isCrossChain_not_in: [Boolean]
+  sourceChainEid: Int
+  sourceChainEid_not: Int
+  sourceChainEid_in: [Int]
+  sourceChainEid_not_in: [Int]
+  sourceChainEid_gt: Int
+  sourceChainEid_lt: Int
+  sourceChainEid_gte: Int
+  sourceChainEid_lte: Int
+  tokenIds: String
+  tokenIds_not: String
+  tokenIds_in: [String]
+  tokenIds_not_in: [String]
+  tokenIds_contains: String
+  tokenIds_not_contains: String
+  tokenIds_starts_with: String
+  tokenIds_ends_with: String
+  tokenIds_not_starts_with: String
+  tokenIds_not_ends_with: String
+}
+
+type disputeRewardClaims {
+  id: String!
+  chainId: Int!
+  oracle: String!
+  srcEid: Int!
+  tokenId: BigInt!
+  claimer: String!
+  rewardToken: String!
+  rewardAmount: BigInt!
+  votedFor: Int!
+  claimedAt: BigInt!
+  claimedAtBlock: BigInt!
+  txHash: String!
+}
+
+type disputeRewardClaimsPage {
+  items: [disputeRewardClaims!]!
+  pageInfo: PageInfo!
+}
+
+input disputeRewardClaimsFilter {
+  AND: [disputeRewardClaimsFilter]
+  OR: [disputeRewardClaimsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  chainId: Int
+  chainId_not: Int
+  chainId_in: [Int]
+  chainId_not_in: [Int]
+  chainId_gt: Int
+  chainId_lt: Int
+  chainId_gte: Int
+  chainId_lte: Int
+  oracle: String
+  oracle_not: String
+  oracle_in: [String]
+  oracle_not_in: [String]
+  oracle_gt: String
+  oracle_lt: String
+  oracle_gte: String
+  oracle_lte: String
+  srcEid: Int
+  srcEid_not: Int
+  srcEid_in: [Int]
+  srcEid_not_in: [Int]
+  srcEid_gt: Int
+  srcEid_lt: Int
+  srcEid_gte: Int
+  srcEid_lte: Int
+  tokenId: BigInt
+  tokenId_not: BigInt
+  tokenId_in: [BigInt]
+  tokenId_not_in: [BigInt]
+  tokenId_gt: BigInt
+  tokenId_lt: BigInt
+  tokenId_gte: BigInt
+  tokenId_lte: BigInt
+  claimer: String
+  claimer_not: String
+  claimer_in: [String]
+  claimer_not_in: [String]
+  claimer_gt: String
+  claimer_lt: String
+  claimer_gte: String
+  claimer_lte: String
+  rewardToken: String
+  rewardToken_not: String
+  rewardToken_in: [String]
+  rewardToken_not_in: [String]
+  rewardToken_gt: String
+  rewardToken_lt: String
+  rewardToken_gte: String
+  rewardToken_lte: String
+  rewardAmount: BigInt
+  rewardAmount_not: BigInt
+  rewardAmount_in: [BigInt]
+  rewardAmount_not_in: [BigInt]
+  rewardAmount_gt: BigInt
+  rewardAmount_lt: BigInt
+  rewardAmount_gte: BigInt
+  rewardAmount_lte: BigInt
+  votedFor: Int
+  votedFor_not: Int
+  votedFor_in: [Int]
+  votedFor_not_in: [Int]
+  votedFor_gt: Int
+  votedFor_lt: Int
+  votedFor_gte: Int
+  votedFor_lte: Int
+  claimedAt: BigInt
+  claimedAt_not: BigInt
+  claimedAt_in: [BigInt]
+  claimedAt_not_in: [BigInt]
+  claimedAt_gt: BigInt
+  claimedAt_lt: BigInt
+  claimedAt_gte: BigInt
+  claimedAt_lte: BigInt
+  claimedAtBlock: BigInt
+  claimedAtBlock_not: BigInt
+  claimedAtBlock_in: [BigInt]
+  claimedAtBlock_not_in: [BigInt]
+  claimedAtBlock_gt: BigInt
+  claimedAtBlock_lt: BigInt
+  claimedAtBlock_gte: BigInt
+  claimedAtBlock_lte: BigInt
+  txHash: String
+  txHash_not: String
+  txHash_in: [String]
+  txHash_not_in: [String]
+  txHash_gt: String
+  txHash_lt: String
+  txHash_gte: String
+  txHash_lte: String
+}
+
+type graduatedCreators {
+  id: String!
+  tokenAddress: String!
+  bondingCurveAddress: String!
+  graduatedAtBlock: BigInt!
+  graduatedAt: BigInt!
+  graduatedTxHash: String!
+  referralFactoryAddress: String
+  status: String!
+}
+
+type graduatedCreatorsPage {
+  items: [graduatedCreators!]!
+  pageInfo: PageInfo!
+}
+
+input graduatedCreatorsFilter {
+  AND: [graduatedCreatorsFilter]
+  OR: [graduatedCreatorsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_gt: String
+  id_lt: String
+  id_gte: String
+  id_lte: String
+  tokenAddress: String
+  tokenAddress_not: String
+  tokenAddress_in: [String]
+  tokenAddress_not_in: [String]
+  tokenAddress_gt: String
+  tokenAddress_lt: String
+  tokenAddress_gte: String
+  tokenAddress_lte: String
+  bondingCurveAddress: String
+  bondingCurveAddress_not: String
+  bondingCurveAddress_in: [String]
+  bondingCurveAddress_not_in: [String]
+  bondingCurveAddress_gt: String
+  bondingCurveAddress_lt: String
+  bondingCurveAddress_gte: String
+  bondingCurveAddress_lte: String
+  graduatedAtBlock: BigInt
+  graduatedAtBlock_not: BigInt
+  graduatedAtBlock_in: [BigInt]
+  graduatedAtBlock_not_in: [BigInt]
+  graduatedAtBlock_gt: BigInt
+  graduatedAtBlock_lt: BigInt
+  graduatedAtBlock_gte: BigInt
+  graduatedAtBlock_lte: BigInt
+  graduatedAt: BigInt
+  graduatedAt_not: BigInt
+  graduatedAt_in: [BigInt]
+  graduatedAt_not_in: [BigInt]
+  graduatedAt_gt: BigInt
+  graduatedAt_lt: BigInt
+  graduatedAt_gte: BigInt
+  graduatedAt_lte: BigInt
+  graduatedTxHash: String
+  graduatedTxHash_not: String
+  graduatedTxHash_in: [String]
+  graduatedTxHash_not_in: [String]
+  graduatedTxHash_gt: String
+  graduatedTxHash_lt: String
+  graduatedTxHash_gte: String
+  graduatedTxHash_lte: String
+  referralFactoryAddress: String
+  referralFactoryAddress_not: String
+  referralFactoryAddress_in: [String]
+  referralFactoryAddress_not_in: [String]
+  referralFactoryAddress_gt: String
+  referralFactoryAddress_lt: String
+  referralFactoryAddress_gte: String
+  referralFactoryAddress_lte: String
+  status: String
+  status_not: String
+  status_in: [String]
+  status_not_in: [String]
+  status_contains: String
+  status_not_contains: String
+  status_starts_with: String
+  status_ends_with: String
+  status_not_starts_with: String
+  status_not_ends_with: String
+}
+
+type marketSystems {
+  id: String!
+  creator: String!
+  system: String!
+  switchedAt: BigInt
+}
+
+type marketSystemsPage {
+  items: [marketSystems!]!
+  pageInfo: PageInfo!
+}
+
+input marketSystemsFilter {
+  AND: [marketSystemsFilter]
+  OR: [marketSystemsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_gt: String
+  id_lt: String
+  id_gte: String
+  id_lte: String
+  creator: String
+  creator_not: String
+  creator_in: [String]
+  creator_not_in: [String]
+  creator_gt: String
+  creator_lt: String
+  creator_gte: String
+  creator_lte: String
+  system: String
+  system_not: String
+  system_in: [String]
+  system_not_in: [String]
+  system_contains: String
+  system_not_contains: String
+  system_starts_with: String
+  system_ends_with: String
+  system_not_starts_with: String
+  system_not_ends_with: String
+  switchedAt: BigInt
+  switchedAt_not: BigInt
+  switchedAt_in: [BigInt]
+  switchedAt_not_in: [BigInt]
+  switchedAt_gt: BigInt
+  switchedAt_lt: BigInt
+  switchedAt_gte: BigInt
+  switchedAt_lte: BigInt
+}
+
+type tokenSystems {
+  id: String!
+  creator: String!
+  system: String!
+  switchedAt: BigInt
+}
+
+type tokenSystemsPage {
+  items: [tokenSystems!]!
+  pageInfo: PageInfo!
+}
+
+input tokenSystemsFilter {
+  AND: [tokenSystemsFilter]
+  OR: [tokenSystemsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_gt: String
+  id_lt: String
+  id_gte: String
+  id_lte: String
+  creator: String
+  creator_not: String
+  creator_in: [String]
+  creator_not_in: [String]
+  creator_gt: String
+  creator_lt: String
+  creator_gte: String
+  creator_lte: String
+  system: String
+  system_not: String
+  system_in: [String]
+  system_not_in: [String]
+  system_contains: String
+  system_not_contains: String
+  system_starts_with: String
+  system_ends_with: String
+  system_not_starts_with: String
+  system_not_ends_with: String
+  switchedAt: BigInt
+  switchedAt_not: BigInt
+  switchedAt_in: [BigInt]
+  switchedAt_not_in: [BigInt]
+  switchedAt_gt: BigInt
+  switchedAt_lt: BigInt
+  switchedAt_gte: BigInt
+  switchedAt_lte: BigInt
+}
+
+type launchpadTokens {
+  id: String!
+  creator: String!
+  bondingCurveAddress: String!
+  name: String!
+  symbol: String!
+  uri: String
+  imageUri: String
+  description: String
+  currentTvlNative: BigInt!
+  isGraduated: Boolean!
+  createdAt: BigInt!
+  createdAtBlock: BigInt!
+  graduatedAt: BigInt
+  graduatedAtBlock: BigInt
+}
+
+type launchpadTokensPage {
+  items: [launchpadTokens!]!
+  pageInfo: PageInfo!
+}
+
+input launchpadTokensFilter {
+  AND: [launchpadTokensFilter]
+  OR: [launchpadTokensFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_gt: String
+  id_lt: String
+  id_gte: String
+  id_lte: String
+  creator: String
+  creator_not: String
+  creator_in: [String]
+  creator_not_in: [String]
+  creator_gt: String
+  creator_lt: String
+  creator_gte: String
+  creator_lte: String
+  bondingCurveAddress: String
+  bondingCurveAddress_not: String
+  bondingCurveAddress_in: [String]
+  bondingCurveAddress_not_in: [String]
+  bondingCurveAddress_gt: String
+  bondingCurveAddress_lt: String
+  bondingCurveAddress_gte: String
+  bondingCurveAddress_lte: String
+  name: String
+  name_not: String
+  name_in: [String]
+  name_not_in: [String]
+  name_contains: String
+  name_not_contains: String
+  name_starts_with: String
+  name_ends_with: String
+  name_not_starts_with: String
+  name_not_ends_with: String
+  symbol: String
+  symbol_not: String
+  symbol_in: [String]
+  symbol_not_in: [String]
+  symbol_contains: String
+  symbol_not_contains: String
+  symbol_starts_with: String
+  symbol_ends_with: String
+  symbol_not_starts_with: String
+  symbol_not_ends_with: String
+  uri: String
+  uri_not: String
+  uri_in: [String]
+  uri_not_in: [String]
+  uri_contains: String
+  uri_not_contains: String
+  uri_starts_with: String
+  uri_ends_with: String
+  uri_not_starts_with: String
+  uri_not_ends_with: String
+  imageUri: String
+  imageUri_not: String
+  imageUri_in: [String]
+  imageUri_not_in: [String]
+  imageUri_contains: String
+  imageUri_not_contains: String
+  imageUri_starts_with: String
+  imageUri_ends_with: String
+  imageUri_not_starts_with: String
+  imageUri_not_ends_with: String
+  description: String
+  description_not: String
+  description_in: [String]
+  description_not_in: [String]
+  description_contains: String
+  description_not_contains: String
+  description_starts_with: String
+  description_ends_with: String
+  description_not_starts_with: String
+  description_not_ends_with: String
+  currentTvlNative: BigInt
+  currentTvlNative_not: BigInt
+  currentTvlNative_in: [BigInt]
+  currentTvlNative_not_in: [BigInt]
+  currentTvlNative_gt: BigInt
+  currentTvlNative_lt: BigInt
+  currentTvlNative_gte: BigInt
+  currentTvlNative_lte: BigInt
+  isGraduated: Boolean
+  isGraduated_not: Boolean
+  isGraduated_in: [Boolean]
+  isGraduated_not_in: [Boolean]
+  createdAt: BigInt
+  createdAt_not: BigInt
+  createdAt_in: [BigInt]
+  createdAt_not_in: [BigInt]
+  createdAt_gt: BigInt
+  createdAt_lt: BigInt
+  createdAt_gte: BigInt
+  createdAt_lte: BigInt
+  createdAtBlock: BigInt
+  createdAtBlock_not: BigInt
+  createdAtBlock_in: [BigInt]
+  createdAtBlock_not_in: [BigInt]
+  createdAtBlock_gt: BigInt
+  createdAtBlock_lt: BigInt
+  createdAtBlock_gte: BigInt
+  createdAtBlock_lte: BigInt
+  graduatedAt: BigInt
+  graduatedAt_not: BigInt
+  graduatedAt_in: [BigInt]
+  graduatedAt_not_in: [BigInt]
+  graduatedAt_gt: BigInt
+  graduatedAt_lt: BigInt
+  graduatedAt_gte: BigInt
+  graduatedAt_lte: BigInt
+  graduatedAtBlock: BigInt
+  graduatedAtBlock_not: BigInt
+  graduatedAtBlock_in: [BigInt]
+  graduatedAtBlock_not_in: [BigInt]
+  graduatedAtBlock_gt: BigInt
+  graduatedAtBlock_lt: BigInt
+  graduatedAtBlock_gte: BigInt
+  graduatedAtBlock_lte: BigInt
+}
+
+type launchpadTrades {
+  id: String!
+  bondingCurveAddress: String!
+  trader: String!
+  tradeType: String!
+  nativeAmount: BigInt!
+  tokenAmount: BigInt!
+  fee: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  processedForReferral: Boolean!
+}
+
+type launchpadTradesPage {
+  items: [launchpadTrades!]!
+  pageInfo: PageInfo!
+}
+
+input launchpadTradesFilter {
+  AND: [launchpadTradesFilter]
+  OR: [launchpadTradesFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  bondingCurveAddress: String
+  bondingCurveAddress_not: String
+  bondingCurveAddress_in: [String]
+  bondingCurveAddress_not_in: [String]
+  bondingCurveAddress_gt: String
+  bondingCurveAddress_lt: String
+  bondingCurveAddress_gte: String
+  bondingCurveAddress_lte: String
+  trader: String
+  trader_not: String
+  trader_in: [String]
+  trader_not_in: [String]
+  trader_gt: String
+  trader_lt: String
+  trader_gte: String
+  trader_lte: String
+  tradeType: String
+  tradeType_not: String
+  tradeType_in: [String]
+  tradeType_not_in: [String]
+  tradeType_contains: String
+  tradeType_not_contains: String
+  tradeType_starts_with: String
+  tradeType_ends_with: String
+  tradeType_not_starts_with: String
+  tradeType_not_ends_with: String
+  nativeAmount: BigInt
+  nativeAmount_not: BigInt
+  nativeAmount_in: [BigInt]
+  nativeAmount_not_in: [BigInt]
+  nativeAmount_gt: BigInt
+  nativeAmount_lt: BigInt
+  nativeAmount_gte: BigInt
+  nativeAmount_lte: BigInt
+  tokenAmount: BigInt
+  tokenAmount_not: BigInt
+  tokenAmount_in: [BigInt]
+  tokenAmount_not_in: [BigInt]
+  tokenAmount_gt: BigInt
+  tokenAmount_lt: BigInt
+  tokenAmount_gte: BigInt
+  tokenAmount_lte: BigInt
+  fee: BigInt
+  fee_not: BigInt
+  fee_in: [BigInt]
+  fee_not_in: [BigInt]
+  fee_gt: BigInt
+  fee_lt: BigInt
+  fee_gte: BigInt
+  fee_lte: BigInt
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_in: [BigInt]
+  timestamp_not_in: [BigInt]
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  blockNumber: BigInt
+  blockNumber_not: BigInt
+  blockNumber_in: [BigInt]
+  blockNumber_not_in: [BigInt]
+  blockNumber_gt: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lte: BigInt
+  processedForReferral: Boolean
+  processedForReferral_not: Boolean
+  processedForReferral_in: [Boolean]
+  processedForReferral_not_in: [Boolean]
+}
+
+type userMarketPositions {
+  id: String!
+  chainId: Int!
+  marketAddress: String!
+  pollAddress: String!
+  user: String!
+  yesAmount: BigInt!
+  noAmount: BigInt!
+  yesTokens: BigInt!
+  noTokens: BigInt!
+  hasRedeemed: Boolean!
+  lossRecorded: Boolean!
+  firstPositionAt: BigInt!
+  lastUpdatedAt: BigInt!
+}
+
+type userMarketPositionsPage {
+  items: [userMarketPositions!]!
+  pageInfo: PageInfo!
+}
+
+input userMarketPositionsFilter {
+  AND: [userMarketPositionsFilter]
+  OR: [userMarketPositionsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  chainId: Int
+  chainId_not: Int
+  chainId_in: [Int]
+  chainId_not_in: [Int]
+  chainId_gt: Int
+  chainId_lt: Int
+  chainId_gte: Int
+  chainId_lte: Int
+  marketAddress: String
+  marketAddress_not: String
+  marketAddress_in: [String]
+  marketAddress_not_in: [String]
+  marketAddress_gt: String
+  marketAddress_lt: String
+  marketAddress_gte: String
+  marketAddress_lte: String
+  pollAddress: String
+  pollAddress_not: String
+  pollAddress_in: [String]
+  pollAddress_not_in: [String]
+  pollAddress_gt: String
+  pollAddress_lt: String
+  pollAddress_gte: String
+  pollAddress_lte: String
+  user: String
+  user_not: String
+  user_in: [String]
+  user_not_in: [String]
+  user_gt: String
+  user_lt: String
+  user_gte: String
+  user_lte: String
+  yesAmount: BigInt
+  yesAmount_not: BigInt
+  yesAmount_in: [BigInt]
+  yesAmount_not_in: [BigInt]
+  yesAmount_gt: BigInt
+  yesAmount_lt: BigInt
+  yesAmount_gte: BigInt
+  yesAmount_lte: BigInt
+  noAmount: BigInt
+  noAmount_not: BigInt
+  noAmount_in: [BigInt]
+  noAmount_not_in: [BigInt]
+  noAmount_gt: BigInt
+  noAmount_lt: BigInt
+  noAmount_gte: BigInt
+  noAmount_lte: BigInt
+  yesTokens: BigInt
+  yesTokens_not: BigInt
+  yesTokens_in: [BigInt]
+  yesTokens_not_in: [BigInt]
+  yesTokens_gt: BigInt
+  yesTokens_lt: BigInt
+  yesTokens_gte: BigInt
+  yesTokens_lte: BigInt
+  noTokens: BigInt
+  noTokens_not: BigInt
+  noTokens_in: [BigInt]
+  noTokens_not_in: [BigInt]
+  noTokens_gt: BigInt
+  noTokens_lt: BigInt
+  noTokens_gte: BigInt
+  noTokens_lte: BigInt
+  hasRedeemed: Boolean
+  hasRedeemed_not: Boolean
+  hasRedeemed_in: [Boolean]
+  hasRedeemed_not_in: [Boolean]
+  lossRecorded: Boolean
+  lossRecorded_not: Boolean
+  lossRecorded_in: [Boolean]
+  lossRecorded_not_in: [Boolean]
+  firstPositionAt: BigInt
+  firstPositionAt_not: BigInt
+  firstPositionAt_in: [BigInt]
+  firstPositionAt_not_in: [BigInt]
+  firstPositionAt_gt: BigInt
+  firstPositionAt_lt: BigInt
+  firstPositionAt_gte: BigInt
+  firstPositionAt_lte: BigInt
+  lastUpdatedAt: BigInt
+  lastUpdatedAt_not: BigInt
+  lastUpdatedAt_in: [BigInt]
+  lastUpdatedAt_not_in: [BigInt]
+  lastUpdatedAt_gt: BigInt
+  lastUpdatedAt_lt: BigInt
+  lastUpdatedAt_gte: BigInt
+  lastUpdatedAt_lte: BigInt
+}
+
+type claimEvents {
+  id: String!
+  campaignAddress: String!
+  userAddress: String!
+  amount: BigInt!
+  signature: String!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+type claimEventsPage {
+  items: [claimEvents!]!
+  pageInfo: PageInfo!
+}
+
+input claimEventsFilter {
+  AND: [claimEventsFilter]
+  OR: [claimEventsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  campaignAddress: String
+  campaignAddress_not: String
+  campaignAddress_in: [String]
+  campaignAddress_not_in: [String]
+  campaignAddress_gt: String
+  campaignAddress_lt: String
+  campaignAddress_gte: String
+  campaignAddress_lte: String
+  userAddress: String
+  userAddress_not: String
+  userAddress_in: [String]
+  userAddress_not_in: [String]
+  userAddress_gt: String
+  userAddress_lt: String
+  userAddress_gte: String
+  userAddress_lte: String
+  amount: BigInt
+  amount_not: BigInt
+  amount_in: [BigInt]
+  amount_not_in: [BigInt]
+  amount_gt: BigInt
+  amount_lt: BigInt
+  amount_gte: BigInt
+  amount_lte: BigInt
+  signature: String
+  signature_not: String
+  signature_in: [String]
+  signature_not_in: [String]
+  signature_gt: String
+  signature_lt: String
+  signature_gte: String
+  signature_lte: String
+  blockNumber: BigInt
+  blockNumber_not: BigInt
+  blockNumber_in: [BigInt]
+  blockNumber_not_in: [BigInt]
+  blockNumber_gt: BigInt
+  blockNumber_lt: BigInt
+  blockNumber_gte: BigInt
+  blockNumber_lte: BigInt
+  timestamp: BigInt
+  timestamp_not: BigInt
+  timestamp_in: [BigInt]
+  timestamp_not_in: [BigInt]
+  timestamp_gt: BigInt
+  timestamp_lt: BigInt
+  timestamp_gte: BigInt
+  timestamp_lte: BigInt
+  txHash: String
+  txHash_not: String
+  txHash_in: [String]
+  txHash_not_in: [String]
+  txHash_gt: String
+  txHash_lt: String
+  txHash_gte: String
+  txHash_lte: String
 }
 
 type _meta {

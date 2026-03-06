@@ -1,12 +1,3 @@
-/**
- * ╔═══════════════════════════════════════════════════════════════════════════╗
- * ║                    REFERRAL TRACKING SERVICE                               ║
- * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Handles referral volume and fee tracking for trade events.                ║
- * ║  Called by AMM and PariMutuel handlers on every trade.                     ║
- * ╚═══════════════════════════════════════════════════════════════════════════╝
- */
-
 import { ReferralFactoryAbi } from "../../abis/ReferralFactory";
 import { getChainConfig } from "../../config";
 import { ChainInfo, makeId } from "../utils/helpers";

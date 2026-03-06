@@ -7,14 +7,11 @@ import {
 	isNewTraderForMarket,
 	recordMarketInteraction,
 } from "../services/db";
-// TODO: Referral system disabled for now - ReferralFactory not deployed on Ethereum
-// Volume is still tracked in trades/users/markets tables for future referral calculations
-// import { updateReferralVolume } from "../services/referral";
 import { updatePollTvl } from "../services/pollTvl";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 import { recordPriceTickAndCandles } from "../services/candles";
-
-const YES_PRICE_SCALE = 1_000_000_000n; // 1e9
+import { PRICE_SCALE } from "../utils/constants";
+import { handleProtocolFeesWithdrawn } from "../services/protocolFees";
 
 function computeYesChanceFromCollateral(params: {
 	totalCollateralYes: bigint;
@@ -23,7 +20,7 @@ function computeYesChanceFromCollateral(params: {
 	const { totalCollateralYes, totalCollateralNo } = params;
 	const total = totalCollateralYes + totalCollateralNo;
 	if (total <= 0n) return 500_000_000n;
-	return (totalCollateralYes * YES_PRICE_SCALE) / total;
+	return (totalCollateralYes * PRICE_SCALE) / total;
 }
 
 ponder.on(
@@ -407,11 +404,9 @@ ponder.on(
 	async ({ event, context }: any) => {
 		try {
 			const { platformShare, creatorShare } = event.args;
-			const timestamp = event.block.timestamp;
 			const marketAddress = event.log.address;
 			const chain = getChainInfo(context);
 
-			// 1) Read on-chain state first (no DB writes before this succeeds)
 			const marketState = await context.client.readContract({
 				address: marketAddress,
 				abi: PredictionPariMutuelAbi,
@@ -419,78 +414,26 @@ ponder.on(
 				blockNumber: event.block.number,
 			});
 
-			// marketState returns: (isLive, collateralTvl, yesChance, collateral)
 			const tvlNow = BigInt(marketState[1]);
 
-			// 2) Load (or create) market after successful reads
-			const market =
-				(await context.db.markets.findUnique({ id: marketAddress })) ??
-				(await getOrCreateMinimalMarket(
-					context,
-					marketAddress,
-					chain,
-					"pari",
-					timestamp,
-					event.block.number,
-					event.transaction.hash
-				));
-
-			const oldTvl = market.currentTvl ?? 0n;
-			const delta = tvlNow - oldTvl;
-
-			const creatorShareBigInt = BigInt(creatorShare ?? 0);
-			const platformShareBigInt = BigInt(platformShare ?? 0);
-
-			// Apply DB writes last
-			await context.db.markets.update({
-				id: marketAddress,
-				data: {
-					currentTvl: tvlNow,
-					creatorFeesEarned:
-						(market.creatorFeesEarned ?? 0n) + creatorShareBigInt,
-					platformFeesEarned:
-						(market.platformFeesEarned ?? 0n) + platformShareBigInt,
-				},
+			await handleProtocolFeesWithdrawn({
+				context,
+				chain,
+				marketAddress,
+				timestamp: event.block.timestamp,
+				blockNumber: BigInt(event.block.number),
+				txHash: event.transaction.hash,
+				logIndex: event.log.logIndex,
+				platformShare: BigInt(platformShare ?? 0),
+				creatorShare: BigInt(creatorShare ?? 0),
+				marketType: "pari",
+				currentTvl: tvlNow,
 			});
-
-			// Sync poll TVL after market TVL update
-			await updatePollTvl(context, market.pollAddress);
-
-			if (delta !== 0n) {
-				await updateAggregateStats(context, chain, timestamp, {
-					tvlChange: delta,
-				});
-			}
-
-			//  Update creator's totalCreatorFees if creatorShare > 0
-			if (creatorShareBigInt > 0n && market.creator) {
-				const creatorUser = await getOrCreateUser(
-					context,
-					market.creator,
-					chain
-				);
-				await context.db.users.update({
-					id: creatorUser.id,
-					data: {
-						totalCreatorFees:
-							(creatorUser.totalCreatorFees ?? 0n) +
-							creatorShareBigInt,
-					},
-				});
-			}
-
-			//  Update platform stats with platformShare
-			if (platformShareBigInt > 0n) {
-				await updateAggregateStats(context, chain, timestamp, {
-					platformFees: platformShareBigInt,
-				});
-			}
 		} catch (err) {
 			console.error(
 				`[PredictionPariMutuel:ProtocolFeesWithdrawn] Failed tx=${event.transaction.hash} logIndex=${event.log.logIndex}:`,
 				err
 			);
-			return;
 		}
 	}
 );

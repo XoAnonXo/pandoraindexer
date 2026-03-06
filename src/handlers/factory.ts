@@ -5,8 +5,7 @@ import { getOrCreateUser } from "../services/db";
 import { updatePollTvl } from "../services/pollTvl";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
-
-const YES_PRICE_SCALE = 1_000_000_000n; // 1e9
+import { PRICE_SCALE } from "../utils/constants";
 
 ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 	try {
@@ -219,7 +218,7 @@ ponder.on(
 					const total = totalYes + totalNo;
 					const correctedYesChance =
 						total > 0n
-							? (totalYes * YES_PRICE_SCALE) / total
+							? (totalYes * PRICE_SCALE) / total
 							: 500_000_000n;
 
 					return {

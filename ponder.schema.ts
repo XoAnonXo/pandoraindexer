@@ -91,6 +91,49 @@ export default createSchema((p) => ({
   }),
 
   // ===========================================================================
+  // EVENTS TABLE (off-chain, synced from pandora-api)
+  // ===========================================================================
+  /**
+   * Multi-market event groupings.
+   * Populated by sync-events.ts from app_internal.events.
+   * NOT filled by on-chain indexing — purely off-chain metadata.
+   *
+   * ID FORMAT: UUID (from pandora-api)
+   */
+  events: p.createTable({
+    /** Event UUID (primary key) */
+    id: p.string(),
+    /** Creator wallet address */
+    creator: p.string(),
+    /** Shared market type: 'amm' or 'pari' */
+    marketType: p.string(),
+    /** Shared arbiter address */
+    arbiter: p.string(),
+    /** Shared source URLs (JSON array) */
+    sources: p.string(),
+    /** Shared category (0-11) */
+    category: p.int(),
+    /** AMM: fee tier */
+    feeTier: p.int().optional(),
+    /** AMM: max price imbalance per hour */
+    maxPriceImbalance: p.int().optional(),
+    /** PariMutuel: curve flattener */
+    curveFlattener: p.int().optional(),
+    /** PariMutuel: curve offset */
+    curveOffset: p.int().optional(),
+    /** Linked poll addresses (JSON array) */
+    pollAddresses: p.string(),
+    /** Linked market addresses (JSON array) */
+    marketAddresses: p.string(),
+    /** Event status: 'pending', 'partial', 'completed' */
+    status: p.string(),
+    /** Number of markets in this event */
+    marketCount: p.int(),
+    /** Timestamp when created (ISO string) */
+    createdAt: p.string(),
+  }),
+
+  // ===========================================================================
   // POLLS TABLE
   // ===========================================================================
   /**
@@ -149,6 +192,9 @@ export default createSchema((p) => ({
     preDisputeStatus: p.int().optional(),
     /** Original resolution reason before dispute overturned it */
     preDisputeResolutionReason: p.string().optional(),
+
+    /** Event ID for multi-market grouping (set externally by pandora-api) */
+    eventId: p.string().optional(),
 
     /** Maximum TVL among all markets for this poll (6 decimals) - for filtering/sorting */
     maxMarketTvl: p.bigint().optional(),
@@ -244,6 +290,9 @@ export default createSchema((p) => ({
      */
     yesChance: p.bigint().optional(),
 
+    /** Event ID for multi-market grouping (set externally by pandora-api) */
+    eventId: p.string().optional(),
+
     /** Block when created */
     createdAtBlock: p.bigint(),
     /** Timestamp when created */
@@ -282,6 +331,8 @@ export default createSchema((p) => ({
     tokenAmount: p.bigint().optional(),
     /** Fee paid */
     feeAmount: p.bigint(),
+    /** Execution price per token at time of buy (scaled 1e9, AMM buy only) */
+    buyPrice: p.bigint().optional(),
     /** Output token amount (for swaps) */
     tokenAmountOut: p.bigint().optional(),
     /** Transaction hash */
@@ -1109,15 +1160,17 @@ export default createSchema((p) => ({
    * Reward claims from successful dispute voting.
    * Tracks when voters claim their rewards.
    *
-   * ID FORMAT: chainId-oracleAddress-tokenId-txHash
+   * ID FORMAT: chainId-oracleAddress-srcEid-tokenId-txHash
    */
   disputeRewardClaims: p.createTable({
-    /** Composite key: chainId-oracleAddress-tokenId-txHash */
+    /** Composite key: chainId-oracleAddress-srcEid-tokenId-txHash */
     id: p.string(),
-    /** Chain ID */
+    /** Chain ID where claim was made */
     chainId: p.int(),
     /** Oracle address */
     oracle: p.hex(),
+    /** Source chain EID where NFT was staked (for cross-chain vote uniqueness) */
+    srcEid: p.int(),
     /** Token ID used for voting */
     tokenId: p.bigint(),
     /** Claimer address */
@@ -1314,6 +1367,85 @@ export default createSchema((p) => ({
    *
    * ID FORMAT: txHash-logIndex
    */
+  // ===========================================================================
+  // USER MARKET POSITIONS TABLE
+  // ===========================================================================
+  /**
+   * Aggregated per-user per-market position tracking.
+   * Maintained incrementally on each buy/sell/swap/redeem.
+   * Allows frontend to show position details without aggregating trades.
+   *
+   * ID FORMAT: chainId-marketAddress-userAddress
+   *
+   * BUY PRICE:
+   * avgBuyPriceYes/No = yesAmount / yesTokens (or noAmount / noTokens)
+   * Both amount and tokens are reduced proportionally on sell,
+   * so the ratio stays correct as a weighted average buy price.
+   */
+  userMarketPositions: p.createTable({
+    /** Composite ID: chainId-marketAddress-userAddress */
+    id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** Market contract address */
+    marketAddress: p.hex(),
+    /** Poll address (denormalized for querying by poll) */
+    pollAddress: p.hex(),
+    /** User wallet address */
+    user: p.hex(),
+    /** Total USDC spent on YES side (6 decimals) */
+    yesAmount: p.bigint(),
+    /** Total USDC spent on NO side (6 decimals) */
+    noAmount: p.bigint(),
+    /** YES outcome tokens held (6 decimals) */
+    yesTokens: p.bigint(),
+    /** NO outcome tokens held (6 decimals) */
+    noTokens: p.bigint(),
+    /** Whether user has redeemed winnings */
+    hasRedeemed: p.boolean(),
+    /** Whether loss has been recorded for user stats */
+    lossRecorded: p.boolean(),
+    /** Timestamp of first position */
+    firstPositionAt: p.bigint(),
+    /** Timestamp of last update */
+    lastUpdatedAt: p.bigint(),
+  }),
+
+  userLiquidityPositions: p.createTable({
+    /** Composite ID: chainId-marketAddress-userAddress */
+    id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** Market contract address */
+    marketAddress: p.hex(),
+    /** Poll address (denormalized for querying by poll) */
+    pollAddress: p.hex(),
+    /** User wallet address */
+    user: p.hex(),
+    /** Net LP tokens held (adds - removes) */
+    lpTokens: p.bigint(),
+    /** Sum of collateral from all adds (6 decimals) */
+    totalCollateralDeposited: p.bigint(),
+    /** Sum of collateral from all removes (6 decimals) */
+    totalCollateralWithdrawn: p.bigint(),
+    /** Cumulative dust YES tokens received on adds */
+    yesTokensReceived: p.bigint(),
+    /** Cumulative dust NO tokens received on adds */
+    noTokensReceived: p.bigint(),
+    /** yesChance at first add (initial pool price, scaled 1e9) */
+    initialYesChance: p.bigint(),
+    /** Sum of (yesChance * collateralAmount) for weighted avg entry price */
+    weightedYesChanceSum: p.bigint(),
+    /** Number of add liquidity events */
+    addCount: p.int(),
+    /** Number of remove liquidity events */
+    removeCount: p.int(),
+    /** Timestamp of first add */
+    firstAddAt: p.bigint(),
+    /** Timestamp of last update */
+    lastUpdatedAt: p.bigint(),
+  }),
+
   claimEvents: p.createTable({
     /** Unique ID: txHash-logIndex */
     id: p.string(),

@@ -1,6 +1,5 @@
 import type { PonderContext } from "../utils/types";
-
-const CANDLE_PRICE_SCALE = 1_000_000_000n; // 1e9
+import { PRICE_SCALE } from "../utils/constants";
 const MAX_UINT96 = (1n << 96n) - 1n;
 
 export const CANDLE_INTERVALS = ["1m", "5m", "1h", "1d"] as const;
@@ -34,11 +33,11 @@ export function computeYesExecutionPriceScaled(params: {
   tokenAmount: bigint;
 }): bigint {
   const { isYesSide, collateralAmount, tokenAmount } = params;
-  if (tokenAmount <= 0n) return CANDLE_PRICE_SCALE / 2n;
+  if (tokenAmount <= 0n) return PRICE_SCALE / 2n;
 
   // Outcome tokens use same decimals as collateral (see contracts/market/OutcomeToken.sol),
   // so collateralAmount/tokenAmount is already in [0..1] range.
-  const priceScaled = (collateralAmount * CANDLE_PRICE_SCALE) / tokenAmount;
+  const priceScaled = (collateralAmount * PRICE_SCALE) / tokenAmount;
 
   if (isYesSide) {
     return clampPriceScaled(priceScaled);
@@ -46,13 +45,13 @@ export function computeYesExecutionPriceScaled(params: {
 
   // Convert NO execution price to YES price.
   // yesPrice = 1 - noPrice
-  const yesPriceScaled = CANDLE_PRICE_SCALE - clampPriceScaled(priceScaled);
+  const yesPriceScaled = PRICE_SCALE - clampPriceScaled(priceScaled);
   return clampPriceScaled(yesPriceScaled);
 }
 
 function clampPriceScaled(priceScaled: bigint): bigint {
   if (priceScaled < 0n) return 0n;
-  if (priceScaled > CANDLE_PRICE_SCALE) return CANDLE_PRICE_SCALE;
+  if (priceScaled > PRICE_SCALE) return PRICE_SCALE;
   return priceScaled;
 }
 

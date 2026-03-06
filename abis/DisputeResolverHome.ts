@@ -53,6 +53,7 @@ export const DisputeResolverHomeAbi = [
 		inputs: [
 			{ name: "voter", type: "address", indexed: false },
 			{ name: "oracle", type: "address", indexed: false },
+			{ name: "srcEid", type: "uint32", indexed: false },
 			{ name: "tokenId", type: "uint256", indexed: false },
 			{ name: "token", type: "address", indexed: false },
 			{ name: "reward", type: "uint256", indexed: false },
@@ -88,6 +89,26 @@ export const DisputeResolverHomeAbi = [
 			{ name: "tokenIds", type: "uint256[]", indexed: false },
 		],
 	},
+	{
+		type: "event",
+		name: "CrossChainVoteReceived",
+		inputs: [
+			{ name: "voter", type: "address", indexed: true },
+			{ name: "oracle", type: "address", indexed: true },
+			{ name: "srcChainEid", type: "uint32", indexed: false },
+			{ name: "tokenIds", type: "uint256[]", indexed: false },
+		],
+	},
+	{
+		type: "event",
+		name: "CrossChainClaimReceived",
+		inputs: [
+			{ name: "claimer", type: "address", indexed: true },
+			{ name: "oracle", type: "address", indexed: true },
+			{ name: "srcChainEid", type: "uint32", indexed: false },
+			{ name: "tokenIds", type: "uint256[]", indexed: false },
+		],
+	},
 	// =============================================================================
 	// VIEW FUNCTIONS
 	// =============================================================================
@@ -103,6 +124,7 @@ export const DisputeResolverHomeAbi = [
 			{ name: "finalStatus", type: "uint8" },
 			{ name: "disputerDeposit", type: "uint256" },
 			{ name: "endAt", type: "uint256" },
+			{ name: "emergencyAfterHours", type: "uint256" },
 			{ name: "marketToken", type: "address" },
 			{ name: "reason", type: "string" },
 		],
@@ -113,6 +135,7 @@ export const DisputeResolverHomeAbi = [
 		name: "getVoteRecordInfo",
 		inputs: [
 			{ name: "oracle", type: "address" },
+			{ name: "srcEid", type: "uint32" },
 			{ name: "tokenId", type: "uint256" },
 		],
 		outputs: [
@@ -120,6 +143,17 @@ export const DisputeResolverHomeAbi = [
 			{ name: "isClaimed", type: "bool" },
 			{ name: "votedFor", type: "uint8" },
 		],
+		stateMutability: "view",
+	},
+	{
+		type: "function",
+		name: "hasVoted",
+		inputs: [
+			{ name: "oracle", type: "address" },
+			{ name: "srcEid", type: "uint32" },
+			{ name: "tokenId", type: "uint256" },
+		],
+		outputs: [{ name: "", type: "bool" }],
 		stateMutability: "view",
 	},
 ] as const;

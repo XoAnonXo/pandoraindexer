@@ -17,7 +17,8 @@
 		"verify:volume": "tsx scripts/verify-volume.ts",
 		"verify:stats": "tsx scripts/verify-platform-stats.ts",
 		"verify:pnl": "tsx scripts/verify-pnl.ts",
-		"recalculate:volume24h": "tsx scripts/recalculate-volume24h.ts"
+		"recalculate:volume24h": "tsx scripts/recalculate-volume24h.ts",
+		"sync:events": "tsx scripts/sync-events.ts"
 	},
 	"dependencies": {
 		"@ponder/core": "^0.6.0",
