@@ -28,8 +28,7 @@ import { PredictionPariMutuelAbi } from "./abis/PredictionPariMutuel";
 // TODO: Uncomment when these contracts are deployed on Ethereum
 // import { ReferralFactoryAbi } from "./abis/ReferralFactory";
 // import { ReferralCampaignAbi } from "./abis/ReferralCampaign";
-import { DisputeResolverRemoteAbi } from "./abis/DisputeResolverRemote"; // For Ethereum (remote chain)
-import { DisputeResolverHomeAbi } from "./abis/DisputeResolverHome"; // For Ethereum (home chain)
+import { DisputeResolverRemoteAbi } from "./abis/DisputeResolverRemote";
 // import { TokensFactoryAbi } from "./abis/TokensFactory";
 // import { BondingCurveAbi } from "./abis/BondingCurve";
 
@@ -57,7 +56,6 @@ console.log(`║  MarketFactory:    ${ethereum.contracts.marketFactory}`);
 console.log(`║  USDC:             ${ethereum.contracts.usdc}`);
 console.log(`║  Vault:            ${ethereum.contracts.vault ?? "—"}`);
 console.log(`║  DisputeRemote:    ${ethereum.contracts.disputeResolverRemote ?? "—"}`);
-console.log(`║  DisputeHome:      ${ethereum.contracts.disputeResolverHome ?? "—"}`);
 console.log(`║  ReferralFactory:  ${ethereum.contracts.referralFactory ?? "—"}`);
 console.log(`║  LaunchpadFactory: ${ethereum.contracts.launchpadFactory ?? "—"}`);
 console.log("╚══════════════════════════════════════════════════════════════╝\n");
@@ -188,8 +186,7 @@ export default createConfig({
 
     // =========================================================================
     // DISPUTE CONTRACTS
-    // DisputeResolverRemote: receives cross-chain votes from home chain
-    // DisputeResolverHome: handles local disputes and sends cross-chain messages
+    // DisputeResolverRemote: manages disputes on remote chains (Ethereum)
     // =========================================================================
 
     ...(ethereum.contracts.disputeResolverRemote
