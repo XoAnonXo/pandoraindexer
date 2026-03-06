@@ -1,0 +1,21 @@
+# =============================================================================
+# Anymarket Ponder Indexer — Worker (block sync + cron)
+# =============================================================================
+# Syncs blockchain events into PostgreSQL. Does NOT serve GraphQL.
+# Use Dockerfile.serve for the read-only GraphQL API.
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+RUN npm run codegen
+RUN chmod +x start.sh
+
+ENV NODE_ENV=production
+
+CMD ["sh", "/app/start.sh"]

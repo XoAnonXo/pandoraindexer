@@ -1,0 +1,26 @@
+# =============================================================================
+# Anymarket Ponder Indexer — GraphQL API (read-only)
+# =============================================================================
+# Serves the auto-generated GraphQL API from PostgreSQL.
+# Does NOT sync blocks — pair with Dockerfile.indexer for that.
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+RUN npm run codegen
+
+ENV NODE_ENV=production
+ENV PORT=42069
+
+EXPOSE 42069
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:42069/health || exit 1
+
+CMD ["sh", "-c", "echo DATABASE_SCHEMA=$DATABASE_SCHEMA && echo RAILWAY_DEPLOYMENT_ID=$RAILWAY_DEPLOYMENT_ID && npm run serve"]

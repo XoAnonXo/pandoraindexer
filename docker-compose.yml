@@ -2,7 +2,7 @@
 # Docker Compose for Local Development
 # =============================================================================
 # Usage:
-#   docker-compose up -d        # Start services
+#   docker-compose up -d        # Start all services
 #   docker-compose logs -f      # View logs
 #   docker-compose down         # Stop services
 #   docker-compose down -v      # Stop and remove volumes
@@ -10,7 +10,7 @@
 version: "3.8"
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database (shared between indexer and API)
   postgres:
     image: postgres:15-alpine
     container_name: anymarket-indexer-db
@@ -28,17 +28,30 @@ services:
       timeout: 5s
       retries: 5
 
-  # Ponder Indexer
+  # Ponder Indexer Worker — syncs blocks, writes to DB
   indexer:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: anymarket-indexer
+      dockerfile: Dockerfile.indexer
+    container_name: anymarket-indexer-worker
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      - PONDER_RPC_URL_146=https://rpc.soniclabs.com
+      - PONDER_RPC_URL_1=${PONDER_RPC_URL_1:-https://eth.llamarpc.com}
+      - DATABASE_URL=postgresql://ponder:ponder@postgres:5432/anymarket
+    restart: unless-stopped
+
+  # Ponder GraphQL API — read-only, serves queries
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.serve
+    container_name: anymarket-indexer-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
       - DATABASE_URL=postgresql://ponder:ponder@postgres:5432/anymarket
     ports:
       - "42069:42069"
