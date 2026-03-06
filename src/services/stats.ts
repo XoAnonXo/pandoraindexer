@@ -2,13 +2,6 @@ import type { PonderContext, ChainInfo, StatsUpdate } from "../utils/types";
 import { makeId, getDayTimestamp, getHourTimestamp } from "../utils/helpers";
 import { withRetry } from "../utils/errors";
 
-// =============================================================================
-// STATS RECORD HELPERS
-// =============================================================================
-
-/**
- * Get or create platform stats record
- */
 async function getOrCreatePlatformStats(context: PonderContext, chain: ChainInfo) {
   const platformId = chain.chainId.toString();
   let platformStats = await context.db.platformStats.findUnique({ id: platformId });
@@ -90,10 +83,6 @@ async function getOrCreateHourlyStats(context: PonderContext, chain: ChainInfo, 
 
   return hourlyStats;
 }
-
-// =============================================================================
-// ACTIVE USER TRACKING
-// =============================================================================
 
 /**
  * Record a user as active for a specific hour.
@@ -179,10 +168,6 @@ export async function recordDailyActiveUser(
     return isFirstActivity;
   });
 }
-
-// =============================================================================
-// AGGREGATE STATS UPDATER
-// =============================================================================
 
 /**
  * Centralized stats updater.

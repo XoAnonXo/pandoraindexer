@@ -2,9 +2,7 @@ import { ponder } from "@/generated";
 import { getChainInfo } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { processLossesForPoll, recordUserLoss } from "../services/positions";
-import { PollStatus } from "../utils/constants";
-
-const PRICE_SCALE = 1_000_000_000n;
+import { PollStatus, PRICE_SCALE } from "../utils/constants";
 
 function resolvedYesChance(status: number): bigint | null {
   if (status === PollStatus.YES) return PRICE_SCALE;

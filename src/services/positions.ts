@@ -3,10 +3,6 @@ import { makeId } from "../utils/helpers";
 import { withRetry } from "../utils/errors";
 import { TradeSide, PollStatus } from "../utils/constants";
 
-// =============================================================================
-// POSITION TRACKING
-// =============================================================================
-
 /**
  * Record or update a user's position in a market.
  * Called when a user buys YES or NO tokens/shares.
@@ -169,10 +165,6 @@ export async function markPositionRedeemed(
     }
   });
 }
-
-// =============================================================================
-// LOSS DETECTION
-// =============================================================================
 
 interface LossResult {
   user: `0x${string}`;
