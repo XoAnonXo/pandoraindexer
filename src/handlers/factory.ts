@@ -38,7 +38,7 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 		const marketStartTimestamp = timestamp;
 
 		const existing = await context.db.markets.findUnique({ id: marketAddress });
-		const numericId = existing ? existing.numericId : await getNextMarketId(context);
+		const numericId = existing?.numericId ?? await getNextMarketId(context);
 
 		await context.db.markets.upsert({
 			id: marketAddress,
@@ -97,6 +97,7 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 				yesChance: current.yesChance ?? 500_000_000n,
 				creatorFeesEarned: current.creatorFeesEarned ?? 0n,
 				platformFeesEarned: current.platformFeesEarned ?? 0n,
+				numericId,
 				createdAtBlock: event.block.number,
 				createdAt: timestamp,
 				createdTxHash: event.transaction.hash,
@@ -185,7 +186,7 @@ ponder.on(
 			const marketCloseTimestamp = BigInt(closeTs);
 
 			const existing = await context.db.markets.findUnique({ id: marketAddress });
-			const numericId = existing ? existing.numericId : await getNextMarketId(context);
+			const numericId = existing?.numericId ?? await getNextMarketId(context);
 
 			await context.db.markets.upsert({
 				id: marketAddress,
@@ -239,7 +240,6 @@ ponder.on(
 						curveOffset: Number(curveOffset),
 						marketStartTimestamp,
 						marketCloseTimestamp,
-						// Preserve accumulated stats/state.
 						totalVolume: current.totalVolume,
 						volume24h: current.volume24h ?? 0n,
 						totalTrades: current.totalTrades,
@@ -251,6 +251,7 @@ ponder.on(
 						yesChance: correctedYesChance,
 						creatorFeesEarned: current.creatorFeesEarned ?? 0n,
 						platformFeesEarned: current.platformFeesEarned ?? 0n,
+						numericId,
 						createdAtBlock: event.block.number,
 						createdAt: timestamp,
 						createdTxHash: event.transaction.hash,

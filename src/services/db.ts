@@ -3,9 +3,13 @@ import { withRetry } from "../utils/errors";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 
-const MARKET_ID_START = 1;
+const MARKET_ID_START = 1200;
 
-
+/**
+ * Atomically get the next auto-incrementing numeric ID for a new market.
+ * Uses the `marketIdCounter` singleton table. First call initialises the
+ * counter so that the very first market gets `MARKET_ID_START` (1).
+ */
 export async function getNextMarketId(context: any): Promise<number> {
   const counter = await context.db.marketIdCounter.findUnique({
     id: "global",

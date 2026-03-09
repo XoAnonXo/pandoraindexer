@@ -294,7 +294,7 @@ export default createSchema((p) => ({
     eventId: p.string().optional(),
 
     /** Auto-incrementing display ID (e.g. 1142 -> frontend renders "AMM#1142" or "Pari#1142") */
-    numericId: p.int(),
+    numericId: p.int().optional(),
 
     /** Block when created */
     createdAtBlock: p.bigint(),
