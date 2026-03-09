@@ -4,10 +4,15 @@ import { updateAggregateStats } from "../services/stats";
 import { processLossesForPoll, recordUserLoss } from "../services/positions";
 import { PollStatus, PRICE_SCALE } from "../utils/constants";
 
-function resolvedYesChance(status: number): bigint | null {
+function resolvedYesChance(status: number, marketType?: string): bigint | null {
   if (status === PollStatus.YES) return PRICE_SCALE;
   if (status === PollStatus.NO) return 0n;
-  if (status === PollStatus.UNKNOWN) return PRICE_SCALE / 2n;
+  if (status === PollStatus.UNKNOWN) {
+    // AMM: keep last real price from pool reserves so PnL calculation stays accurate.
+    // PariMutuel: 50% is correct since refund = collateralYes + collateralNo.
+    if (marketType === "amm") return null;
+    return PRICE_SCALE / 2n;
+  }
   return null;
 }
 
@@ -39,22 +44,26 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
     }
 
     // Update yesChance on all markets for this poll to reflect final payout price
-    const finalYesChance = resolvedYesChance(resolvedStatus);
-    if (finalYesChance !== null) {
-      try {
-        const markets = await context.db.markets.findMany({
-          where: { pollAddress, chainId: chain.chainId },
-        });
-        for (const market of markets.items) {
+    try {
+      const markets = await context.db.markets.findMany({
+        where: { pollAddress, chainId: chain.chainId },
+      });
+      let updatedCount = 0;
+      for (const market of markets.items) {
+        const finalYesChance = resolvedYesChance(resolvedStatus, market.marketType);
+        if (finalYesChance !== null) {
           await context.db.markets.update({
             id: market.id,
             data: { yesChance: finalYesChance },
           });
+          updatedCount++;
         }
-        console.log(`[${chain.chainName}] 💰 Updated yesChance to ${finalYesChance} for ${markets.items.length} market(s) of poll ${pollAddress}`);
-      } catch (err) {
-        console.error(`[${chain.chainName}] ❌ Failed to update yesChance for ${pollAddress}:`, err);
       }
+      if (updatedCount > 0) {
+        console.log(`[${chain.chainName}] 💰 Updated yesChance for ${updatedCount} market(s) of poll ${pollAddress}`);
+      }
+    } catch (err) {
+      console.error(`[${chain.chainName}] ❌ Failed to update yesChance for ${pollAddress}:`, err);
     }
 
     try {
