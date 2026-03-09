@@ -63,6 +63,8 @@ type Query {
   launchpadTradess(where: launchpadTradesFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): launchpadTradesPage!
   userMarketPositions(id: String!): userMarketPositions
   userMarketPositionss(where: userMarketPositionsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): userMarketPositionsPage!
+  userLiquidityPositions(id: String!): userLiquidityPositions
+  userLiquidityPositionss(where: userLiquidityPositionsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): userLiquidityPositionsPage!
   claimEvents(id: String!): claimEvents
   claimEventss(where: claimEventsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): claimEventsPage!
   _meta: _meta
@@ -3706,7 +3708,6 @@ type disputeRewardClaims {
   id: String!
   chainId: Int!
   oracle: String!
-  srcEid: Int!
   tokenId: BigInt!
   claimer: String!
   rewardToken: String!
@@ -3751,14 +3752,6 @@ input disputeRewardClaimsFilter {
   oracle_lt: String
   oracle_gte: String
   oracle_lte: String
-  srcEid: Int
-  srcEid_not: Int
-  srcEid_in: [Int]
-  srcEid_not_in: [Int]
-  srcEid_gt: Int
-  srcEid_lt: Int
-  srcEid_gte: Int
-  srcEid_lte: Int
   tokenId: BigInt
   tokenId_not: BigInt
   tokenId_in: [BigInt]
@@ -4376,6 +4369,165 @@ input userMarketPositionsFilter {
   firstPositionAt_lt: BigInt
   firstPositionAt_gte: BigInt
   firstPositionAt_lte: BigInt
+  lastUpdatedAt: BigInt
+  lastUpdatedAt_not: BigInt
+  lastUpdatedAt_in: [BigInt]
+  lastUpdatedAt_not_in: [BigInt]
+  lastUpdatedAt_gt: BigInt
+  lastUpdatedAt_lt: BigInt
+  lastUpdatedAt_gte: BigInt
+  lastUpdatedAt_lte: BigInt
+}
+
+type userLiquidityPositions {
+  id: String!
+  chainId: Int!
+  marketAddress: String!
+  pollAddress: String!
+  user: String!
+  lpTokens: BigInt!
+  totalCollateralDeposited: BigInt!
+  totalCollateralWithdrawn: BigInt!
+  yesTokensReceived: BigInt!
+  noTokensReceived: BigInt!
+  initialYesChance: BigInt!
+  weightedYesChanceSum: BigInt!
+  addCount: Int!
+  removeCount: Int!
+  firstAddAt: BigInt!
+  lastUpdatedAt: BigInt!
+}
+
+type userLiquidityPositionsPage {
+  items: [userLiquidityPositions!]!
+  pageInfo: PageInfo!
+}
+
+input userLiquidityPositionsFilter {
+  AND: [userLiquidityPositionsFilter]
+  OR: [userLiquidityPositionsFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  chainId: Int
+  chainId_not: Int
+  chainId_in: [Int]
+  chainId_not_in: [Int]
+  chainId_gt: Int
+  chainId_lt: Int
+  chainId_gte: Int
+  chainId_lte: Int
+  marketAddress: String
+  marketAddress_not: String
+  marketAddress_in: [String]
+  marketAddress_not_in: [String]
+  marketAddress_gt: String
+  marketAddress_lt: String
+  marketAddress_gte: String
+  marketAddress_lte: String
+  pollAddress: String
+  pollAddress_not: String
+  pollAddress_in: [String]
+  pollAddress_not_in: [String]
+  pollAddress_gt: String
+  pollAddress_lt: String
+  pollAddress_gte: String
+  pollAddress_lte: String
+  user: String
+  user_not: String
+  user_in: [String]
+  user_not_in: [String]
+  user_gt: String
+  user_lt: String
+  user_gte: String
+  user_lte: String
+  lpTokens: BigInt
+  lpTokens_not: BigInt
+  lpTokens_in: [BigInt]
+  lpTokens_not_in: [BigInt]
+  lpTokens_gt: BigInt
+  lpTokens_lt: BigInt
+  lpTokens_gte: BigInt
+  lpTokens_lte: BigInt
+  totalCollateralDeposited: BigInt
+  totalCollateralDeposited_not: BigInt
+  totalCollateralDeposited_in: [BigInt]
+  totalCollateralDeposited_not_in: [BigInt]
+  totalCollateralDeposited_gt: BigInt
+  totalCollateralDeposited_lt: BigInt
+  totalCollateralDeposited_gte: BigInt
+  totalCollateralDeposited_lte: BigInt
+  totalCollateralWithdrawn: BigInt
+  totalCollateralWithdrawn_not: BigInt
+  totalCollateralWithdrawn_in: [BigInt]
+  totalCollateralWithdrawn_not_in: [BigInt]
+  totalCollateralWithdrawn_gt: BigInt
+  totalCollateralWithdrawn_lt: BigInt
+  totalCollateralWithdrawn_gte: BigInt
+  totalCollateralWithdrawn_lte: BigInt
+  yesTokensReceived: BigInt
+  yesTokensReceived_not: BigInt
+  yesTokensReceived_in: [BigInt]
+  yesTokensReceived_not_in: [BigInt]
+  yesTokensReceived_gt: BigInt
+  yesTokensReceived_lt: BigInt
+  yesTokensReceived_gte: BigInt
+  yesTokensReceived_lte: BigInt
+  noTokensReceived: BigInt
+  noTokensReceived_not: BigInt
+  noTokensReceived_in: [BigInt]
+  noTokensReceived_not_in: [BigInt]
+  noTokensReceived_gt: BigInt
+  noTokensReceived_lt: BigInt
+  noTokensReceived_gte: BigInt
+  noTokensReceived_lte: BigInt
+  initialYesChance: BigInt
+  initialYesChance_not: BigInt
+  initialYesChance_in: [BigInt]
+  initialYesChance_not_in: [BigInt]
+  initialYesChance_gt: BigInt
+  initialYesChance_lt: BigInt
+  initialYesChance_gte: BigInt
+  initialYesChance_lte: BigInt
+  weightedYesChanceSum: BigInt
+  weightedYesChanceSum_not: BigInt
+  weightedYesChanceSum_in: [BigInt]
+  weightedYesChanceSum_not_in: [BigInt]
+  weightedYesChanceSum_gt: BigInt
+  weightedYesChanceSum_lt: BigInt
+  weightedYesChanceSum_gte: BigInt
+  weightedYesChanceSum_lte: BigInt
+  addCount: Int
+  addCount_not: Int
+  addCount_in: [Int]
+  addCount_not_in: [Int]
+  addCount_gt: Int
+  addCount_lt: Int
+  addCount_gte: Int
+  addCount_lte: Int
+  removeCount: Int
+  removeCount_not: Int
+  removeCount_in: [Int]
+  removeCount_not_in: [Int]
+  removeCount_gt: Int
+  removeCount_lt: Int
+  removeCount_gte: Int
+  removeCount_lte: Int
+  firstAddAt: BigInt
+  firstAddAt_not: BigInt
+  firstAddAt_in: [BigInt]
+  firstAddAt_not_in: [BigInt]
+  firstAddAt_gt: BigInt
+  firstAddAt_lt: BigInt
+  firstAddAt_gte: BigInt
+  firstAddAt_lte: BigInt
   lastUpdatedAt: BigInt
   lastUpdatedAt_not: BigInt
   lastUpdatedAt_in: [BigInt]

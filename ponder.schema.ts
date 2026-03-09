@@ -293,12 +293,29 @@ export default createSchema((p) => ({
     /** Event ID for multi-market grouping (set externally by pandora-api) */
     eventId: p.string().optional(),
 
+    /** Auto-incrementing display ID (e.g. 1142 -> frontend renders "AMM#1142" or "Pari#1142") */
+    numericId: p.int(),
+
     /** Block when created */
     createdAtBlock: p.bigint(),
     /** Timestamp when created */
     createdAt: p.bigint(),
     /** Transaction hash of creation */
     createdTxHash: p.hex(),
+  }),
+
+  // ===========================================================================
+  // MARKET ID COUNTER (singleton)
+  // ===========================================================================
+  /**
+   * Single-row counter table for generating auto-incrementing market numericIds.
+   * Always has one row with id = "global".
+   */
+  marketIdCounter: p.createTable({
+    /** Always "global" */
+    id: p.string(),
+    /** The next available numeric ID to assign */
+    nextId: p.int(),
   }),
 
   // ===========================================================================

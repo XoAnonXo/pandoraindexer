@@ -1,7 +1,7 @@
 import { ponder } from "@/generated";
 import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
-import { getOrCreateUser } from "../services/db";
+import { getOrCreateUser, getNextMarketId } from "../services/db";
 import { updatePollTvl } from "../services/pollTvl";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
@@ -37,6 +37,9 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 		// For AMM, market starts when it's created (no explicit startTimestamp in contract)
 		const marketStartTimestamp = timestamp;
 
+		const existing = await context.db.markets.findUnique({ id: marketAddress });
+		const numericId = existing ? existing.numericId : await getNextMarketId(context);
+
 		await context.db.markets.upsert({
 			id: marketAddress,
 			create: {
@@ -64,6 +67,7 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 				yesChance: 500_000_000n,
 				creatorFeesEarned: 0n,
 				platformFeesEarned: 0n,
+				numericId,
 				createdAtBlock: event.block.number,
 				createdAt: timestamp,
 				createdTxHash: event.transaction.hash,
@@ -80,10 +84,8 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 				noToken,
 				feeTier: Number(feeTier),
 				maxPriceImbalancePerHour: Number(maxPriceImbalancePerHour),
-				// Timestamps from contract
 				marketStartTimestamp,
 				marketCloseTimestamp,
-				// Preserve accumulated stats/state.
 				totalVolume: current.totalVolume,
 				volume24h: current.volume24h ?? 0n,
 				totalTrades: current.totalTrades,
@@ -182,6 +184,9 @@ ponder.on(
 			const marketStartTimestamp = BigInt(startTs);
 			const marketCloseTimestamp = BigInt(closeTs);
 
+			const existing = await context.db.markets.findUnique({ id: marketAddress });
+			const numericId = existing ? existing.numericId : await getNextMarketId(context);
+
 			await context.db.markets.upsert({
 				id: marketAddress,
 				create: {
@@ -207,6 +212,7 @@ ponder.on(
 					yesChance: 500_000_000n,
 					creatorFeesEarned: 0n,
 					platformFeesEarned: 0n,
+					numericId,
 					createdAtBlock: event.block.number,
 					createdAt: timestamp,
 					createdTxHash: event.transaction.hash,
