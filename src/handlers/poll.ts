@@ -4,15 +4,11 @@ import { updateAggregateStats } from "../services/stats";
 import { processLossesForPoll, recordUserLoss } from "../services/positions";
 import { PollStatus, PRICE_SCALE } from "../utils/constants";
 
-function resolvedYesChance(status: number, marketType?: string): bigint | null {
+function resolvedYesChance(status: number): bigint | null {
   if (status === PollStatus.YES) return PRICE_SCALE;
   if (status === PollStatus.NO) return 0n;
-  if (status === PollStatus.UNKNOWN) {
-    // AMM: keep last real price from pool reserves so PnL calculation stays accurate.
-    // PariMutuel: 50% is correct since refund = collateralYes + collateralNo.
-    if (marketType === "amm") return null;
-    return PRICE_SCALE / 2n;
-  }
+  // UNKNOWN: keep last real price for both AMM and PariMutuel.
+  // Refund mechanics are independent of market price.
   return null;
 }
 
@@ -50,7 +46,7 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
       });
       let updatedCount = 0;
       for (const market of markets.items) {
-        const finalYesChance = resolvedYesChance(resolvedStatus, market.marketType);
+        const finalYesChance = resolvedYesChance(resolvedStatus);
         if (finalYesChance !== null) {
           await context.db.markets.update({
             id: market.id,
