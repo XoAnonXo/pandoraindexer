@@ -2,15 +2,7 @@ import { ponder } from "@/generated";
 import { getChainInfo } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { processLossesForPoll, recordUserLoss } from "../services/positions";
-import { PollStatus, PRICE_SCALE } from "../utils/constants";
-
-function resolvedYesChance(status: number): bigint | null {
-  if (status === PollStatus.YES) return PRICE_SCALE;
-  if (status === PollStatus.NO) return 0n;
-  // UNKNOWN: keep last real price for both AMM and PariMutuel.
-  // Refund mechanics are independent of market price.
-  return null;
-}
+import { PollStatus } from "../utils/constants";
 
 ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
   const { status, setter, reason } = event.args;
@@ -37,29 +29,6 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
     } catch (err) {
       console.error(`[${chain.chainName}] ❌ Failed to update poll ${pollAddress}:`, err);
       throw err;
-    }
-
-    // Update yesChance on all markets for this poll to reflect final payout price
-    try {
-      const markets = await context.db.markets.findMany({
-        where: { pollAddress, chainId: chain.chainId },
-      });
-      let updatedCount = 0;
-      for (const market of markets.items) {
-        const finalYesChance = resolvedYesChance(resolvedStatus);
-        if (finalYesChance !== null) {
-          await context.db.markets.update({
-            id: market.id,
-            data: { yesChance: finalYesChance },
-          });
-          updatedCount++;
-        }
-      }
-      if (updatedCount > 0) {
-        console.log(`[${chain.chainName}] 💰 Updated yesChance for ${updatedCount} market(s) of poll ${pollAddress}`);
-      }
-    } catch (err) {
-      console.error(`[${chain.chainName}] ❌ Failed to update yesChance for ${pollAddress}:`, err);
     }
 
     try {
