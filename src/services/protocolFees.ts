@@ -1,6 +1,7 @@
 import { getOrCreateUser, getOrCreateMinimalMarket } from "./db";
 import { updateAggregateStats } from "./stats";
 import { updatePollTvl } from "./pollTvl";
+import { isPollResolved } from "../handlers/amm-shared";
 import type { ChainInfo } from "../utils/types";
 
 interface ProtocolFeesParams {
@@ -49,7 +50,11 @@ export async function handleProtocolFeesWithdrawn(params: ProtocolFeesParams) {
   if (reserves) {
     marketUpdate.reserveYes = reserves.reserveYes;
     marketUpdate.reserveNo = reserves.reserveNo;
-    marketUpdate.yesChance = reserves.yesChance;
+
+    const poll = await context.db.polls.findUnique({ id: market.pollAddress });
+    if (!isPollResolved(poll?.status)) {
+      marketUpdate.yesChance = reserves.yesChance;
+    }
   }
 
   await context.db.markets.update({ id: marketAddress, data: marketUpdate });
