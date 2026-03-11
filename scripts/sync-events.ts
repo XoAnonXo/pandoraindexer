@@ -42,6 +42,7 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 
 interface EventRow {
   id: string;
+  title: string;
   creator: string;
   market_type: string;
   arbiter: string;
@@ -103,7 +104,7 @@ async function syncCompletedEvents(client: any): Promise<{ polls: number; market
  */
 async function syncEventsTable(client: any): Promise<number> {
   const allEventsResult = await client.query(
-    `SELECT id, creator, market_type, arbiter, sources, category,
+    `SELECT id, title, creator, market_type, arbiter, sources, category,
             fee_tier, max_price_imbalance, curve_flattener, curve_offset,
             poll_addresses, market_addresses, status, created_at
      FROM app_internal.events`
@@ -124,17 +125,19 @@ async function syncEventsTable(client: any): Promise<number> {
 
     const result = await client.query(
       `INSERT INTO events (
-        id, creator, "marketType", arbiter, sources, category,
+        id, title, creator, "marketType", arbiter, sources, category,
         "feeTier", "maxPriceImbalance", "curveFlattener", "curveOffset",
         "pollAddresses", "marketAddresses", status, "marketCount", "createdAt"
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
         "pollAddresses" = EXCLUDED."pollAddresses",
         "marketAddresses" = EXCLUDED."marketAddresses",
         status = EXCLUDED.status,
         "marketCount" = EXCLUDED."marketCount"`,
       [
         ev.id,
+        ev.title || "",
         ev.creator,
         ev.market_type,
         ev.arbiter,

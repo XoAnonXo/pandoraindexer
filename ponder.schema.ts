@@ -103,6 +103,8 @@ export default createSchema((p) => ({
   events: p.createTable({
     /** Event UUID (primary key) */
     id: p.string(),
+    /** Event title / header */
+    title: p.string(),
     /** Creator wallet address */
     creator: p.string(),
     /** Shared market type: 'amm' or 'pari' */
