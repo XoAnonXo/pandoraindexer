@@ -25,9 +25,8 @@ import { PredictionPollAbi } from "./abis/PredictionPoll";
 import { MarketFactoryAbi } from "./abis/MarketFactory";
 import { PredictionAMMAbi } from "./abis/PredictionAMM";
 import { PredictionPariMutuelAbi } from "./abis/PredictionPariMutuel";
-// TODO: Uncomment when these contracts are deployed on Ethereum
-// import { ReferralFactoryAbi } from "./abis/ReferralFactory";
-// import { ReferralCampaignAbi } from "./abis/ReferralCampaign";
+import { ReferralFactoryAbi } from "./abis/ReferralFactory";
+import { ReferralCampaignAbi } from "./abis/ReferralCampaign";
 import { DisputeResolverRemoteAbi } from "./abis/DisputeResolverRemote"; // For Ethereum (remote chain)
 import { DisputeResolverHomeAbi } from "./abis/DisputeResolverHome"; // For Ethereum (home chain)
 // import { TokensFactoryAbi } from "./abis/TokensFactory";
@@ -163,28 +162,33 @@ export default createConfig({
     },
 
     // =========================================================================
-    // TODO: REFERRAL CONTRACTS — uncomment when deployed on Ethereum
+    // REFERRAL CONTRACTS
     // =========================================================================
 
-    // ReferralFactory: {
-    //   network: "ethereum",
-    //   abi: ReferralFactoryAbi,
-    //   address: ethereum.contracts.referralFactory,
-    //   startBlock: ethereum.startBlock,
-    // },
+    ...(ethereum.contracts.referralFactory
+      ? {
+          ReferralFactory: {
+            network: "ethereum" as const,
+            abi: ReferralFactoryAbi,
+            address: ethereum.contracts.referralFactory,
+            startBlock: ethereum.startBlock,
+          },
 
-    // ReferralCampaign: {
-    //   network: "ethereum",
-    //   abi: ReferralCampaignAbi,
-    //   factory: {
-    //     address: ethereum.contracts.referralFactory,
-    //     event: ReferralFactoryAbi.find(
-    //       (e) => e.type === "event" && e.name === "CampaignCreated"
-    //     )!,
-    //     parameter: "campaign",
-    //   },
-    //   startBlock: ethereum.startBlock,
-    // },
+          ReferralCampaign: {
+            network: "ethereum" as const,
+            abi: ReferralCampaignAbi,
+            factory: {
+              address: ethereum.contracts.referralFactory,
+              event: ReferralFactoryAbi.find(
+                (e): e is Extract<typeof e, { type: "event" }> =>
+                  e.type === "event" && "name" in e && e.name === "CampaignCreated"
+              )!,
+              parameter: "campaign",
+            },
+            startBlock: ethereum.startBlock,
+          },
+        }
+      : {}),
 
     // =========================================================================
     // DISPUTE CONTRACTS

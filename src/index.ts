@@ -6,7 +6,6 @@ import "./handlers/amm-liquidity";
 import "./handlers/amm-resolution";
 import "./handlers/parimutuel";
 import "./handlers/disputes";
-// TODO: Uncomment when deployed on Ethereum
-// import "./handlers/referral";
-// import "./handlers/campaign";
+import "./handlers/referral";
+import "./handlers/campaign";
 // import "./handlers/launchpad";
