@@ -28,7 +28,7 @@ ponder.on("ReferralFactory:CampaignCreated", async ({ event, context }: any) => 
     campaign,
     rewardToken,
     operator,
-    version,
+    campaignType,
   } = event.args;
 
   const timestamp = event.block.timestamp;
@@ -39,19 +39,17 @@ ponder.on("ReferralFactory:CampaignCreated", async ({ event, context }: any) => 
   const normalizedRewardToken = rewardToken.toLowerCase() as `0x${string}`;
   const normalizedOperator = operator.toLowerCase() as `0x${string}`;
   
-  // Use campaign address as ID (instead of campaignId)
   const campaignId = normalizedCampaign;
 
-  console.log(`[${chain.chainName}] Campaign created: ${campaignId} (operator: ${normalizedOperator}, version: ${version})`);
+  console.log(`[${chain.chainName}] Campaign created: ${campaignId} (operator: ${normalizedOperator}, type: ${campaignType})`);
 
-  // Create campaign record
   await context.db.campaigns.create({
     id: campaignId,
     data: {
       chainId: chain.chainId,
       chainName: chain.chainName,
-      name: `Campaign ${campaignId.slice(0, 10)}...`, // Default name (can be updated manually)
-      description: `Signature-based referral rewards v${version}`,
+      name: `Campaign ${campaignId.slice(0, 10)}...`,
+      description: `Signature-based referral rewards (type ${campaignType})`,
       creator: normalizedOperator, // Operator acts as creator
       rewardAsset: normalizedRewardToken,
       assetKind: 0, // ERC20 (assuming)
