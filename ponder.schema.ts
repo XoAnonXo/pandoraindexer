@@ -963,71 +963,21 @@ export default createSchema((p) => ({
    * - 3: Cancelled
    */
   campaigns: p.createTable({
-    // ─────────────────────────────────────────────────────────────────────────
-    // IDENTITY
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Campaign ID from contract (uint256 as string) */
+    /** Campaign contract address (lowercase hex) */
     id: p.string(),
-    /** Chain ID where campaign exists */
     chainId: p.int(),
-    /** Chain name for display */
     chainName: p.string(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // CAMPAIGN INFO
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Campaign name */
-    name: p.string(),
-    /** Campaign description */
-    description: p.string(),
-    /** Creator's wallet address */
-    creator: p.hex(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // REWARD CONFIGURATION
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Reward token/asset address */
-    rewardAsset: p.hex(),
-    /** Asset kind: 0=Native, 1=ERC20, 2=ERC721, 3=ERC1155 */
-    assetKind: p.int(),
-    /** Total reward pool available (in asset decimals) */
-    rewardPool: p.bigint(),
-    /** Total rewards already paid out */
-    rewardsPaid: p.bigint(),
-    /** Reward type: 0=Fixed, 1=Percentage, 2=Tiered, 3=Custom */
-    rewardType: p.int(),
-    /** Encoded reward configuration (hex bytes) */
-    rewardConfig: p.string(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // TIMING
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Campaign start timestamp */
-    startTime: p.bigint(),
-    /** Campaign end timestamp */
-    endTime: p.bigint(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // STATUS & STATS
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Campaign status: 0=Active, 1=Paused, 2=Ended, 3=Cancelled */
+    /** Operator address (signs claim messages) */
+    operator: p.hex(),
+    /** Reward token address */
+    rewardToken: p.hex(),
+    /** Campaign type identifier from contract */
+    campaignType: p.bigint(),
+    /** Active by default, no on-chain status change mechanism */
     status: p.int(),
-    /** Number of participants who claimed rewards */
-    totalParticipants: p.int(),
-    /** Number of reward claims made */
-    totalClaims: p.int(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // METADATA
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Block number when created */
     createdAtBlock: p.bigint(),
-    /** Timestamp when created */
     createdAt: p.bigint(),
-    /** Transaction hash of creation */
     createdTxHash: p.hex(),
-    /** Last time this record was updated */
-    updatedAt: p.bigint(),
   }),
 
   // ===========================================================================
