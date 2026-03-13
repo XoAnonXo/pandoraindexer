@@ -29,8 +29,6 @@ ponder.on("ReferralFactory:CampaignCreated", async ({ event, context }: any) => 
     create: {
       totalCampaigns: 1,
       activeCampaigns: 1,
-      totalRewardsDistributed: 0n,
-      totalParticipants: 0,
       updatedAt: event.block.timestamp,
     },
     update: ({ current }: any) => ({

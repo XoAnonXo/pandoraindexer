@@ -983,50 +983,13 @@ export default createSchema((p) => ({
   // ===========================================================================
   // CAMPAIGN CLAIMS TABLE
   // ===========================================================================
-  /**
-   * Individual reward claims from campaigns.
-   * Tracks when users claim their campaign rewards.
-   *
-   * ID FORMAT: chainId-campaignId-userAddress
-   */
-  campaignClaims: p.createTable({
-    /** Composite ID: chainId-campaignId-userAddress */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** Campaign ID */
-    campaignId: p.string(),
-    /** User who claimed */
-    user: p.hex(),
-    /** Total amount claimed by this user from this campaign */
-    totalClaimed: p.bigint(),
-    /** Number of times claimed (for recurring campaigns) */
-    claimCount: p.int(),
-    /** First claim timestamp */
-    firstClaimAt: p.bigint(),
-    /** Last claim timestamp */
-    lastClaimAt: p.bigint(),
-  }),
-
-  // ===========================================================================
   // CAMPAIGN STATS TABLE (Global)
   // ===========================================================================
-  /**
-   * Platform-wide campaign statistics.
-   * Single record with ID "global".
-   */
   campaignStats: p.createTable({
     /** Primary key: "global" */
     id: p.string(),
-    /** Total number of campaigns created */
     totalCampaigns: p.int(),
-    /** Number of currently active campaigns */
     activeCampaigns: p.int(),
-    /** Total rewards distributed across all campaigns */
-    totalRewardsDistributed: p.bigint(),
-    /** Total unique participants across all campaigns */
-    totalParticipants: p.int(),
-    /** Unix timestamp of last update */
     updatedAt: p.bigint(),
   }),
 
