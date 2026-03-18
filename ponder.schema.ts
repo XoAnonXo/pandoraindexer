@@ -265,6 +265,8 @@ export default createSchema((p) => ({
     reserveYes: p.bigint().optional(),
     /** AMM reserve NO tokens */
     reserveNo: p.bigint().optional(),
+    /** Total tokens held in AMM pool: reserveYes + reserveNo (6 decimals) */
+    totalHold: p.bigint().optional(),
 
     // ─────────────────────────────────────────────────────────────────────────
     // FEE TRACKING
