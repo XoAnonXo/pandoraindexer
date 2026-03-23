@@ -1,62 +1,52 @@
 # =============================================================================
-# Docker Compose for Local Development
+# Docker Compose — EC2 Production
 # =============================================================================
 # Usage:
-#   docker-compose up -d        # Start all services
-#   docker-compose logs -f      # View logs
-#   docker-compose down         # Stop services
-#   docker-compose down -v      # Stop and remove volumes
-
-version: "3.8"
+#   cp .env.prod.example .env.prod
+#   # edit .env.prod with real values
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml logs -f
+#   docker compose -f docker-compose.prod.yml down
 
 services:
-  # PostgreSQL Database (shared between indexer and API)
   postgres:
     image: postgres:15-alpine
-    container_name: anymarket-indexer-db
-    environment:
-      POSTGRES_USER: ponder
-      POSTGRES_PASSWORD: ponder
-      POSTGRES_DB: anymarket
+    container_name: pandora-evm-db
+    env_file:
+      - .env
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /var/lib/pandora/evm-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ponder -d anymarket"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
-  # Ponder Indexer Worker — syncs blocks, writes to DB
   indexer:
     build:
       context: .
-      dockerfile: Dockerfile.indexer
-    container_name: anymarket-indexer-worker
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - PONDER_RPC_URL_1=${PONDER_RPC_URL_1:-https://eth.llamarpc.com}
-      - DATABASE_URL=postgresql://ponder:ponder@postgres:5432/anymarket
-    restart: unless-stopped
-
-  # Ponder GraphQL API — read-only, serves queries
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile.serve
-    container_name: anymarket-indexer-api
+      dockerfile: Dockerfile
+    container_name: pandora-evm-indexer
     depends_on:
       postgres:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      - DATABASE_URL=postgresql://ponder:ponder@postgres:5432/anymarket
     ports:
       - "42069:42069"
     restart: unless-stopped
-
-volumes:
-  postgres_data:
-    driver: local
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
