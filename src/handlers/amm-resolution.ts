@@ -4,7 +4,7 @@ import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser } from "../services/db";
 import { markPositionRedeemed } from "../services/positions";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
-import { updateMarketReserves } from "./amm-shared";
+import { updateMarketReserves, isPollResolved } from "./amm-shared";
 import { handleProtocolFeesWithdrawn } from "../services/protocolFees";
 
 ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
@@ -94,12 +94,15 @@ ponder.on("PredictionAMM:Sync", async ({ event, context }: any) => {
         ? (reserveNo * 1_000_000_000n) / totalReserves
         : 500_000_000n;
 
+    const poll = await context.db.polls.findUnique({ id: market.pollAddress });
+    const resolved = isPollResolved(poll?.status);
+
     await context.db.markets.update({
       id: marketAddress,
       data: {
         reserveYes,
         reserveNo,
-        yesChance,
+        ...(resolved ? {} : { yesChance }),
       },
     });
   }
