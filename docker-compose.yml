@@ -1,28 +1,29 @@
 # =============================================================================
-# Docker Compose — EC2 Production
+# EVM Indexer (Ponder) — Docker Compose
 # =============================================================================
 # Usage:
-#   cp .env.prod.example .env.prod
-#   # edit .env.prod with real values
-#   docker compose -f docker-compose.prod.yml up -d --build
-#   docker compose -f docker-compose.prod.yml logs -f
-#   docker compose -f docker-compose.prod.yml down
+#   docker compose up -d --build
+#   docker compose logs -f
+#   docker compose down
 
 services:
   postgres:
     image: postgres:15-alpine
     container_name: pandora-evm-db
-    env_file:
-      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pandora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pandora}
+      POSTGRES_DB: ${POSTGRES_DB:-anymarket}
     ports:
       - "5432:5432"
     volumes:
-      - /var/lib/pandora/evm-db:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ponder -d anymarket"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pandora} -d ${POSTGRES_DB:-anymarket}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     restart: unless-stopped
     logging:
       driver: json-file
@@ -41,12 +42,21 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://ponder:ponder@postgres:5432/anymarket
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-pandora}:${POSTGRES_PASSWORD:-pandora}@postgres:5432/${POSTGRES_DB:-anymarket}
     ports:
       - "42069:42069"
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
     restart: unless-stopped
     logging:
       driver: json-file
       options:
-        max-size: "50m"
+        max-size: "100m"
         max-file: "5"
+
+volumes:
+  pgdata:
