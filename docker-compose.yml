@@ -40,21 +40,9 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: pandora-evm-indexer
-    depends_on:
-      postgres:
-        condition: service_healthy
+    network_mode: host
     env_file:
       - .env
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-pandora}:${POSTGRES_PASSWORD:-pandora}@postgres:5432/${POSTGRES_DB:-anymarket}
-    ports:
-      - "42069:42069"
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 120s
     restart: unless-stopped
     logging:
       driver: json-file
