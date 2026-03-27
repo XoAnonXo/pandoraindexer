@@ -100,28 +100,6 @@ ponder.on("PredictionOracle:PollCreated", async ({ event, context }: any) => {
 	} catch (err) {
 		console.error(`[${chain.chainName}] ⚠️ Poll saved but failed to update user/stats:`, err);
 	}
-
-	const apiUrl = process.env.PANDORA_API_URL;
-	if (apiUrl) {
-		fetch(`${apiUrl}/api/image-generate`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				pollId: pollAddress.toLowerCase(),
-				question: question.slice(0, 500),
-				category: String(category),
-			}),
-		})
-			.then((res) => {
-				console.log(`[${chain.chainName}] Image generation triggered for ${pollAddress}: ${res.status}`);
-			})
-			.catch((err) => {
-				console.error(
-					`[${chain.chainName}] Image generation request failed for ${pollAddress}:`,
-					err?.message || err,
-				);
-			});
-	}
 });
 
 ponder.on("PredictionOracle:PollRefreshed", async ({ event, context }: any) => {
