@@ -198,9 +198,6 @@ export default createSchema((p) => ({
     /** Event ID for multi-market grouping (set externally by pandora-api) */
     eventId: p.string().optional(),
 
-    /** IPFS CID of the AI-generated market image (set externally by pandora-api) */
-    imageCid: p.string().optional(),
-
     /** Maximum TVL among all markets for this poll (6 decimals) - for filtering/sorting */
     maxMarketTvl: p.bigint().optional(),
     /** Total TVL across all markets for this poll (6 decimals) - for analytics */
