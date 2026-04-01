@@ -6,10 +6,10 @@ const execAsync = promisify(exec);
 
 console.log("[Cron] Initializing cron jobs...");
 
-// Запускать пересчет volume24h каждый час (в 0 минут)
-cron.schedule("0 * * * *", async () => {
+// Recalculate volume24h + trades24h every 5 minutes
+cron.schedule("*/5 * * * *", async () => {
 	console.log(
-		`[Cron] Running volume24h recalculation at ${new Date().toISOString()}`
+		`[Cron] Running volume24h + trades24h recalculation at ${new Date().toISOString()}`
 	);
 
 	try {
@@ -24,7 +24,7 @@ cron.schedule("0 * * * *", async () => {
 	}
 });
 
-console.log("[Cron] ✅ Cron jobs scheduled (runs every hour at :00)");
+console.log("[Cron] ✅ Cron jobs scheduled (volume24h + trades24h every 5 min)");
 
 // Запустить первую инициализацию с задержкой 60 секунд
 // чтобы Ponder успел создать таблицы в БД
