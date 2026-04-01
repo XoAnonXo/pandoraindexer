@@ -59,10 +59,11 @@ interface Market {
   id: string;
   chainId: number;
   volume24h: string;
+  trades24h: number;
 }
 
 async function recalculateVolume24h() {
-  console.log("[Recalculate] Starting volume24h recalculation...");
+  console.log("[Recalculate] Starting volume24h + trades24h recalculation...");
 
   const timestamp24hAgo = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
   const startTime = Date.now();
@@ -79,7 +80,7 @@ async function recalculateVolume24h() {
 
     // Get all markets
     const marketsResult = await client.query<Market>(
-      'SELECT id, "chainId", volume24h FROM markets ORDER BY id'
+      'SELECT id, "chainId", volume24h, COALESCE(trades24h, 0) AS trades24h FROM markets ORDER BY id'
     );
 
     const markets = marketsResult.rows;
@@ -97,34 +98,26 @@ async function recalculateVolume24h() {
       await Promise.all(
         batch.map(async (market) => {
           try {
-            // Get trades for this market in last 24h
             const tradesResult = await client.query(
-              `SELECT "collateralAmount"
-							 FROM trades
-							 WHERE "marketAddress" = $1
-							 AND timestamp >= $2`,
+              `SELECT COUNT(*)::int AS trade_count,
+                      COALESCE(SUM("collateralAmount"), 0) AS volume
+               FROM trades
+               WHERE "marketAddress" = $1
+               AND timestamp >= $2`,
               [market.id, timestamp24hAgo]
             );
 
-            // Sum collateralAmount (stored as strings in Postgres)
-            const volume24h = tradesResult.rows.reduce(
-              (sum, row) => {
-                return (
-                  sum + BigInt(row.collateralAmount || "0")
-                );
-              },
-              0n
-            );
+            const row = tradesResult.rows[0];
+            const volume24h = BigInt(row.volume || "0");
+            const trades24h: number = row.trade_count ?? 0;
 
-            const currentVolume24h = BigInt(
-              market.volume24h || "0"
-            );
+            const currentVolume24h = BigInt(market.volume24h || "0");
+            const currentTrades24h = market.trades24h ?? 0;
 
-            // Update market if changed
-            if (volume24h !== currentVolume24h) {
+            if (volume24h !== currentVolume24h || trades24h !== currentTrades24h) {
               await client.query(
-                "UPDATE markets SET volume24h = $1 WHERE id = $2",
-                [volume24h.toString(), market.id]
+                'UPDATE markets SET volume24h = $1, trades24h = $2 WHERE id = $3',
+                [volume24h.toString(), trades24h, market.id]
               );
               updatedCount++;
 
