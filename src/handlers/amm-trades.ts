@@ -9,6 +9,7 @@ import {
 } from "../services/db";
 import { recordPosition, reducePosition } from "../services/positions";
 import { recordAmmPriceTickAndCandles } from "../services/candles";
+import { updateReferralVolume } from "../services/referral";
 import { toBigInt, updateMarketReserves } from "./amm-shared";
 
 ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
@@ -262,6 +263,17 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     fees: fee,
     activeUsers: 1,
   });
+
+  await updateReferralVolume(
+    context,
+    trader.toLowerCase() as `0x${string}`,
+    collateralAmount,
+    fee,
+    timestamp,
+    event.block.number,
+    chain,
+    marketAddress
+  );
 });
 
 ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {

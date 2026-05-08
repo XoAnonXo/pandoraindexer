@@ -146,6 +146,7 @@ export async function getOrCreateUser(
           // Referral stats (all start at zero/null)
           totalReferrals: 0,
           totalReferralVolume: 0n,
+          totalReferralExitVolume: 0n,
           totalReferralFees: 0n,
           totalReferralRewards: 0n,
           // Timestamps left null until first trade

@@ -113,6 +113,7 @@ export async function updateReferralVolume(
         "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
       status: "active",
       totalVolumeGenerated: volume,
+      totalExitVolumeGenerated: volume,
       totalFeesGenerated: fees,
       totalTradesCount: 1,
       totalRewardsEarned: 0n,
@@ -124,6 +125,8 @@ export async function updateReferralVolume(
     update: ({ current }: any) => ({
       status: "active", // Mark as active once they trade
       totalVolumeGenerated: current.totalVolumeGenerated + volume,
+      totalExitVolumeGenerated:
+        (current.totalExitVolumeGenerated ?? 0n) + volume,
       totalFeesGenerated: current.totalFeesGenerated + fees,
       totalTradesCount: current.totalTradesCount + 1,
       firstTradeAt: current.firstTradeAt ?? timestamp,
@@ -138,6 +141,8 @@ export async function updateReferralVolume(
     data: {
       totalReferralVolume:
         (referrerRecord.totalReferralVolume ?? 0n) + volume,
+      totalReferralExitVolume:
+        (referrerRecord.totalReferralExitVolume ?? 0n) + volume,
       totalReferralFees: (referrerRecord.totalReferralFees ?? 0n) + fees,
     },
   });

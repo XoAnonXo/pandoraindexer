@@ -60,12 +60,13 @@ interface EventRow {
 
 async function syncCompletedEvents(client: any): Promise<{ polls: number; markets: number }> {
   const eventsResult = await client.query(
-    `SELECT id, poll_addresses, market_addresses
+    `SELECT id, title, poll_addresses, market_addresses
      FROM app_internal.events
      WHERE array_length(poll_addresses, 1) > 0`
   );
 
-  const events: Pick<EventRow, "id" | "poll_addresses" | "market_addresses">[] = eventsResult.rows;
+  const events: Pick<EventRow, "id" | "title" | "poll_addresses" | "market_addresses">[] =
+    eventsResult.rows;
   let syncedPolls = 0;
   let syncedMarkets = 0;
 
@@ -92,6 +93,19 @@ async function syncCompletedEvents(client: any): Promise<{ polls: number; market
         [event.id, event.poll_addresses]
       );
       syncedMarkets += result.rowCount ?? 0;
+    }
+
+    // Template backfill for short poll questions (no mass DeepSeek calls)
+    const eventTitle = event.title ?? "";
+    if (event.poll_addresses.length > 0 && eventTitle) {
+      await client.query(
+        `UPDATE polls SET "displayTitle" = COALESCE("question", '') || ' — ' || $1
+         WHERE id = ANY($2)
+           AND ("displayTitle" IS NULL OR "displayTitle" = '')
+           AND length(COALESCE("question", '')) < 50
+           AND COALESCE("question", '') NOT LIKE '%?%'`,
+        [eventTitle, event.poll_addresses]
+      );
     }
   }
 

@@ -98,6 +98,7 @@ ponder.on("ReferralFactory:ReferralRegistered", async ({ event, context }: any) 
       referralCodeHash: null, // Code hash not available in event args
       status: "pending", // Will become "active" on first trade
       totalVolumeGenerated: 0n,
+      totalExitVolumeGenerated: 0n,
       totalFeesGenerated: 0n,
       totalTradesCount: 0,
       totalRewardsEarned: 0n,

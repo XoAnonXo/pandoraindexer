@@ -3,6 +3,7 @@ import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser } from "../services/db";
 import { markPositionRedeemed } from "../services/positions";
+import { updateReferralVolume } from "../services/referral";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
 import { updateMarketReserves, isPollResolved } from "./amm-shared";
 import { handleProtocolFeesWithdrawn } from "../services/protocolFees";
@@ -78,6 +79,17 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
     winningsPaid: collateralAmount,
     tvlChange: 0n - collateralAmount,
   });
+
+  await updateReferralVolume(
+    context,
+    user.toLowerCase() as `0x${string}`,
+    collateralAmount,
+    0n,
+    timestamp,
+    event.block.number,
+    chain,
+    marketAddress
+  );
 });
 
 ponder.on("PredictionAMM:Sync", async ({ event, context }: any) => {

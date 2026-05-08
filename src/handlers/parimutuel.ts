@@ -12,6 +12,7 @@ import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 import { recordPriceTickAndCandles } from "../services/candles";
 import { PRICE_SCALE } from "../utils/constants";
 import { handleProtocolFeesWithdrawn } from "../services/protocolFees";
+import { updateReferralVolume } from "../services/referral";
 
 function computeYesChanceFromCollateral(params: {
 	totalCollateralYes: bigint;
@@ -396,6 +397,17 @@ ponder.on(
 			tvlChange: 0n - collateralAmount,
 			fees: fee,
 		});
+
+		await updateReferralVolume(
+			context,
+			user.toLowerCase() as `0x${string}`,
+			collateralAmount,
+			0n,
+			timestamp,
+			event.block.number,
+			chain,
+			marketAddress
+		);
 	}
 );
 
