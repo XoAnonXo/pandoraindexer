@@ -398,11 +398,12 @@ ponder.on(
 			fees: fee,
 		});
 
+		const platformShare = fee / 2n;
 		await updateReferralVolume(
 			context,
 			user.toLowerCase() as `0x${string}`,
 			collateralAmount,
-			0n,
+			platformShare,
 			timestamp,
 			event.block.number,
 			chain,

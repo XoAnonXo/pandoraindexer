@@ -264,11 +264,12 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     activeUsers: 1,
   });
 
+  const platformShare = fee / 2n;
   await updateReferralVolume(
     context,
     trader.toLowerCase() as `0x${string}`,
     collateralAmount,
-    fee,
+    platformShare,
     timestamp,
     event.block.number,
     chain,

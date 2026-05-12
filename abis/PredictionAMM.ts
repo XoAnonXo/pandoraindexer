@@ -363,6 +363,18 @@ export const PredictionAMMAbi = [
     stateMutability: "view",
     type: "function",
   },
+
+  /**
+   * protocolFeeRate() - Protocol fee in BPS denominator units (same scale as trading fee)
+   * Used by indexer to derive protocol fee on winnings redemption (fee not emitted on event).
+   */
+  {
+    inputs: [],
+    name: "protocolFeeRate",
+    outputs: [{ name: "", type: "uint24" }],
+    stateMutability: "view",
+    type: "function",
+  },
   
   /**
    * maxPriceImbalancePerHour() - Returns max price imbalance setting
