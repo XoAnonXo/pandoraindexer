@@ -19,6 +19,10 @@ import { Pool } from "pg";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
+function hexToBuffer(hex: string): Buffer {
+  return Buffer.from(hex.replace(/^0x/, ""), "hex");
+}
+
 if (!DATABASE_URL) {
   console.error("[SyncEvents] DATABASE_URL environment variable is required");
   process.exit(1);
@@ -71,40 +75,43 @@ async function syncCompletedEvents(client: any): Promise<{ polls: number; market
   let syncedMarkets = 0;
 
   for (const event of events) {
-    if (event.poll_addresses.length > 0) {
+    const isSolana = event.poll_addresses.length > 0 && !event.poll_addresses[0].startsWith("0x");
+    if (isSolana) continue;
+
+    const pollBuffers = event.poll_addresses.map(hexToBuffer);
+
+    if (pollBuffers.length > 0) {
       const result = await client.query(
-        `UPDATE polls SET "eventId" = $1 WHERE id = ANY($2) AND "eventId" IS DISTINCT FROM $1`,
-        [event.id, event.poll_addresses]
+        `UPDATE polls SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
+        [event.id, pollBuffers]
       );
       syncedPolls += result.rowCount ?? 0;
     }
 
     if (event.market_addresses.length > 0) {
+      const marketBuffers = event.market_addresses.map(hexToBuffer);
       const result = await client.query(
-        `UPDATE markets SET "eventId" = $1 WHERE id = ANY($2) AND "eventId" IS DISTINCT FROM $1`,
-        [event.id, event.market_addresses]
+        `UPDATE markets SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
+        [event.id, marketBuffers]
       );
       syncedMarkets += result.rowCount ?? 0;
     }
 
-    if (event.poll_addresses.length > 0) {
+    if (pollBuffers.length > 0) {
       const result = await client.query(
-        `UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2) AND "eventId" IS DISTINCT FROM $1`,
-        [event.id, event.poll_addresses]
+        `UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
+        [event.id, pollBuffers]
       );
       syncedMarkets += result.rowCount ?? 0;
     }
 
-    // Template backfill for short poll questions (no mass DeepSeek calls)
     const eventTitle = event.title ?? "";
-    if (event.poll_addresses.length > 0 && eventTitle) {
+    if (pollBuffers.length > 0 && eventTitle) {
       await client.query(
         `UPDATE polls SET "displayTitle" = COALESCE("question", '') || ' — ' || $1
-         WHERE id = ANY($2)
-           AND ("displayTitle" IS NULL OR "displayTitle" = '')
-           AND length(COALESCE("question", '')) < 50
-           AND COALESCE("question", '') NOT LIKE '%?%'`,
-        [eventTitle, event.poll_addresses]
+         WHERE id = ANY($2::bytea[])
+           AND ("displayTitle" IS NULL OR "displayTitle" = '')`,
+        [eventTitle, pollBuffers]
       );
     }
   }
