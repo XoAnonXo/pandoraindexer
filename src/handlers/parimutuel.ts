@@ -58,19 +58,29 @@ ponder.on(
 			data: {
 				chainId: chain.chainId,
 				chainName: chain.chainName,
-				trader: market.creator, // Creator is the trader here
+				trader: market.creator,
 				marketAddress,
 				pollAddress,
 				tradeType: "seed",
-				side: "both", // Special side for seeding
+				side: "both",
 				collateralAmount: totalLiquidity,
-				tokenAmount: 0n, // Shares calculation is complex for seed, leaving 0 for now
+				tokenAmount: 0n,
 				feeAmount: 0n,
 				txHash: event.transaction.hash,
 				blockNumber: event.block.number,
 				timestamp,
 			},
 		});
+
+		const creatorAddr = market.creator.toLowerCase() as `0x${string}`;
+		await recordPosition(
+			context, chain, marketAddress, pollAddress,
+			creatorAddr, "yes", yesAmount, yesAmount, timestamp
+		);
+		await recordPosition(
+			context, chain, marketAddress, pollAddress,
+			creatorAddr, "no", noAmount, noAmount, timestamp
+		);
 
 		const user = await getOrCreateUser(context, market.creator, chain);
 		await context.db.users.update({
