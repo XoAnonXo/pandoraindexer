@@ -8,6 +8,7 @@ import {
 	recordMarketInteraction,
 } from "../services/db";
 import { updatePollTvl } from "../services/pollTvl";
+import { recordPosition, markPositionRedeemed } from "../services/positions";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 import { recordPriceTickAndCandles } from "../services/candles";
 import { PRICE_SCALE } from "../utils/constants";
@@ -185,6 +186,12 @@ ponder.on(
 			},
 		});
 
+		await recordPosition(
+			context, chain, marketAddress, pollAddress,
+			buyer.toLowerCase() as `0x${string}`,
+			isYes ? "yes" : "no", collateralIn, sharesOut, timestamp
+		);
+
 		const user = await getOrCreateUser(context, buyer, chain);
 		const isNewUser = user.totalTrades === 0;
 		const isNewTrader = await isNewTraderForMarket(
@@ -334,6 +341,8 @@ ponder.on(
 				timestamp,
 			},
 		});
+
+		await markPositionRedeemed(context, chain, marketAddress, user.toLowerCase() as `0x${string}`);
 
 		if (market) {
 			const newMarketTvl =
