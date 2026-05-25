@@ -55,3 +55,16 @@ setTimeout(async () => {
 		console.error("[Cron] ❌ Event sync failed:", error);
 	}
 }, 90000); // 90 секунд
+
+// Periodic event sync every 10 minutes (catches missed syncs after retries expire)
+cron.schedule("*/10 * * * *", async () => {
+	console.log(`[Cron] Running periodic event sync at ${new Date().toISOString()}`);
+	try {
+		const { stdout, stderr } = await execAsync("npm run sync:events");
+		if (stdout) console.log("[Cron] Event sync output:", stdout);
+		if (stderr && stderr.trim()) console.error("[Cron] Event sync errors:", stderr);
+		console.log("[Cron] ✅ Periodic event sync completed");
+	} catch (error) {
+		console.error("[Cron] ❌ Periodic event sync failed:", error);
+	}
+});

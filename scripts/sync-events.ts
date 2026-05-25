@@ -63,57 +63,89 @@ interface EventRow {
 }
 
 async function syncCompletedEvents(client: any): Promise<{ polls: number; markets: number }> {
+  // For each poll/market, only the most recent event (by created_at) wins.
+  // This prevents stale events from overwriting the correct eventId.
   const eventsResult = await client.query(
     `SELECT id, title, poll_addresses, market_addresses
      FROM app_internal.events
-     WHERE array_length(poll_addresses, 1) > 0`
+     WHERE array_length(poll_addresses, 1) > 0
+     ORDER BY created_at ASC`
   );
 
   const events: Pick<EventRow, "id" | "title" | "poll_addresses" | "market_addresses">[] =
     eventsResult.rows;
-  let syncedPolls = 0;
-  let syncedMarkets = 0;
+
+  // Build a map: poll_address → newest event (last write wins with ASC order)
+  const pollToEvent = new Map<string, { eventId: string; title: string }>();
+  const marketToEvent = new Map<string, string>();
 
   for (const event of events) {
     const isSolana = event.poll_addresses.length > 0 && !event.poll_addresses[0].startsWith("0x");
     if (isSolana) continue;
 
-    const pollBuffers = event.poll_addresses.map(hexToBuffer);
-
-    if (pollBuffers.length > 0) {
-      const result = await client.query(
-        `UPDATE polls SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
-        [event.id, pollBuffers]
-      );
-      syncedPolls += result.rowCount ?? 0;
+    for (const poll of event.poll_addresses) {
+      pollToEvent.set(poll.toLowerCase(), { eventId: event.id, title: event.title ?? "" });
     }
-
-    if (event.market_addresses.length > 0) {
-      const marketBuffers = event.market_addresses.map(hexToBuffer);
-      const result = await client.query(
-        `UPDATE markets SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
-        [event.id, marketBuffers]
-      );
-      syncedMarkets += result.rowCount ?? 0;
+    for (const market of event.market_addresses) {
+      marketToEvent.set(market.toLowerCase(), event.id);
     }
+  }
 
-    if (pollBuffers.length > 0) {
-      const result = await client.query(
-        `UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
-        [event.id, pollBuffers]
-      );
-      syncedMarkets += result.rowCount ?? 0;
+  let syncedPolls = 0;
+  let syncedMarkets = 0;
+
+  // Group polls by eventId to batch updates
+  const pollsByEvent = new Map<string, { buffers: Buffer[]; title: string }>();
+  for (const [pollHex, { eventId, title }] of pollToEvent) {
+    const entry = pollsByEvent.get(eventId);
+    if (entry) {
+      entry.buffers.push(hexToBuffer(pollHex));
+    } else {
+      pollsByEvent.set(eventId, { buffers: [hexToBuffer(pollHex)], title });
     }
+  }
 
-    const eventTitle = event.title ?? "";
-    if (pollBuffers.length > 0 && eventTitle) {
+  for (const [eventId, { buffers, title }] of pollsByEvent) {
+    const result = await client.query(
+      `UPDATE polls SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
+      [eventId, buffers]
+    );
+    syncedPolls += result.rowCount ?? 0;
+
+    // Also sync markets by pollAddress
+    const mResult = await client.query(
+      `UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
+      [eventId, buffers]
+    );
+    syncedMarkets += mResult.rowCount ?? 0;
+
+    if (title) {
       await client.query(
         `UPDATE polls SET "displayTitle" = COALESCE("question", '') || ' — ' || $1
          WHERE id = ANY($2::bytea[])
            AND ("displayTitle" IS NULL OR "displayTitle" = '')`,
-        [eventTitle, pollBuffers]
+        [title, buffers]
       );
     }
+  }
+
+  // Sync markets by direct market_addresses
+  const marketsByEvent = new Map<string, Buffer[]>();
+  for (const [marketHex, eventId] of marketToEvent) {
+    const entry = marketsByEvent.get(eventId);
+    if (entry) {
+      entry.push(hexToBuffer(marketHex));
+    } else {
+      marketsByEvent.set(eventId, [hexToBuffer(marketHex)]);
+    }
+  }
+
+  for (const [eventId, buffers] of marketsByEvent) {
+    const result = await client.query(
+      `UPDATE markets SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
+      [eventId, buffers]
+    );
+    syncedMarkets += result.rowCount ?? 0;
   }
 
   return { polls: syncedPolls, markets: syncedMarkets };
