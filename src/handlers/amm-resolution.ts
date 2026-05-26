@@ -93,7 +93,9 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 		},
 	});
 
-	await markPositionRedeemed(context, chain, marketAddress, user.toLowerCase() as `0x${string}`);
+	const normalizedUser = user.toLowerCase() as `0x${string}`;
+
+	await markPositionRedeemed(context, chain, marketAddress, normalizedUser);
 
 	if (market) {
 		await updateMarketReserves(

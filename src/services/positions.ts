@@ -143,6 +143,7 @@ export async function reducePosition(
 
 /**
  * Mark a position as redeemed when user claims winnings.
+ * Zeroes out all token/amount fields since the contract burns ALL user tokens on redeem.
  */
 export async function markPositionRedeemed(
   context: PonderContext,
@@ -160,6 +161,10 @@ export async function markPositionRedeemed(
         id,
         data: {
           hasRedeemed: true,
+          yesTokens: 0n,
+          noTokens: 0n,
+          yesAmount: 0n,
+          noAmount: 0n,
         },
       });
     }
