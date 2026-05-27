@@ -114,7 +114,7 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 	const newRealizedPnL = (userData.totalWithdrawn ?? 0n) + newTotalWinnings - (userData.totalDeposited ?? 0n);
 
 	await context.db.users.update({
-		id: makeId(chain.chainId, user.toLowerCase()),
+		id: user.toLowerCase(),
 		data: {
 			totalWinnings: newTotalWinnings,
 			totalWins: userData.totalWins + 1,

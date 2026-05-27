@@ -105,7 +105,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
   );
 
   await context.db.users.update({
-    id: makeId(chain.chainId, trader.toLowerCase()),
+    id: trader.toLowerCase(),
     data: {
       totalTrades: user.totalTrades + 1,
       totalVolume: user.totalVolume + collateralAmount,
@@ -235,7 +235,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     (user.totalDeposited ?? 0n);
 
   await context.db.users.update({
-    id: makeId(chain.chainId, trader.toLowerCase()),
+    id: trader.toLowerCase(),
     data: {
       totalTrades: user.totalTrades + 1,
       totalVolume: user.totalVolume + collateralAmount,
@@ -343,7 +343,7 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
   );
 
   await context.db.users.update({
-    id: makeId(chain.chainId, trader.toLowerCase()),
+    id: trader.toLowerCase(),
     data: {
       totalTrades: user.totalTrades + 1,
       lastTradeAt: timestamp,

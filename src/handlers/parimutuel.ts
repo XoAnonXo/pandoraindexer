@@ -84,7 +84,7 @@ ponder.on(
 
 		const user = await getOrCreateUser(context, market.creator, chain);
 		await context.db.users.update({
-			id: makeId(chain.chainId, market.creator.toLowerCase()),
+			id: market.creator.toLowerCase(),
 			data: {
 				totalDeposited: user.totalDeposited + totalLiquidity,
 				lastTradeAt: timestamp,
@@ -220,7 +220,7 @@ ponder.on(
 		);
 
 		await context.db.users.update({
-			id: makeId(chain.chainId, buyer.toLowerCase()),
+			id: buyer.toLowerCase(),
 			data: {
 				totalTrades: user.totalTrades + 1,
 				totalVolume: user.totalVolume + collateralIn,
@@ -400,7 +400,7 @@ ponder.on(
 		);
 
 		await context.db.users.update({
-			id: makeId(chain.chainId, user.toLowerCase()),
+			id: user.toLowerCase(),
 			data: {
 				totalWinnings: newTotalWinnings,
 				totalWins: isFirstWinForMarket ? userData.totalWins + 1 : userData.totalWins,

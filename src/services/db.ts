@@ -111,18 +111,14 @@ export async function getOrCreateUser(
   address: `0x${string}`,
   chain: ChainInfo
 ) {
-  // Normalize address to lowercase for consistent storage
   const normalizedAddress = address.toLowerCase() as `0x${string}`;
-  const id = makeId(chain.chainId, normalizedAddress);
 
   return withRetry(async () => {
-    // Try to fetch existing user
-    let user = await context.db.users.findUnique({ id });
+    let user = await context.db.users.findUnique({ id: normalizedAddress });
 
-    // If not found, create with zero-initialized stats
     if (!user) {
       user = await context.db.users.create({
-        id,
+        id: normalizedAddress,
         data: {
           chainId: chain.chainId,
           chainName: chain.chainName,

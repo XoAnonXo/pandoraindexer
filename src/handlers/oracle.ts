@@ -87,7 +87,7 @@ ponder.on("PredictionOracle:PollCreated", async ({ event, context }: any) => {
 	try {
 		const user = await getOrCreateUser(context, creator, chain);
 		await context.db.users.update({
-			id: makeId(chain.chainId, creator.toLowerCase()),
+			id: creator.toLowerCase(),
 			data: {
 				pollsCreated: user.pollsCreated + 1,
 			},

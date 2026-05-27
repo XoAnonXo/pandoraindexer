@@ -249,19 +249,16 @@ export async function recordUserLoss(
   userAddress: `0x${string}`
 ) {
   const normalizedUser = userAddress.toLowerCase() as `0x${string}`;
-  const userId = makeId(chain.chainId, normalizedUser);
-
   await withRetry(async () => {
-    const user = await context.db.users.findUnique({ id: userId });
+    const user = await context.db.users.findUnique({ id: normalizedUser });
     
     if (user) {
-      // Update streak (goes negative for consecutive losses)
       const newStreak = user.currentStreak <= 0 
         ? user.currentStreak - 1 
         : -1;
 
       await context.db.users.update({
-        id: userId,
+        id: normalizedUser,
         data: {
           totalLosses: user.totalLosses + 1,
           currentStreak: newStreak,

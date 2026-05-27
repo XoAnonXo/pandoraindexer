@@ -138,7 +138,7 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
   );
 
   await context.db.users.update({
-    id: makeId(chain.chainId, provider.toLowerCase()),
+    id: provider.toLowerCase(),
     data: {
       totalDeposited: user.totalDeposited + collateralAmount,
       totalVolume:
@@ -301,7 +301,7 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
   );
 
   await context.db.users.update({
-    id: makeId(chain.chainId, provider.toLowerCase()),
+    id: provider.toLowerCase(),
     data: {
       totalWithdrawn: newTotalWithdrawn,
       realizedPnL: newRealizedPnL,

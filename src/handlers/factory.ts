@@ -144,7 +144,7 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 
 		const user = await getOrCreateUser(context, creator, chain);
 		await context.db.users.update({
-			id: makeId(chain.chainId, normalizedCreator),
+			id: normalizedCreator,
 			data: {
 				marketsCreated: user.marketsCreated + 1,
 			},
@@ -289,7 +289,7 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }: any) => 
 
 		const user = await getOrCreateUser(context, creator, chain);
 		await context.db.users.update({
-			id: makeId(chain.chainId, normalizedCreator),
+			id: normalizedCreator,
 			data: {
 				marketsCreated: user.marketsCreated + 1,
 			},
