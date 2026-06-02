@@ -6,10 +6,9 @@ import { TradeSide, PollStatus } from "../utils/constants";
 /**
  * Record or update a user's position in a market.
  * Called when a user buys YES or NO tokens/shares.
- * 
- * Uses findUnique + upsert pattern for Ponder compatibility:
- * - Check if record exists first to calculate new amounts
- * - Use upsert to handle concurrent writes within the same batch
+ *
+ * Uses findUnique + explicit create/update instead of upsert
+ * to avoid Ponder v0.6 upsert issues with the legacy Store API.
  */
 export async function recordPosition(
   context: PonderContext,
@@ -26,48 +25,46 @@ export async function recordPosition(
   const id = makeId(chain.chainId, marketAddress, normalizedUser);
 
   await withRetry(async () => {
-    // Check if position exists to calculate new amounts
     const existing = await context.db.userMarketPositions.findUnique({ id });
-    
-    // Calculate new amounts based on whether position exists
-    const newYesAmount = side === TradeSide.YES 
-      ? (existing?.yesAmount ?? 0n) + collateralAmount 
-      : (existing?.yesAmount ?? 0n);
-    const newNoAmount = side === TradeSide.NO 
-      ? (existing?.noAmount ?? 0n) + collateralAmount 
-      : (existing?.noAmount ?? 0n);
-    const newYesTokens = side === TradeSide.YES 
-      ? (existing?.yesTokens ?? 0n) + tokenAmount 
-      : (existing?.yesTokens ?? 0n);
-    const newNoTokens = side === TradeSide.NO 
-      ? (existing?.noTokens ?? 0n) + tokenAmount 
-      : (existing?.noTokens ?? 0n);
-    
-    // Use upsert to handle concurrent writes within the same Ponder batch
-    await context.db.userMarketPositions.upsert({
-      id,
-      create: {
-        chainId: chain.chainId,
-        marketAddress,
-        pollAddress,
-        user: normalizedUser,
-        yesAmount: side === TradeSide.YES ? collateralAmount : 0n,
-        noAmount: side === TradeSide.NO ? collateralAmount : 0n,
-        yesTokens: side === TradeSide.YES ? tokenAmount : 0n,
-        noTokens: side === TradeSide.NO ? tokenAmount : 0n,
-        hasRedeemed: false,
-        lossRecorded: false,
-        firstPositionAt: timestamp,
-        lastUpdatedAt: timestamp,
-      },
-      update: {
-        yesAmount: newYesAmount,
-        noAmount: newNoAmount,
-        yesTokens: newYesTokens,
-        noTokens: newNoTokens,
-        lastUpdatedAt: timestamp,
-      },
-    });
+
+    if (existing) {
+      await context.db.userMarketPositions.update({
+        id,
+        data: {
+          yesAmount: side === TradeSide.YES
+            ? existing.yesAmount + collateralAmount
+            : existing.yesAmount,
+          noAmount: side === TradeSide.NO
+            ? existing.noAmount + collateralAmount
+            : existing.noAmount,
+          yesTokens: side === TradeSide.YES
+            ? existing.yesTokens + tokenAmount
+            : existing.yesTokens,
+          noTokens: side === TradeSide.NO
+            ? existing.noTokens + tokenAmount
+            : existing.noTokens,
+          lastUpdatedAt: timestamp,
+        },
+      });
+    } else {
+      await context.db.userMarketPositions.create({
+        id,
+        data: {
+          chainId: chain.chainId,
+          marketAddress,
+          pollAddress,
+          user: normalizedUser,
+          yesAmount: side === TradeSide.YES ? collateralAmount : 0n,
+          noAmount: side === TradeSide.NO ? collateralAmount : 0n,
+          yesTokens: side === TradeSide.YES ? tokenAmount : 0n,
+          noTokens: side === TradeSide.NO ? tokenAmount : 0n,
+          hasRedeemed: false,
+          lossRecorded: false,
+          firstPositionAt: timestamp,
+          lastUpdatedAt: timestamp,
+        },
+      });
+    }
   });
 }
 

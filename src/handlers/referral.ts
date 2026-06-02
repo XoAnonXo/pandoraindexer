@@ -14,8 +14,10 @@
  */
 
 import { ponder } from "@/generated";
+import { decodeFunctionData, type Hex } from "viem";
 import { getChainInfo } from "../utils/helpers";
 import { getOrCreateUser } from "../services/db";
+import { ReferralFactoryAbi } from "../../abis/ReferralFactory";
 
 // =============================================================================
 // REFERRAL CODE REGISTERED EVENT
@@ -89,14 +91,39 @@ ponder.on("ReferralFactory:ReferralRegistered", async ({ event, context }: any) 
 
   console.log(`[${chain.chainName}] Referral registered: ${normalizedReferee} referred by ${normalizedReferrer}`);
 
+  // Extract referralCodeHash from transaction input
+  let referralCodeHash: Hex | null = null;
+  try {
+    const decoded = decodeFunctionData({
+      abi: ReferralFactoryAbi,
+      data: event.transaction.input,
+    });
+
+    if (decoded.functionName === "registerReferral") {
+      referralCodeHash = (decoded.args as any)[1] as Hex;
+    } else if (decoded.functionName === "registerReferralBatch") {
+      const [users, codeHashes] = decoded.args as [Hex[], Hex[], Hex[]];
+      const idx = users.findIndex(
+        (u: string) => u.toLowerCase() === normalizedReferee
+      );
+      if (idx !== -1) {
+        referralCodeHash = codeHashes[idx];
+      }
+    }
+  } catch (e) {
+    console.warn(`[${chain.chainName}] Could not decode tx input for referralCodeHash: ${e}`);
+  }
+
+  const normalizedCodeHash = referralCodeHash?.toLowerCase() as Hex | null;
+
   // Create referral relationship record
   await context.db.referrals.create({
     id: referralId,
     data: {
       referrerAddress: normalizedReferrer,
       refereeAddress: normalizedReferee,
-      referralCodeHash: null, // Code hash not available in event args
-      status: "pending", // Will become "active" on first trade
+      referralCodeHash: normalizedCodeHash,
+      status: "pending",
       totalVolumeGenerated: 0n,
       totalExitVolumeGenerated: 0n,
       totalFeesGenerated: 0n,
@@ -125,6 +152,19 @@ ponder.on("ReferralFactory:ReferralRegistered", async ({ event, context }: any) 
       totalReferrals: referrerRecord.totalReferrals + 1,
     },
   });
+
+  // Update referralCodes.totalReferrals
+  if (normalizedCodeHash) {
+    const codeRecord = await context.db.referralCodes.findUnique({ id: normalizedCodeHash });
+    if (codeRecord) {
+      await context.db.referralCodes.update({
+        id: normalizedCodeHash,
+        data: {
+          totalReferrals: codeRecord.totalReferrals + 1,
+        },
+      });
+    }
+  }
 
   // Update global referral stats
   await context.db.referralStats.upsert({
