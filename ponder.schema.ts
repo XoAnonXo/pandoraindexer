@@ -648,6 +648,14 @@ export default createSchema((p) => ({
     yesTokenAmount: p.bigint().optional(),
     /** NO tokens burned (AMM only) */
     noTokenAmount: p.bigint().optional(),
+    /** Total USDC spent on YES side — cost basis (6 decimals) */
+    yesCostBasis: p.bigint().optional(),
+    /** Total USDC spent on NO side — cost basis (6 decimals) */
+    noCostBasis: p.bigint().optional(),
+    /** User's winning side: "yes", "no", or "both" (refund/LP) */
+    side: p.string().optional(),
+    /** Poll status at claim time: 1=Yes, 2=No, 3=Unknown(refund) */
+    pollStatus: p.int().optional(),
     /** Market question (denormalized for display) */
     marketQuestion: p.string().optional(),
     /** Market type: 'amm' or 'pari' */

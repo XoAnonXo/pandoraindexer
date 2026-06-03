@@ -42,6 +42,10 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 
 	let totalProtocolFee = 0n;
 	let platformShareForReferral = 0n;
+	let resolvedPollStatus: number | undefined;
+	const yesBI = BigInt(yesAmount);
+	const noBI = BigInt(noAmount);
+
 	try {
 		const pollStatus = await context.client.readContract({
 			address: pollAddress,
@@ -50,8 +54,7 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 			blockNumber: event.block.number,
 		});
 		const status = Number(pollStatus);
-		const yesBI = BigInt(yesAmount);
-		const noBI = BigInt(noAmount);
+		resolvedPollStatus = status;
 
 		let gross = 0n;
 		if (status === PollStatus.YES) gross = yesBI;
@@ -75,25 +78,44 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 		);
 	}
 
+	// Read user's cost basis BEFORE marking redeemed (which zeroes amounts)
+	const normalizedUser = user.toLowerCase() as `0x${string}`;
+	const positionId = makeId(chain.chainId, marketAddress, normalizedUser);
+	const position = await context.db.userMarketPositions.findUnique({ id: positionId });
+
+	// Determine which side the user was on
+	let winningSide: string;
+	if (resolvedPollStatus === PollStatus.UNKNOWN) {
+		winningSide = "both";
+	} else if (yesBI > 0n && noBI === 0n) {
+		winningSide = "yes";
+	} else if (noBI > 0n && yesBI === 0n) {
+		winningSide = "no";
+	} else {
+		winningSide = "both";
+	}
+
 	await context.db.winnings.create({
 		id: winningId,
 		data: {
 			chainId: chain.chainId,
 			chainName: chain.chainName,
-			user: user.toLowerCase() as `0x${string}`,
+			user: normalizedUser,
 			marketAddress,
 			collateralAmount,
 			feeAmount: totalProtocolFee,
 			yesTokenAmount: yesAmount,
 			noTokenAmount: noAmount,
+			yesCostBasis: position?.yesAmount ?? 0n,
+			noCostBasis: position?.noAmount ?? 0n,
+			side: winningSide,
+			pollStatus: resolvedPollStatus,
 			marketQuestion: poll?.question,
 			marketType: "amm",
 			txHash: event.transaction.hash,
 			timestamp,
 		},
 	});
-
-	const normalizedUser = user.toLowerCase() as `0x${string}`;
 
 	await markPositionRedeemed(context, chain, marketAddress, normalizedUser);
 

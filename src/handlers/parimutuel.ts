@@ -335,24 +335,44 @@ ponder.on(
 			? await context.db.polls.findUnique({ id: market.pollAddress })
 			: null;
 
+		// Read user's cost basis BEFORE marking redeemed (which zeroes amounts)
+		const normalizedUser = user.toLowerCase() as `0x${string}`;
+		const positionId = makeId(chain.chainId, marketAddress, normalizedUser);
+		const position = await context.db.userMarketPositions.findUnique({ id: positionId });
+
+		// For pari-mutuel: outcome 0=Unknown(refund), 1=Yes, 2=No, 3=Unknown
+		const outcomeNum = Number(outcome);
+		let winningSide: string;
+		if (outcomeNum === 0 || outcomeNum === 3) {
+			winningSide = "both";
+		} else if (outcomeNum === 1) {
+			winningSide = "yes";
+		} else {
+			winningSide = "no";
+		}
+
 		await context.db.winnings.create({
 			id: winningId,
 			data: {
 				chainId: chain.chainId,
 				chainName: chain.chainName,
-				user: user.toLowerCase() as `0x${string}`,
+				user: normalizedUser,
 				marketAddress,
 				collateralAmount,
 				feeAmount: fee,
+				yesCostBasis: position?.yesAmount ?? 0n,
+				noCostBasis: position?.noAmount ?? 0n,
+				side: winningSide,
+				pollStatus: outcomeNum === 0 ? 3 : outcomeNum,
 				marketQuestion: poll?.question,
 				marketType: "pari",
-				outcome: Number(outcome),
+				outcome: outcomeNum,
 				txHash: event.transaction.hash,
 				timestamp,
 			},
 		});
 
-		await markPositionRedeemed(context, chain, marketAddress, user.toLowerCase() as `0x${string}`);
+		await markPositionRedeemed(context, chain, marketAddress, normalizedUser);
 
 		if (market) {
 			const newMarketTvl =
