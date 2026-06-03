@@ -42,10 +42,6 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
           ? loss.yesCostBasis
           : loss.noCostBasis;
 
-        const position = await context.db.userMarketPositions.findUnique({ id: historyId });
-        const yesTokensHeld = position?.yesTokens ?? 0n;
-        const noTokensHeld = position?.noTokens ?? 0n;
-
         await context.db.positionHistory.upsert({
           id: historyId,
           create: {
@@ -60,8 +56,8 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
             pollStatus: resolvedStatus,
             yesCostBasis: loss.yesCostBasis,
             noCostBasis: loss.noCostBasis,
-            yesTokens: yesTokensHeld,
-            noTokens: noTokensHeld,
+            yesTokens: loss.yesTokens,
+            noTokens: loss.noTokens,
             collateralReceived: 0n,
             feeAmount: 0n,
             pnl: -losingSideCost,
