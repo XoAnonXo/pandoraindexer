@@ -686,6 +686,8 @@ export default createSchema((p) => ({
     user: p.hex(),
     /** Market contract address */
     marketAddress: p.hex(),
+    /** Poll contract address */
+    pollAddress: p.hex().optional(),
     /** Market question (denormalized for display) */
     marketQuestion: p.string().optional(),
     /** Market type: "amm" or "pari" */
@@ -700,6 +702,10 @@ export default createSchema((p) => ({
     yesCostBasis: p.bigint(),
     /** Total USDC spent on NO side — cost basis (6 decimals) */
     noCostBasis: p.bigint(),
+    /** YES outcome tokens held at resolution (6 decimals) */
+    yesTokens: p.bigint(),
+    /** NO outcome tokens held at resolution (6 decimals) */
+    noTokens: p.bigint(),
     /** USDC received at claim (0 for losses, 6 decimals) */
     collateralReceived: p.bigint(),
     /** Protocol fee deducted (6 decimals) */

@@ -375,6 +375,8 @@ ponder.on(
 		// Write positionHistory — single source for History tab
 		const yesCost = position?.yesAmount ?? 0n;
 		const noCost = position?.noAmount ?? 0n;
+		const yesTokensHeld = position?.yesTokens ?? 0n;
+		const noTokensHeld = position?.noTokens ?? 0n;
 		const historyResult = (outcomeNum === 0 || outcomeNum === 3) ? "refunded" : "won";
 		const resolvedPollStatus = outcomeNum === 0 ? 3 : outcomeNum;
 		const computedPnl = collateralAmount - yesCost - noCost;
@@ -385,6 +387,7 @@ ponder.on(
 				chainId: chain.chainId,
 				user: normalizedUser,
 				marketAddress,
+				pollAddress: market?.pollAddress ?? undefined,
 				marketQuestion: poll?.question,
 				marketType: "pari",
 				side: winningSide,
@@ -392,6 +395,8 @@ ponder.on(
 				pollStatus: resolvedPollStatus,
 				yesCostBasis: yesCost,
 				noCostBasis: noCost,
+				yesTokens: yesTokensHeld,
+				noTokens: noTokensHeld,
 				collateralReceived: collateralAmount,
 				feeAmount: fee,
 				pnl: computedPnl,

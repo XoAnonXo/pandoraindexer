@@ -120,6 +120,8 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 	// Write positionHistory — single source for History tab
 	const yesCost = position?.yesAmount ?? 0n;
 	const noCost = position?.noAmount ?? 0n;
+	const yesTokensHeld = position?.yesTokens ?? 0n;
+	const noTokensHeld = position?.noTokens ?? 0n;
 	const historyResult = resolvedPollStatus === PollStatus.UNKNOWN ? "refunded" : "won";
 	const computedPnl = collateralAmount - yesCost - noCost;
 
@@ -129,6 +131,7 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 			chainId: chain.chainId,
 			user: normalizedUser,
 			marketAddress,
+			pollAddress: market?.pollAddress ?? undefined,
 			marketQuestion: poll?.question,
 			marketType: "amm",
 			side: winningSide,
@@ -136,6 +139,8 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 			pollStatus: resolvedPollStatus ?? 0,
 			yesCostBasis: yesCost,
 			noCostBasis: noCost,
+			yesTokens: yesTokensHeld,
+			noTokens: noTokensHeld,
 			collateralReceived: collateralAmount,
 			feeAmount: totalProtocolFee,
 			pnl: computedPnl,
