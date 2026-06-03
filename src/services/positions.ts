@@ -227,28 +227,43 @@ export async function processLossesForPoll(
         winningsForMarket.items.map((w: { user: string }) => w.user.toLowerCase()),
       );
 
-      // Aggregate total spent per user on losing side
-      const userTotals = new Map<string, bigint>();
+      // Aggregate total spent per user on losing side from trades
+      const userLosingSideTotals = new Map<string, bigint>();
       for (const trade of losingTrades.items) {
         const addr = trade.trader.toLowerCase();
         if (winners.has(addr)) continue;
-        const current = userTotals.get(addr) ?? 0n;
-        userTotals.set(addr, current + trade.collateralAmount);
+        const current = userLosingSideTotals.get(addr) ?? 0n;
+        userLosingSideTotals.set(addr, current + trade.collateralAmount);
       }
 
-      // Read full cost basis from userMarketPositions
+      // Also get all trades on winning side for these losers (they might have bet both sides)
+      const winningSide = losingSide === 'yes' ? 'no' : 'yes';
+      const winningSideTrades = await context.db.trades.findMany({
+        where: {
+          marketAddress: market.id,
+          chainId: chain.chainId,
+          side: winningSide,
+        },
+      });
+      const userWinningSideTotals = new Map<string, bigint>();
+      for (const trade of winningSideTrades.items) {
+        const addr = trade.trader.toLowerCase();
+        if (!userLosingSideTotals.has(addr)) continue;
+        const current = userWinningSideTotals.get(addr) ?? 0n;
+        userWinningSideTotals.set(addr, current + trade.collateralAmount);
+      }
+
       const poll = await context.db.polls.findUnique({ id: pollAddress });
 
-      for (const [addr, totalLost] of userTotals) {
-        const posId = makeId(chain.chainId, market.id, addr as `0x${string}`);
-        const position = await context.db.userMarketPositions.findUnique({ id: posId });
+      for (const [addr, losingSideSpent] of userLosingSideTotals) {
+        const winningSideSpent = userWinningSideTotals.get(addr) ?? 0n;
 
         losses.push({
           user: addr as `0x${string}`,
           marketAddress: market.id,
-          yesCostBasis: position?.yesAmount ?? 0n,
-          noCostBasis: position?.noAmount ?? 0n,
-          lostAmount: totalLost,
+          yesCostBasis: losingSide === 'yes' ? losingSideSpent : winningSideSpent,
+          noCostBasis: losingSide === 'no' ? losingSideSpent : winningSideSpent,
+          lostAmount: losingSideSpent,
           marketQuestion: poll?.question,
           marketType: market.marketType,
           losingSide,
