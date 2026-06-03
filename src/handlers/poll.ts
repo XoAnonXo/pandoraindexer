@@ -1,5 +1,5 @@
 import { ponder } from "@/generated";
-import { getChainInfo } from "../utils/helpers";
+import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { processLossesForPoll, recordUserLoss } from "../services/positions";
 import { PollStatus } from "../utils/constants";
@@ -35,6 +35,39 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
       const losses = await processLossesForPoll(context, chain, pollAddress, resolvedStatus);
       for (const loss of losses) {
         await recordUserLoss(context, chain, loss.user);
+
+        // Write positionHistory for losses
+        const historyId = makeId(chain.chainId, loss.marketAddress, loss.user);
+        const losingSideCost = loss.losingSide === "yes"
+          ? loss.yesCostBasis
+          : loss.noCostBasis;
+
+        await context.db.positionHistory.upsert({
+          id: historyId,
+          create: {
+            chainId: chain.chainId,
+            user: loss.user,
+            marketAddress: loss.marketAddress,
+            marketQuestion: loss.marketQuestion,
+            marketType: loss.marketType,
+            side: loss.losingSide,
+            result: "lost",
+            pollStatus: resolvedStatus,
+            yesCostBasis: loss.yesCostBasis,
+            noCostBasis: loss.noCostBasis,
+            collateralReceived: 0n,
+            feeAmount: 0n,
+            pnl: -losingSideCost,
+            resolvedAt: timestamp,
+          },
+          update: {
+            result: "lost",
+            pollStatus: resolvedStatus,
+            collateralReceived: 0n,
+            pnl: -losingSideCost,
+            resolvedAt: timestamp,
+          },
+        });
       }
       if (losses.length > 0) {
         console.log(`[${chain.chainName}] 📉 Recorded ${losses.length} losses for poll ${pollAddress}`);

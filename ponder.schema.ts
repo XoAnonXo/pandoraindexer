@@ -669,6 +669,50 @@ export default createSchema((p) => ({
   }),
 
   // ===========================================================================
+  // POSITION HISTORY TABLE
+  // ===========================================================================
+  /**
+   * Unified history of all closed positions (wins, losses, refunds).
+   * Single source of truth for the History tab on the frontend.
+   *
+   * ID FORMAT: "chainId-marketAddress-user"
+   */
+  positionHistory: p.createTable({
+    /** Composite key: chainId-marketAddress-user */
+    id: p.string(),
+    /** Chain ID */
+    chainId: p.int(),
+    /** User wallet address */
+    user: p.hex(),
+    /** Market contract address */
+    marketAddress: p.hex(),
+    /** Market question (denormalized for display) */
+    marketQuestion: p.string().optional(),
+    /** Market type: "amm" or "pari" */
+    marketType: p.string(),
+    /** User's position side: "yes", "no", or "both" */
+    side: p.string(),
+    /** Position outcome: "won", "lost", or "refunded" */
+    result: p.string(),
+    /** Poll status at resolution: 1=Yes, 2=No, 3=Unknown */
+    pollStatus: p.int(),
+    /** Total USDC spent on YES side — cost basis (6 decimals) */
+    yesCostBasis: p.bigint(),
+    /** Total USDC spent on NO side — cost basis (6 decimals) */
+    noCostBasis: p.bigint(),
+    /** USDC received at claim (0 for losses, 6 decimals) */
+    collateralReceived: p.bigint(),
+    /** Protocol fee deducted (6 decimals) */
+    feeAmount: p.bigint(),
+    /** Pre-computed PNL: collateralReceived - yesCostBasis - noCostBasis (6 decimals) */
+    pnl: p.bigint(),
+    /** Timestamp: poll resolution (losses) or claim tx (wins/refunds) */
+    resolvedAt: p.bigint(),
+    /** Claim transaction hash (null for losses) */
+    txHash: p.hex().optional(),
+  }),
+
+  // ===========================================================================
   // LIQUIDITY EVENTS TABLE
   // ===========================================================================
   /**

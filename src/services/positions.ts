@@ -170,7 +170,13 @@ export async function markPositionRedeemed(
 
 interface LossResult {
   user: `0x${string}`;
+  marketAddress: `0x${string}`;
+  yesCostBasis: bigint;
+  noCostBasis: bigint;
   lostAmount: bigint;
+  marketQuestion?: string;
+  marketType: string;
+  losingSide: string;
 }
 
 /**
@@ -178,9 +184,10 @@ interface LossResult {
  *
  * Uses `trades` (buy-side) and `winnings` tables to determine losers:
  * users who bought on the losing side and never redeemed winnings.
+ * Returns full cost basis data per user+market for positionHistory.
  *
  * @param pollStatus - The resolved status (1=YES wins, 2=NO wins, 3=Unknown/refund)
- * @returns Deduplicated array of users who lost
+ * @returns Deduplicated array of users who lost with cost basis
  */
 export async function processLossesForPoll(
   context: PonderContext,
@@ -220,15 +227,31 @@ export async function processLossesForPoll(
         winningsForMarket.items.map((w: { user: string }) => w.user.toLowerCase()),
       );
 
-      const seenUsers = new Set<string>();
+      // Aggregate total spent per user on losing side
+      const userTotals = new Map<string, bigint>();
       for (const trade of losingTrades.items) {
         const addr = trade.trader.toLowerCase();
-        if (winners.has(addr) || seenUsers.has(addr)) continue;
-        seenUsers.add(addr);
+        if (winners.has(addr)) continue;
+        const current = userTotals.get(addr) ?? 0n;
+        userTotals.set(addr, current + trade.collateralAmount);
+      }
+
+      // Read full cost basis from userMarketPositions
+      const poll = await context.db.polls.findUnique({ id: pollAddress });
+
+      for (const [addr, totalLost] of userTotals) {
+        const posId = makeId(chain.chainId, market.id, addr as `0x${string}`);
+        const position = await context.db.userMarketPositions.findUnique({ id: posId });
 
         losses.push({
           user: addr as `0x${string}`,
-          lostAmount: trade.collateralAmount,
+          marketAddress: market.id,
+          yesCostBasis: position?.yesAmount ?? 0n,
+          noCostBasis: position?.noAmount ?? 0n,
+          lostAmount: totalLost,
+          marketQuestion: poll?.question,
+          marketType: market.marketType,
+          losingSide,
         });
       }
     }

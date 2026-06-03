@@ -117,6 +117,41 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 		},
 	});
 
+	// Write positionHistory — single source for History tab
+	const yesCost = position?.yesAmount ?? 0n;
+	const noCost = position?.noAmount ?? 0n;
+	const historyResult = resolvedPollStatus === PollStatus.UNKNOWN ? "refunded" : "won";
+	const computedPnl = collateralAmount - yesCost - noCost;
+
+	await context.db.positionHistory.upsert({
+		id: positionId,
+		create: {
+			chainId: chain.chainId,
+			user: normalizedUser,
+			marketAddress,
+			marketQuestion: poll?.question,
+			marketType: "amm",
+			side: winningSide,
+			result: historyResult,
+			pollStatus: resolvedPollStatus ?? 0,
+			yesCostBasis: yesCost,
+			noCostBasis: noCost,
+			collateralReceived: collateralAmount,
+			feeAmount: totalProtocolFee,
+			pnl: computedPnl,
+			resolvedAt: timestamp,
+			txHash: event.transaction.hash,
+		},
+		update: {
+			collateralReceived: collateralAmount,
+			feeAmount: totalProtocolFee,
+			pnl: computedPnl,
+			result: historyResult,
+			resolvedAt: timestamp,
+			txHash: event.transaction.hash,
+		},
+	});
+
 	await markPositionRedeemed(context, chain, marketAddress, normalizedUser);
 
 	if (market) {

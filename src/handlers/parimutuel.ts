@@ -372,6 +372,42 @@ ponder.on(
 			},
 		});
 
+		// Write positionHistory — single source for History tab
+		const yesCost = position?.yesAmount ?? 0n;
+		const noCost = position?.noAmount ?? 0n;
+		const historyResult = (outcomeNum === 0 || outcomeNum === 3) ? "refunded" : "won";
+		const resolvedPollStatus = outcomeNum === 0 ? 3 : outcomeNum;
+		const computedPnl = collateralAmount - yesCost - noCost;
+
+		await context.db.positionHistory.upsert({
+			id: positionId,
+			create: {
+				chainId: chain.chainId,
+				user: normalizedUser,
+				marketAddress,
+				marketQuestion: poll?.question,
+				marketType: "pari",
+				side: winningSide,
+				result: historyResult,
+				pollStatus: resolvedPollStatus,
+				yesCostBasis: yesCost,
+				noCostBasis: noCost,
+				collateralReceived: collateralAmount,
+				feeAmount: fee,
+				pnl: computedPnl,
+				resolvedAt: timestamp,
+				txHash: event.transaction.hash,
+			},
+			update: {
+				collateralReceived: collateralAmount,
+				feeAmount: fee,
+				pnl: computedPnl,
+				result: historyResult,
+				resolvedAt: timestamp,
+				txHash: event.transaction.hash,
+			},
+		});
+
 		await markPositionRedeemed(context, chain, marketAddress, normalizedUser);
 
 		if (market) {
