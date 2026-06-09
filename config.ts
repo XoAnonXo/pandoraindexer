@@ -80,12 +80,11 @@ export const CHAINS: Record<number, ChainConfig> = {
     chainId: 1,
     name: "Ethereum",
     shortName: "ethereum",
-    rpcUrl: process.env.PONDER_RPC_URL_1 ?? "https://eth.llamarpc.com",
+    rpcUrl: process.env.PONDER_RPC_URL_1 ?? "https://ethereum-rpc.publicnode.com",
     rpcUrls: [
-      "https://eth.llamarpc.com",
       "https://ethereum-rpc.publicnode.com",
-      "https://rpc.ankr.com/eth",
       "https://1rpc.io/eth",
+      "https://eth.drpc.org",
     ],
     explorerUrl: "https://etherscan.io",
     contracts: {
