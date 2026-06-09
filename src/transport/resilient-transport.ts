@@ -18,29 +18,27 @@ import { type Transport, type TransportConfig, custom } from "viem";
 interface ResilientTransportOptions {
   primary: string;
   fallbacks: string[];
-  /** Consecutive failures before switching to fallback (default: 5) */
+  /** Consecutive failures before switching to fallback (default: 3) */
   failThreshold?: number;
-  /** How often to retry primary after fallback (ms, default: 3600000 = 1 hour) */
+  /** How often to retry primary after fallback (ms, default: 60000 = 1 min) */
   recoveryIntervalMs?: number;
+  /** Request timeout in ms (default: 30000) */
+  requestTimeoutMs?: number;
 }
 
 export function createResilientTransport(opts: ResilientTransportOptions): Transport {
   const {
     primary,
     fallbacks,
-    failThreshold = 5,
-    recoveryIntervalMs = 60 * 60 * 1000,
+    failThreshold = 3,
+    recoveryIntervalMs = 60_000,
+    requestTimeoutMs = 30_000,
   } = opts;
 
   let consecutiveFailures = 0;
   let usingFallback = false;
   let fallbackSince = 0;
-  let currentFallbackIdx = 0;
-
-  function getCurrentUrl(): string {
-    if (!usingFallback) return primary;
-    return fallbacks[currentFallbackIdx % fallbacks.length];
-  }
+  let lastFallbackIdx = 0;
 
   function shouldTryPrimary(): boolean {
     if (!usingFallback) return true;
@@ -60,24 +58,16 @@ export function createResilientTransport(opts: ResilientTransportOptions): Trans
     if (consecutiveFailures >= failThreshold && !usingFallback) {
       usingFallback = true;
       fallbackSince = Date.now();
-      currentFallbackIdx = 0;
+      lastFallbackIdx = 0;
       console.warn(
         `[RPC] ⚠️ Primary RPC failed ${consecutiveFailures}x, switching to fallback: ${fallbacks[0]}`
       );
     }
   }
 
-  function onFallbackFailure(): void {
-    currentFallbackIdx++;
-    if (currentFallbackIdx >= fallbacks.length) {
-      currentFallbackIdx = 0;
-    }
-    console.warn(`[RPC] ⚠️ Fallback failed, rotating to: ${getCurrentUrl()}`);
-  }
-
   async function makeRequest(url: string, body: any): Promise<any> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30_000);
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
 
     try {
       const response = await fetch(url, {
@@ -105,16 +95,12 @@ export function createResilientTransport(opts: ResilientTransportOptions): Trans
 
   return custom({
     async request({ method, params }: { method: string; params?: any[] }) {
+      const rpcBody = { jsonrpc: "2.0", id: 1, method, params: params ?? [] };
       const tryPrimary = shouldTryPrimary();
 
       if (tryPrimary) {
         try {
-          const result = await makeRequest(primary, {
-            jsonrpc: "2.0",
-            id: 1,
-            method,
-            params: params ?? [],
-          });
+          const result = await makeRequest(primary, rpcBody);
           onPrimarySuccess();
           return result;
         } catch (err: any) {
@@ -123,20 +109,21 @@ export function createResilientTransport(opts: ResilientTransportOptions): Trans
         }
       }
 
-      for (let attempt = 0; attempt < fallbacks.length; attempt++) {
-        const url = getCurrentUrl();
+      // Round-robin through fallbacks starting from where we left off
+      const startIdx = lastFallbackIdx;
+      for (let i = 0; i < fallbacks.length; i++) {
+        const idx = (startIdx + i) % fallbacks.length;
+        const url = fallbacks[idx];
         try {
-          const result = await makeRequest(url, {
-            jsonrpc: "2.0",
-            id: 1,
-            method,
-            params: params ?? [],
-          });
+          const result = await makeRequest(url, rpcBody);
+          lastFallbackIdx = idx;
           return result;
         } catch {
-          onFallbackFailure();
+          console.warn(`[RPC] ⚠️ Fallback ${idx + 1}/${fallbacks.length} failed (${url})`);
         }
       }
+      // Advance index for next request so we don't always start on the same dead node
+      lastFallbackIdx = (startIdx + 1) % fallbacks.length;
 
       throw new Error(
         `[RPC] All RPCs failed (primary + ${fallbacks.length} fallbacks) for ${method}`
