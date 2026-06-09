@@ -8,7 +8,7 @@
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: pandora-evm-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-pandora}
@@ -19,7 +19,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pandora} -d ${POSTGRES_DB:-anymarket}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-ponder} -d ${POSTGRES_DB:-anymarket}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -42,7 +46,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-pandora}:${POSTGRES_PASSWORD:-pandora}@postgres:5432/${POSTGRES_DB:-anymarket}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ponder}:${POSTGRES_PASSWORD:-pandora}@postgres:5432/${POSTGRES_DB:-anymarket}
     ports:
       - "42069:42069"
     deploy:

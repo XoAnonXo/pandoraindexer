@@ -121,54 +121,56 @@ All tables include `chainId` and `chainName` columns for multi-chain support.
 
 ### Core Tables
 
-| Table | Description | ID Format |
-|-------|-------------|-----------|
-| `polls` | Prediction questions from Oracle | Contract address |
-| `markets` | AMM and Pari-Mutuel trading markets | Contract address |
-| `trades` | Buy / sell / swap / bet transactions | `chainId-txHash-logIndex` |
-| `users` | Aggregated per-chain user statistics | `chainId-address` |
-| `winnings` | Winning redemptions after resolution | `chainId-txHash-logIndex` |
-| `liquidityEvents` | LP add / remove actions | `chainId-txHash-logIndex` |
+| Table             | Description                          | ID Format                 |
+| ----------------- | ------------------------------------ | ------------------------- |
+| `polls`           | Prediction questions from Oracle     | Contract address          |
+| `markets`         | AMM and Pari-Mutuel trading markets  | Contract address          |
+| `trades`          | Buy / sell / swap / bet transactions | `chainId-txHash-logIndex` |
+| `users`           | Aggregated per-chain user statistics | `chainId-address`         |
+| `winnings`        | Winning redemptions after resolution | `chainId-txHash-logIndex` |
+| `liquidityEvents` | LP add / remove actions              | `chainId-txHash-logIndex` |
 
 ### Analytics Tables
 
-| Table | Description | ID Format |
-|-------|-------------|-----------|
-| `platformStats` | Global metrics (one row per chain) | `chainId` |
-| `dailyStats` | Daily aggregates | `chainId-dayTimestamp` |
-| `hourlyStats` | Hourly aggregates | `chainId-hourTimestamp` |
+| Table           | Description                        | ID Format               |
+| --------------- | ---------------------------------- | ----------------------- |
+| `platformStats` | Global metrics (one row per chain) | `chainId`               |
+| `dailyStats`    | Daily aggregates                   | `chainId-dayTimestamp`  |
+| `hourlyStats`   | Hourly aggregates                  | `chainId-hourTimestamp` |
 
 ### Dispute Resolution Tables
 
-| Table | Description |
-|-------|-------------|
-| `disputes` | Dispute state, vote counts, deadlines |
-| `disputeVotes` | Individual NFT-holder votes |
-| `disputeRewardClaims` | Voter reward claims |
+| Table                 | Description                           |
+| --------------------- | ------------------------------------- |
+| `disputes`            | Dispute state, vote counts, deadlines |
+| `disputeVotes`        | Individual NFT-holder votes           |
+| `disputeRewardClaims` | Voter reward claims                   |
 
 ### Referral Tables (ready, not yet active on Ethereum)
 
-| Table | Description |
-|-------|-------------|
-| `referralCodes` | User referral codes and totals |
-| `referrals` | Referrer ↔ referee relationships |
-| `campaigns` | Reward campaign metadata |
-| `campaignClaims` | Individual reward claim records |
+| Table            | Description                      |
+| ---------------- | -------------------------------- |
+| `referralCodes`  | User referral codes and totals   |
+| `referrals`      | Referrer ↔ referee relationships |
+| `campaigns`      | Reward campaign metadata         |
+| `campaignClaims` | Individual reward claim records  |
 
 ### Launchpad Tables (ready, not yet active on Ethereum)
 
-| Table | Description |
-|-------|-------------|
-| `launchpadTokens` | Bonding-curve tokens (pump.fun fork) |
-| `launchpadTrades` | Buy/sell trades on bonding curves |
-| `tokenSystems` | Token referral system assignments |
-| `graduatedCreators` | Tokens that graduated to DEX |
+| Table               | Description                          |
+| ------------------- | ------------------------------------ |
+| `launchpadTokens`   | Bonding-curve tokens (pump.fun fork) |
+| `launchpadTrades`   | Buy/sell trades on bonding curves    |
+| `tokenSystems`      | Token referral system assignments    |
+| `graduatedCreators` | Tokens that graduated to DEX         |
 
-### Decimal Conventions
+- **DisputeResolverRemote** (Ethereum) - Manages disputes on remote chains, wraps AnonStaking NFTs
 
 All monetary values use **6 decimals** (USDC standard). Divide by `1,000,000` (1e6) for display.
 
-## GraphQL API
+- Ethereum: `0x0D7B957C47Da86c2968dc52111D633D42cb7a5F7` (DisputeResolverRemote)
+- AnonStaking: `0x5170F242c0246FD9427fB94c595d9b50fb48AA91`
+- Vault: `0xeb9404fF82e576F6b8623814AdCF10B61A5c7d44`
 
 Ponder auto-generates a GraphQL API from the schema at `http://localhost:42069` (or port `42069` in production).
 
@@ -178,14 +180,14 @@ Ponder auto-generates a GraphQL API from the schema at `http://localhost:42069` 
 
 ```graphql
 {
-  platformStatss(where: { chainId: 1 }) {
-    items {
-      chainName
-      totalVolume
-      totalMarkets
-      totalUsers
-    }
-  }
+	platformStatss(where: { chainId: 1 }) {
+		items {
+			chainName
+			totalVolume
+			totalMarkets
+			totalUsers
+		}
+	}
 }
 ```
 
@@ -193,15 +195,15 @@ Ponder auto-generates a GraphQL API from the schema at `http://localhost:42069` 
 
 ```graphql
 {
-  marketss(orderBy: "totalVolume", orderDirection: "desc", limit: 10) {
-    items {
-      id
-      chainId
-      marketType
-      totalVolume
-      totalTrades
-    }
-  }
+	marketss(orderBy: "totalVolume", orderDirection: "desc", limit: 10) {
+		items {
+			id
+			chainId
+			marketType
+			totalVolume
+			totalTrades
+		}
+	}
 }
 ```
 
@@ -209,14 +211,14 @@ Ponder auto-generates a GraphQL API from the schema at `http://localhost:42069` 
 
 ```graphql
 {
-  userss(where: { address: "0x123...", chainId: 1 }) {
-    items {
-      totalTrades
-      totalVolume
-      totalWinnings
-      bestStreak
-    }
-  }
+	userss(where: { address: "0x123...", chainId: 1 }) {
+		items {
+			totalTrades
+			totalVolume
+			totalWinnings
+			bestStreak
+		}
+	}
 }
 ```
 
@@ -224,19 +226,14 @@ Ponder auto-generates a GraphQL API from the schema at `http://localhost:42069` 
 
 ```graphql
 {
-  dailyStatss(
-    where: { chainId: 1 }
-    orderBy: "dayTimestamp"
-    orderDirection: "desc"
-    limit: 7
-  ) {
-    items {
-      dayTimestamp
-      volume
-      tradesCount
-      newUsers
-    }
-  }
+	dailyStatss(where: { chainId: 1 }, orderBy: "dayTimestamp", orderDirection: "desc", limit: 7) {
+		items {
+			dayTimestamp
+			volume
+			tradesCount
+			newUsers
+		}
+	}
 }
 ```
 
@@ -244,13 +241,13 @@ Ponder auto-generates a GraphQL API from the schema at `http://localhost:42069` 
 
 ```graphql
 {
-  disputes(where: { state: 1 }) {
-    oracle
-    disputer
-    votesYes
-    votesNo
-    endAt
-  }
+	disputes(where: { state: 1 }) {
+		oracle
+		disputer
+		votesYes
+		votesNo
+		endAt
+	}
 }
 ```
 
@@ -258,26 +255,26 @@ Ponder auto-generates a GraphQL API from the schema at `http://localhost:42069` 
 
 The `cron.ts` process runs alongside Ponder (launched by `start.sh`):
 
-| Job | Schedule | Description |
-|-----|----------|-------------|
-| `recalculate:volume24h` | Every hour at `:00` | Sliding-window 24h volume for all markets |
-| `sync:events` | Once at startup (90 s delay) | Sync event IDs for the frontend activity feed |
-| Initial `volume24h` | Once at startup (60 s delay) | Bootstrap 24h volumes after Ponder creates tables |
+| Job                     | Schedule                     | Description                                       |
+| ----------------------- | ---------------------------- | ------------------------------------------------- |
+| `recalculate:volume24h` | Every hour at `:00`          | Sliding-window 24h volume for all markets         |
+| `sync:events`           | Once at startup (90 s delay) | Sync event IDs for the frontend activity feed     |
+| Initial `volume24h`     | Once at startup (60 s delay) | Bootstrap 24h volumes after Ponder creates tables |
 
 ## Verification Scripts
 
 Run `npm run verify` for a full check, or individual scripts:
 
-| Script | Description |
-|--------|-------------|
-| `npm run verify` | Run all verifications |
-| `npm run verify:volume` | Cross-check indexed volumes vs on-chain |
-| `npm run verify:polls` | Validate poll states and counts |
-| `npm run verify:markets` | Verify market data consistency |
-| `npm run verify:stats` | Check platform stats accuracy |
-| `npm run verify:pnl` | Validate P&L calculations |
-| `npm run recalculate:volume24h` | Manually recalculate 24h volumes |
-| `npm run sync:events` | Manually sync event IDs |
+| Script                          | Description                             |
+| ------------------------------- | --------------------------------------- |
+| `npm run verify`                | Run all verifications                   |
+| `npm run verify:volume`         | Cross-check indexed volumes vs on-chain |
+| `npm run verify:polls`          | Validate poll states and counts         |
+| `npm run verify:markets`        | Verify market data consistency          |
+| `npm run verify:stats`          | Check platform stats accuracy           |
+| `npm run verify:pnl`            | Validate P&L calculations               |
+| `npm run recalculate:volume24h` | Manually recalculate 24h volumes        |
+| `npm run sync:events`           | Manually sync event IDs                 |
 
 ## Adding a New Chain
 
@@ -285,24 +282,31 @@ Run `npm run verify` for a full check, or individual scripts:
 
 ```typescript
 export const CHAINS: Record<number, ChainConfig> = {
-  // Existing...
-  1: { /* Ethereum */ },
+	// Existing...
+	1: {
+		/* Ethereum */
+	},
 
-  // New chain
-  8453: {
-    chainId: 8453,
-    name: "Base",
-    shortName: "base",
-    rpcUrls: ["https://mainnet.base.org"],
-    explorerUrl: "https://basescan.org",
-    contracts: {
-      oracle:        addr("ORACLE_ADDRESS_8453",        "0x..."),
-      marketFactory: addr("MARKET_FACTORY_ADDRESS_8453", "0x..."),
-      usdc:          addr("USDC_ADDRESS_8453",           "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-    },
-    startBlock: 12345678,
-    enabled: true,
-  },
+	// Add new chain
+	8453: {
+		chainId: 8453,
+		name: "Base",
+		shortName: "base",
+		rpcUrl: process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org",
+		explorerUrl: "https://basescan.org",
+		contracts: {
+			oracle: "0x...", // Deploy and add address
+			marketFactory: "0x...", // Deploy and add address
+			usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+			referralFactory: "0x...", // Deploy ReferralFactory
+			rewardToken: "0x...", // Reward token for campaigns
+			disputeResolverRemote: "0x...", // For remote chains
+			launchpadFactory: "0x...", // Launchpad factory (optional)
+			bondingCurve: "0x...", // Not used directly (dynamic)
+		},
+		startBlock: 12345678, // Block when contracts were deployed
+		enabled: true,
+	},
 };
 ```
 
@@ -340,15 +344,15 @@ The indexer will pick up the new chain and sync from `startBlock`.
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `PONDER_RPC_URL_1` | Yes | Ethereum RPC endpoint |
-| `PONDER_RPC_URL_<chainId>` | Per chain | RPC for additional chains |
-| `DATABASE_URL` | Production | PostgreSQL connection string |
-| `ORACLE_ADDRESS_1` | No | Override oracle contract (defaults hardcoded) |
-| `MARKET_FACTORY_ADDRESS_1` | No | Override market factory contract |
-| `USDC_ADDRESS_1` | No | Override collateral token |
-| `START_BLOCK_1` | No | Override start block |
+| Variable                   | Required   | Description                                   |
+| -------------------------- | ---------- | --------------------------------------------- |
+| `PONDER_RPC_URL_1`         | Yes        | Ethereum RPC endpoint                         |
+| `PONDER_RPC_URL_<chainId>` | Per chain  | RPC for additional chains                     |
+| `DATABASE_URL`             | Production | PostgreSQL connection string                  |
+| `ORACLE_ADDRESS_1`         | No         | Override oracle contract (defaults hardcoded) |
+| `MARKET_FACTORY_ADDRESS_1` | No         | Override market factory contract              |
+| `USDC_ADDRESS_1`           | No         | Override collateral token                     |
+| `START_BLOCK_1`            | No         | Override start block                          |
 
 All contract addresses can be overridden via `<CONTRACT>_ADDRESS_<CHAIN_ID>` env vars. Hardcoded production defaults are used when env vars are absent.
 
@@ -363,6 +367,7 @@ docker-compose down -v        # Stop and remove volumes
 ```
 
 Services:
+
 - **postgres** — `pgvector/pgvector:pg16` on port `5433`
 - **indexer** — Ponder + cron on port `42069`
 
@@ -384,25 +389,46 @@ A separate `Dockerfile.cron` exists for running cron-only tasks (e.g., `recalcul
 1. Create a PostgreSQL database on Railway
 2. Create a new service from this repository
 3. Set environment variables:
-   ```
-   DATABASE_URL=postgresql://...
-   PONDER_RPC_URL_1=https://eth.llamarpc.com
-   ```
+    ```
+    DATABASE_URL=postgresql://...
+    PONDER_RPC_URL_1=https://eth.llamarpc.com
+    ```
 4. Deploy — Ponder auto-creates schema and begins syncing
 
 ## Volume Tracking
 
-These on-chain events contribute to volume:
-
-| Event | Contract | Volume calculation |
-|-------|----------|-------------------|
-| `SeedInitialLiquidity` | PariMutuel | `yesAmount + noAmount` |
-| `PositionPurchased` | PariMutuel | `collateralIn` |
-| `BuyTokens` | AMM | `collateralAmount` |
-| `SellTokens` | AMM | `collateralAmount` |
-| `LiquidityAdded` (imbalance) | AMM | `yesToReturn + noToReturn` |
-
-Run `npm run verify:volume` to cross-check indexed volumes against on-chain data.
+```
+ponder/
+├── config.ts           # Chain configurations (addresses, RPC URLs)
+├── ponder.config.ts    # Ponder setup (networks, contracts)
+├── ponder.schema.ts    # Database tables
+├── src/
+│   └── index.ts        # Event handlers entry point
+├── abis/               # Contract ABIs
+│   ├── PredictionOracle.ts
+│   ├── PredictionPoll.ts
+│   ├── MarketFactory.ts
+│   ├── PredictionAMM.ts
+│   ├── PredictionPariMutuel.ts
+│   ├── ReferralFactory.ts        # Referral system
+│   ├── ReferralCampaign.ts       # Campaign rewards
+│   ├── DisputeResolverRemote.ts  # Dispute voting (remote chains)
+│   ├── TokensFactory.ts          # Launchpad factory
+│   └── BondingCurve.ts           # Launchpad trading
+├── src/
+│   └── handlers/       # Event handlers
+│       ├── oracle.ts
+│       ├── poll.ts
+│       ├── factory.ts
+│       ├── amm.ts
+│       ├── parimutuel.ts
+│       ├── referral.ts
+│       ├── campaign.ts
+│       ├── disputes.ts
+│       └── launchpad.ts          # Launchpad events
+├── Dockerfile
+└── docker-compose.yml
+```
 
 ## Troubleshooting
 
@@ -426,14 +452,14 @@ Verify that `SeedInitialLiquidity` (PariMutuel) and imbalanced `LiquidityAdded` 
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Indexer framework | [Ponder](https://ponder.sh/) ^0.6 |
-| Database | PostgreSQL 16 (pgvector) |
-| API | GraphQL (auto-generated by Ponder) |
-| Blockchain | [Viem](https://viem.sh/) ^2 |
-| Cron | [node-cron](https://github.com/node-cron/node-cron) |
-| Runtime | Node.js 20, TypeScript 5 |
+| Layer             | Technology                                          |
+| ----------------- | --------------------------------------------------- |
+| Indexer framework | [Ponder](https://ponder.sh/) ^0.6                   |
+| Database          | PostgreSQL 16 (pgvector)                            |
+| API               | GraphQL (auto-generated by Ponder)                  |
+| Blockchain        | [Viem](https://viem.sh/) ^2                         |
+| Cron              | [node-cron](https://github.com/node-cron/node-cron) |
+| Runtime           | Node.js 20, TypeScript 5                            |
 
 ## License
 

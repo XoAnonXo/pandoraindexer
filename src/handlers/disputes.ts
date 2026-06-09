@@ -3,9 +3,6 @@
  *
  * Handles events from DisputeResolverRemote (for remote chains like Ethereum).
  * Tracks dispute creation, voting, resolution, and reward claims.
- *
- * Note: DisputeResolverHome is only on Sonic (home chain).
- * This file handles DisputeResolverRemote events for Ethereum and other remote chains.
  */
 
 import { ponder } from "@/generated";
@@ -50,13 +47,13 @@ async function readDisputeFromContract(
       args: [oracle],
       ...(blockNumber ? { blockNumber } : {}),
     });
-    // tuple: [disputer, isCollateralTaken, state, draftStatus, finalStatus, disputerDeposit, endAt, emergencyAfterHours, marketToken, reason]
+    // tuple: [disputer, isCollateralTaken, state, draftStatus, finalStatus, disputerDeposit, endAt, marketToken, reason]
     return {
       isCollateralTaken: info[1] as boolean,
       state: Number(info[2]),
       finalStatus: Number(info[4]),
       endAt: BigInt(info[6]),
-      reason: info[9] as string,
+      reason: info[8] as string,
     };
   } catch (err) {
     console.error(`[Dispute] Failed to read contract state for ${(oracle as string).slice(0, 10)}...:`, err);
