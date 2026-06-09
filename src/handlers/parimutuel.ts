@@ -8,10 +8,12 @@ import {
 	recordMarketInteraction,
 } from "../services/db";
 import { updatePollTvl } from "../services/pollTvl";
+import { recordPosition, markPositionRedeemed } from "../services/positions";
 import { PredictionPariMutuelAbi } from "../../abis/PredictionPariMutuel";
 import { recordPriceTickAndCandles } from "../services/candles";
 import { PRICE_SCALE } from "../utils/constants";
 import { handleProtocolFeesWithdrawn } from "../services/protocolFees";
+import { updateReferralVolume } from "../services/referral";
 
 function computeYesChanceFromCollateral(params: {
 	totalCollateralYes: bigint;
@@ -56,13 +58,13 @@ ponder.on(
 			data: {
 				chainId: chain.chainId,
 				chainName: chain.chainName,
-				trader: market.creator, // Creator is the trader here
+				trader: market.creator,
 				marketAddress,
 				pollAddress,
 				tradeType: "seed",
-				side: "both", // Special side for seeding
+				side: "both",
 				collateralAmount: totalLiquidity,
-				tokenAmount: 0n, // Shares calculation is complex for seed, leaving 0 for now
+				tokenAmount: 0n,
 				feeAmount: 0n,
 				txHash: event.transaction.hash,
 				blockNumber: event.block.number,
@@ -70,9 +72,19 @@ ponder.on(
 			},
 		});
 
+		const creatorAddr = market.creator.toLowerCase() as `0x${string}`;
+		await recordPosition(
+			context, chain, marketAddress, pollAddress,
+			creatorAddr, "yes", yesAmount, yesAmount, timestamp
+		);
+		await recordPosition(
+			context, chain, marketAddress, pollAddress,
+			creatorAddr, "no", noAmount, noAmount, timestamp
+		);
+
 		const user = await getOrCreateUser(context, market.creator, chain);
 		await context.db.users.update({
-			id: makeId(chain.chainId, market.creator.toLowerCase()),
+			id: market.creator.toLowerCase(),
 			data: {
 				totalDeposited: user.totalDeposited + totalLiquidity,
 				lastTradeAt: timestamp,
@@ -184,6 +196,12 @@ ponder.on(
 			},
 		});
 
+		await recordPosition(
+			context, chain, marketAddress, pollAddress,
+			buyer.toLowerCase() as `0x${string}`,
+			isYes ? "yes" : "no", collateralIn, sharesOut, timestamp
+		);
+
 		const user = await getOrCreateUser(context, buyer, chain);
 		const isNewUser = user.totalTrades === 0;
 		const isNewTrader = await isNewTraderForMarket(
@@ -202,7 +220,7 @@ ponder.on(
 		);
 
 		await context.db.users.update({
-			id: makeId(chain.chainId, buyer.toLowerCase()),
+			id: buyer.toLowerCase(),
 			data: {
 				totalTrades: user.totalTrades + 1,
 				totalVolume: user.totalVolume + collateralIn,
@@ -317,22 +335,85 @@ ponder.on(
 			? await context.db.polls.findUnique({ id: market.pollAddress })
 			: null;
 
+		// Read user's cost basis BEFORE marking redeemed (which zeroes amounts)
+		const normalizedUser = user.toLowerCase() as `0x${string}`;
+		const positionId = makeId(chain.chainId, marketAddress, normalizedUser);
+		const position = await context.db.userMarketPositions.findUnique({ id: positionId });
+
+		// For pari-mutuel: outcome 0=Unknown(refund), 1=Yes, 2=No, 3=Unknown
+		const outcomeNum = Number(outcome);
+		let winningSide: string;
+		if (outcomeNum === 0 || outcomeNum === 3) {
+			winningSide = "both";
+		} else if (outcomeNum === 1) {
+			winningSide = "yes";
+		} else {
+			winningSide = "no";
+		}
+
 		await context.db.winnings.create({
 			id: winningId,
 			data: {
 				chainId: chain.chainId,
 				chainName: chain.chainName,
-				user: user.toLowerCase() as `0x${string}`,
+				user: normalizedUser,
 				marketAddress,
 				collateralAmount,
 				feeAmount: fee,
+				yesCostBasis: position?.yesAmount ?? 0n,
+				noCostBasis: position?.noAmount ?? 0n,
+				side: winningSide,
+				pollStatus: outcomeNum === 0 ? 3 : outcomeNum,
 				marketQuestion: poll?.question,
 				marketType: "pari",
-				outcome: Number(outcome),
+				outcome: outcomeNum,
 				txHash: event.transaction.hash,
 				timestamp,
 			},
 		});
+
+		// Write positionHistory — single source for History tab
+		const yesCost = position?.yesAmount ?? 0n;
+		const noCost = position?.noAmount ?? 0n;
+		const yesTokensHeld = position?.yesTokens ?? 0n;
+		const noTokensHeld = position?.noTokens ?? 0n;
+		const historyResult = (outcomeNum === 0 || outcomeNum === 3) ? "refunded" : "won";
+		const resolvedPollStatus = outcomeNum === 0 ? 3 : outcomeNum;
+		const computedPnl = collateralAmount - yesCost - noCost;
+
+		await context.db.positionHistory.upsert({
+			id: positionId,
+			create: {
+				chainId: chain.chainId,
+				user: normalizedUser,
+				marketAddress,
+				pollAddress: market?.pollAddress ?? undefined,
+				marketQuestion: poll?.question,
+				marketType: "pari",
+				side: winningSide,
+				result: historyResult,
+				pollStatus: resolvedPollStatus,
+				yesCostBasis: yesCost,
+				noCostBasis: noCost,
+				yesTokens: yesTokensHeld,
+				noTokens: noTokensHeld,
+				collateralReceived: collateralAmount,
+				feeAmount: fee,
+				pnl: computedPnl,
+				resolvedAt: timestamp,
+				txHash: event.transaction.hash,
+			},
+			update: {
+				collateralReceived: collateralAmount,
+				feeAmount: fee,
+				pnl: computedPnl,
+				result: historyResult,
+				resolvedAt: timestamp,
+				txHash: event.transaction.hash,
+			},
+		});
+
+		await markPositionRedeemed(context, chain, marketAddress, normalizedUser);
 
 		if (market) {
 			const newMarketTvl =
@@ -380,7 +461,7 @@ ponder.on(
 		);
 
 		await context.db.users.update({
-			id: makeId(chain.chainId, user.toLowerCase()),
+			id: user.toLowerCase(),
 			data: {
 				totalWinnings: newTotalWinnings,
 				totalWins: isFirstWinForMarket ? userData.totalWins + 1 : userData.totalWins,
@@ -396,6 +477,18 @@ ponder.on(
 			tvlChange: 0n - collateralAmount,
 			fees: fee,
 		});
+
+		const platformShare = fee / 2n;
+		await updateReferralVolume(
+			context,
+			user.toLowerCase() as `0x${string}`,
+			collateralAmount,
+			platformShare,
+			timestamp,
+			event.block.number,
+			chain,
+			marketAddress
+		);
 	}
 );
 

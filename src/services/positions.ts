@@ -6,10 +6,9 @@ import { TradeSide, PollStatus } from "../utils/constants";
 /**
  * Record or update a user's position in a market.
  * Called when a user buys YES or NO tokens/shares.
- * 
- * Uses findUnique + upsert pattern for Ponder compatibility:
- * - Check if record exists first to calculate new amounts
- * - Use upsert to handle concurrent writes within the same batch
+ *
+ * Uses findUnique + explicit create/update instead of upsert
+ * to avoid Ponder v0.6 upsert issues with the legacy Store API.
  */
 export async function recordPosition(
   context: PonderContext,
@@ -26,48 +25,46 @@ export async function recordPosition(
   const id = makeId(chain.chainId, marketAddress, normalizedUser);
 
   await withRetry(async () => {
-    // Check if position exists to calculate new amounts
     const existing = await context.db.userMarketPositions.findUnique({ id });
-    
-    // Calculate new amounts based on whether position exists
-    const newYesAmount = side === TradeSide.YES 
-      ? (existing?.yesAmount ?? 0n) + collateralAmount 
-      : (existing?.yesAmount ?? 0n);
-    const newNoAmount = side === TradeSide.NO 
-      ? (existing?.noAmount ?? 0n) + collateralAmount 
-      : (existing?.noAmount ?? 0n);
-    const newYesTokens = side === TradeSide.YES 
-      ? (existing?.yesTokens ?? 0n) + tokenAmount 
-      : (existing?.yesTokens ?? 0n);
-    const newNoTokens = side === TradeSide.NO 
-      ? (existing?.noTokens ?? 0n) + tokenAmount 
-      : (existing?.noTokens ?? 0n);
-    
-    // Use upsert to handle concurrent writes within the same Ponder batch
-    await context.db.userMarketPositions.upsert({
-      id,
-      create: {
-        chainId: chain.chainId,
-        marketAddress,
-        pollAddress,
-        user: normalizedUser,
-        yesAmount: side === TradeSide.YES ? collateralAmount : 0n,
-        noAmount: side === TradeSide.NO ? collateralAmount : 0n,
-        yesTokens: side === TradeSide.YES ? tokenAmount : 0n,
-        noTokens: side === TradeSide.NO ? tokenAmount : 0n,
-        hasRedeemed: false,
-        lossRecorded: false,
-        firstPositionAt: timestamp,
-        lastUpdatedAt: timestamp,
-      },
-      update: {
-        yesAmount: newYesAmount,
-        noAmount: newNoAmount,
-        yesTokens: newYesTokens,
-        noTokens: newNoTokens,
-        lastUpdatedAt: timestamp,
-      },
-    });
+
+    if (existing) {
+      await context.db.userMarketPositions.update({
+        id,
+        data: {
+          yesAmount: side === TradeSide.YES
+            ? existing.yesAmount + collateralAmount
+            : existing.yesAmount,
+          noAmount: side === TradeSide.NO
+            ? existing.noAmount + collateralAmount
+            : existing.noAmount,
+          yesTokens: side === TradeSide.YES
+            ? existing.yesTokens + tokenAmount
+            : existing.yesTokens,
+          noTokens: side === TradeSide.NO
+            ? existing.noTokens + tokenAmount
+            : existing.noTokens,
+          lastUpdatedAt: timestamp,
+        },
+      });
+    } else {
+      await context.db.userMarketPositions.create({
+        id,
+        data: {
+          chainId: chain.chainId,
+          marketAddress,
+          pollAddress,
+          user: normalizedUser,
+          yesAmount: side === TradeSide.YES ? collateralAmount : 0n,
+          noAmount: side === TradeSide.NO ? collateralAmount : 0n,
+          yesTokens: side === TradeSide.YES ? tokenAmount : 0n,
+          noTokens: side === TradeSide.NO ? tokenAmount : 0n,
+          hasRedeemed: false,
+          lossRecorded: false,
+          firstPositionAt: timestamp,
+          lastUpdatedAt: timestamp,
+        },
+      });
+    }
   });
 }
 
@@ -143,6 +140,7 @@ export async function reducePosition(
 
 /**
  * Mark a position as redeemed when user claims winnings.
+ * Zeroes out all token/amount fields since the contract burns ALL user tokens on redeem.
  */
 export async function markPositionRedeemed(
   context: PonderContext,
@@ -160,6 +158,10 @@ export async function markPositionRedeemed(
         id,
         data: {
           hasRedeemed: true,
+          yesTokens: 0n,
+          noTokens: 0n,
+          yesAmount: 0n,
+          noAmount: 0n,
         },
       });
     }
@@ -168,7 +170,15 @@ export async function markPositionRedeemed(
 
 interface LossResult {
   user: `0x${string}`;
+  marketAddress: `0x${string}`;
+  yesCostBasis: bigint;
+  noCostBasis: bigint;
+  yesTokens: bigint;
+  noTokens: bigint;
   lostAmount: bigint;
+  marketQuestion?: string;
+  marketType: string;
+  losingSide: string;
 }
 
 /**
@@ -176,9 +186,10 @@ interface LossResult {
  *
  * Uses `trades` (buy-side) and `winnings` tables to determine losers:
  * users who bought on the losing side and never redeemed winnings.
+ * Returns full cost basis data per user+market for positionHistory.
  *
  * @param pollStatus - The resolved status (1=YES wins, 2=NO wins, 3=Unknown/refund)
- * @returns Deduplicated array of users who lost
+ * @returns Deduplicated array of users who lost with cost basis
  */
 export async function processLossesForPoll(
   context: PonderContext,
@@ -218,15 +229,56 @@ export async function processLossesForPoll(
         winningsForMarket.items.map((w: { user: string }) => w.user.toLowerCase()),
       );
 
-      const seenUsers = new Set<string>();
+      // Aggregate total spent per user on losing side from trades
+      const userLosingSideTotals = new Map<string, bigint>();
+      const userLosingTokenTotals = new Map<string, bigint>();
       for (const trade of losingTrades.items) {
         const addr = trade.trader.toLowerCase();
-        if (winners.has(addr) || seenUsers.has(addr)) continue;
-        seenUsers.add(addr);
+        if (winners.has(addr)) continue;
+        const current = userLosingSideTotals.get(addr) ?? 0n;
+        userLosingSideTotals.set(addr, current + trade.collateralAmount);
+        const currentTokens = userLosingTokenTotals.get(addr) ?? 0n;
+        userLosingTokenTotals.set(addr, currentTokens + (trade.tokenAmount ?? 0n));
+      }
+
+      // Also get all trades on winning side for these losers (they might have bet both sides)
+      const winningSide = losingSide === 'yes' ? 'no' : 'yes';
+      const winningSideTrades = await context.db.trades.findMany({
+        where: {
+          marketAddress: market.id,
+          chainId: chain.chainId,
+          side: winningSide,
+        },
+      });
+      const userWinningSideTotals = new Map<string, bigint>();
+      const userWinningTokenTotals = new Map<string, bigint>();
+      for (const trade of winningSideTrades.items) {
+        const addr = trade.trader.toLowerCase();
+        if (!userLosingSideTotals.has(addr)) continue;
+        const current = userWinningSideTotals.get(addr) ?? 0n;
+        userWinningSideTotals.set(addr, current + trade.collateralAmount);
+        const currentTokens = userWinningTokenTotals.get(addr) ?? 0n;
+        userWinningTokenTotals.set(addr, currentTokens + (trade.tokenAmount ?? 0n));
+      }
+
+      const poll = await context.db.polls.findUnique({ id: pollAddress });
+
+      for (const [addr, losingSideSpent] of userLosingSideTotals) {
+        const winningSideSpent = userWinningSideTotals.get(addr) ?? 0n;
+        const losingTokens = userLosingTokenTotals.get(addr) ?? 0n;
+        const winningTokens = userWinningTokenTotals.get(addr) ?? 0n;
 
         losses.push({
           user: addr as `0x${string}`,
-          lostAmount: trade.collateralAmount,
+          marketAddress: market.id,
+          yesCostBasis: losingSide === 'yes' ? losingSideSpent : winningSideSpent,
+          noCostBasis: losingSide === 'no' ? losingSideSpent : winningSideSpent,
+          yesTokens: losingSide === 'yes' ? losingTokens : winningTokens,
+          noTokens: losingSide === 'no' ? losingTokens : winningTokens,
+          lostAmount: losingSideSpent,
+          marketQuestion: poll?.question,
+          marketType: market.marketType,
+          losingSide,
         });
       }
     }
@@ -244,19 +296,16 @@ export async function recordUserLoss(
   userAddress: `0x${string}`
 ) {
   const normalizedUser = userAddress.toLowerCase() as `0x${string}`;
-  const userId = makeId(chain.chainId, normalizedUser);
-
   await withRetry(async () => {
-    const user = await context.db.users.findUnique({ id: userId });
+    const user = await context.db.users.findUnique({ id: normalizedUser });
     
     if (user) {
-      // Update streak (goes negative for consecutive losses)
       const newStreak = user.currentStreak <= 0 
         ? user.currentStreak - 1 
         : -1;
 
       await context.db.users.update({
-        id: userId,
+        id: normalizedUser,
         data: {
           totalLosses: user.totalLosses + 1,
           currentStreak: newStreak,

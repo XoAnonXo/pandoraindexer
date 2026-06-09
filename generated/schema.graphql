@@ -7,6 +7,8 @@ type Query {
   pollss(where: pollsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): pollsPage!
   markets(id: String!): markets
   marketss(where: marketsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): marketsPage!
+  marketIdCounter(id: String!): marketIdCounter
+  marketIdCounters(where: marketIdCounterFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): marketIdCounterPage!
   trades(id: String!): trades
   tradess(where: tradesFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): tradesPage!
   priceTicks(id: String!): priceTicks
@@ -41,8 +43,6 @@ type Query {
   referralStatss(where: referralStatsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): referralStatsPage!
   campaigns(id: String!): campaigns
   campaignss(where: campaignsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): campaignsPage!
-  campaignClaims(id: String!): campaignClaims
-  campaignClaimss(where: campaignClaimsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): campaignClaimsPage!
   campaignStats(id: String!): campaignStats
   campaignStatss(where: campaignStatsFilter, orderBy: String, orderDirection: String, before: String, after: String, limit: Int): campaignStatsPage!
   disputes(id: String!): disputes
@@ -199,6 +199,7 @@ input oracleFeeEventsFilter {
 
 type events {
   id: String!
+  title: String!
   creator: String!
   marketType: String!
   arbiter: String!
@@ -233,6 +234,16 @@ input eventsFilter {
   id_ends_with: String
   id_not_starts_with: String
   id_not_ends_with: String
+  title: String
+  title_not: String
+  title_in: [String]
+  title_not_in: [String]
+  title_contains: String
+  title_not_contains: String
+  title_starts_with: String
+  title_ends_with: String
+  title_not_starts_with: String
+  title_not_ends_with: String
   creator: String
   creator_not: String
   creator_in: [String]
@@ -390,6 +401,7 @@ type polls {
   preDisputeStatus: Int
   preDisputeResolutionReason: String
   eventId: String
+  displayTitle: String
   maxMarketTvl: BigInt
   totalMarketsTvl: BigInt
   createdAtBlock: BigInt!
@@ -621,6 +633,16 @@ input pollsFilter {
   eventId_ends_with: String
   eventId_not_starts_with: String
   eventId_not_ends_with: String
+  displayTitle: String
+  displayTitle_not: String
+  displayTitle_in: [String]
+  displayTitle_not_in: [String]
+  displayTitle_contains: String
+  displayTitle_not_contains: String
+  displayTitle_starts_with: String
+  displayTitle_ends_with: String
+  displayTitle_not_starts_with: String
+  displayTitle_not_ends_with: String
   maxMarketTvl: BigInt
   maxMarketTvl_not: BigInt
   maxMarketTvl_in: [BigInt]
@@ -682,12 +704,14 @@ type markets {
   marketCloseTimestamp: BigInt
   totalVolume: BigInt!
   volume24h: BigInt!
+  trades24h: Int!
   totalTrades: Int!
   currentTvl: BigInt!
   uniqueTraders: Int!
   initialLiquidity: BigInt!
   reserveYes: BigInt
   reserveNo: BigInt
+  totalHold: BigInt
   creatorFeesEarned: BigInt!
   platformFeesEarned: BigInt!
   totalCollateralYes: BigInt
@@ -696,6 +720,7 @@ type markets {
   totalSharesNo: BigInt
   yesChance: BigInt
   eventId: String
+  numericId: Int
   createdAtBlock: BigInt!
   createdAt: BigInt!
   createdTxHash: String!
@@ -853,6 +878,14 @@ input marketsFilter {
   volume24h_lt: BigInt
   volume24h_gte: BigInt
   volume24h_lte: BigInt
+  trades24h: Int
+  trades24h_not: Int
+  trades24h_in: [Int]
+  trades24h_not_in: [Int]
+  trades24h_gt: Int
+  trades24h_lt: Int
+  trades24h_gte: Int
+  trades24h_lte: Int
   totalTrades: Int
   totalTrades_not: Int
   totalTrades_in: [Int]
@@ -901,6 +934,14 @@ input marketsFilter {
   reserveNo_lt: BigInt
   reserveNo_gte: BigInt
   reserveNo_lte: BigInt
+  totalHold: BigInt
+  totalHold_not: BigInt
+  totalHold_in: [BigInt]
+  totalHold_not_in: [BigInt]
+  totalHold_gt: BigInt
+  totalHold_lt: BigInt
+  totalHold_gte: BigInt
+  totalHold_lte: BigInt
   creatorFeesEarned: BigInt
   creatorFeesEarned_not: BigInt
   creatorFeesEarned_in: [BigInt]
@@ -967,6 +1008,14 @@ input marketsFilter {
   eventId_ends_with: String
   eventId_not_starts_with: String
   eventId_not_ends_with: String
+  numericId: Int
+  numericId_not: Int
+  numericId_in: [Int]
+  numericId_not_in: [Int]
+  numericId_gt: Int
+  numericId_lt: Int
+  numericId_gte: Int
+  numericId_lte: Int
   createdAtBlock: BigInt
   createdAtBlock_not: BigInt
   createdAtBlock_in: [BigInt]
@@ -991,6 +1040,39 @@ input marketsFilter {
   createdTxHash_lt: String
   createdTxHash_gte: String
   createdTxHash_lte: String
+}
+
+type marketIdCounter {
+  id: String!
+  nextId: Int!
+}
+
+type marketIdCounterPage {
+  items: [marketIdCounter!]!
+  pageInfo: PageInfo!
+}
+
+input marketIdCounterFilter {
+  AND: [marketIdCounterFilter]
+  OR: [marketIdCounterFilter]
+  id: String
+  id_not: String
+  id_in: [String]
+  id_not_in: [String]
+  id_contains: String
+  id_not_contains: String
+  id_starts_with: String
+  id_ends_with: String
+  id_not_starts_with: String
+  id_not_ends_with: String
+  nextId: Int
+  nextId_not: Int
+  nextId_in: [Int]
+  nextId_not_in: [Int]
+  nextId_gt: Int
+  nextId_lt: Int
+  nextId_gte: Int
+  nextId_lte: Int
 }
 
 type trades {
@@ -1745,6 +1827,7 @@ type users {
   referralCodeHash: String
   totalReferrals: Int!
   totalReferralVolume: BigInt!
+  totalReferralExitVolume: BigInt!
   totalReferralFees: BigInt!
   totalReferralRewards: BigInt!
   referredAt: BigInt
@@ -1932,6 +2015,14 @@ input usersFilter {
   totalReferralVolume_lt: BigInt
   totalReferralVolume_gte: BigInt
   totalReferralVolume_lte: BigInt
+  totalReferralExitVolume: BigInt
+  totalReferralExitVolume_not: BigInt
+  totalReferralExitVolume_in: [BigInt]
+  totalReferralExitVolume_not_in: [BigInt]
+  totalReferralExitVolume_gt: BigInt
+  totalReferralExitVolume_lt: BigInt
+  totalReferralExitVolume_gte: BigInt
+  totalReferralExitVolume_lte: BigInt
   totalReferralFees: BigInt
   totalReferralFees_not: BigInt
   totalReferralFees_in: [BigInt]
@@ -2795,6 +2886,7 @@ type referrals {
   referralCodeHash: String
   status: String!
   totalVolumeGenerated: BigInt!
+  totalExitVolumeGenerated: BigInt!
   totalFeesGenerated: BigInt!
   totalTradesCount: Int!
   totalRewardsEarned: BigInt!
@@ -2864,6 +2956,14 @@ input referralsFilter {
   totalVolumeGenerated_lt: BigInt
   totalVolumeGenerated_gte: BigInt
   totalVolumeGenerated_lte: BigInt
+  totalExitVolumeGenerated: BigInt
+  totalExitVolumeGenerated_not: BigInt
+  totalExitVolumeGenerated_in: [BigInt]
+  totalExitVolumeGenerated_not_in: [BigInt]
+  totalExitVolumeGenerated_gt: BigInt
+  totalExitVolumeGenerated_lt: BigInt
+  totalExitVolumeGenerated_gte: BigInt
+  totalExitVolumeGenerated_lte: BigInt
   totalFeesGenerated: BigInt
   totalFeesGenerated_not: BigInt
   totalFeesGenerated_in: [BigInt]
@@ -3004,24 +3104,13 @@ type campaigns {
   id: String!
   chainId: Int!
   chainName: String!
-  name: String!
-  description: String!
-  creator: String!
-  rewardAsset: String!
-  assetKind: Int!
-  rewardPool: BigInt!
-  rewardsPaid: BigInt!
-  rewardType: Int!
-  rewardConfig: String!
-  startTime: BigInt!
-  endTime: BigInt!
+  operator: String!
+  rewardToken: String!
+  campaignType: BigInt!
   status: Int!
-  totalParticipants: Int!
-  totalClaims: Int!
   createdAtBlock: BigInt!
   createdAt: BigInt!
   createdTxHash: String!
-  updatedAt: BigInt!
 }
 
 type campaignsPage {
@@ -3060,100 +3149,30 @@ input campaignsFilter {
   chainName_ends_with: String
   chainName_not_starts_with: String
   chainName_not_ends_with: String
-  name: String
-  name_not: String
-  name_in: [String]
-  name_not_in: [String]
-  name_contains: String
-  name_not_contains: String
-  name_starts_with: String
-  name_ends_with: String
-  name_not_starts_with: String
-  name_not_ends_with: String
-  description: String
-  description_not: String
-  description_in: [String]
-  description_not_in: [String]
-  description_contains: String
-  description_not_contains: String
-  description_starts_with: String
-  description_ends_with: String
-  description_not_starts_with: String
-  description_not_ends_with: String
-  creator: String
-  creator_not: String
-  creator_in: [String]
-  creator_not_in: [String]
-  creator_gt: String
-  creator_lt: String
-  creator_gte: String
-  creator_lte: String
-  rewardAsset: String
-  rewardAsset_not: String
-  rewardAsset_in: [String]
-  rewardAsset_not_in: [String]
-  rewardAsset_gt: String
-  rewardAsset_lt: String
-  rewardAsset_gte: String
-  rewardAsset_lte: String
-  assetKind: Int
-  assetKind_not: Int
-  assetKind_in: [Int]
-  assetKind_not_in: [Int]
-  assetKind_gt: Int
-  assetKind_lt: Int
-  assetKind_gte: Int
-  assetKind_lte: Int
-  rewardPool: BigInt
-  rewardPool_not: BigInt
-  rewardPool_in: [BigInt]
-  rewardPool_not_in: [BigInt]
-  rewardPool_gt: BigInt
-  rewardPool_lt: BigInt
-  rewardPool_gte: BigInt
-  rewardPool_lte: BigInt
-  rewardsPaid: BigInt
-  rewardsPaid_not: BigInt
-  rewardsPaid_in: [BigInt]
-  rewardsPaid_not_in: [BigInt]
-  rewardsPaid_gt: BigInt
-  rewardsPaid_lt: BigInt
-  rewardsPaid_gte: BigInt
-  rewardsPaid_lte: BigInt
-  rewardType: Int
-  rewardType_not: Int
-  rewardType_in: [Int]
-  rewardType_not_in: [Int]
-  rewardType_gt: Int
-  rewardType_lt: Int
-  rewardType_gte: Int
-  rewardType_lte: Int
-  rewardConfig: String
-  rewardConfig_not: String
-  rewardConfig_in: [String]
-  rewardConfig_not_in: [String]
-  rewardConfig_contains: String
-  rewardConfig_not_contains: String
-  rewardConfig_starts_with: String
-  rewardConfig_ends_with: String
-  rewardConfig_not_starts_with: String
-  rewardConfig_not_ends_with: String
-  startTime: BigInt
-  startTime_not: BigInt
-  startTime_in: [BigInt]
-  startTime_not_in: [BigInt]
-  startTime_gt: BigInt
-  startTime_lt: BigInt
-  startTime_gte: BigInt
-  startTime_lte: BigInt
-  endTime: BigInt
-  endTime_not: BigInt
-  endTime_in: [BigInt]
-  endTime_not_in: [BigInt]
-  endTime_gt: BigInt
-  endTime_lt: BigInt
-  endTime_gte: BigInt
-  endTime_lte: BigInt
+  operator: String
+  operator_not: String
+  operator_in: [String]
+  operator_not_in: [String]
+  operator_gt: String
+  operator_lt: String
+  operator_gte: String
+  operator_lte: String
+  rewardToken: String
+  rewardToken_not: String
+  rewardToken_in: [String]
+  rewardToken_not_in: [String]
+  rewardToken_gt: String
+  rewardToken_lt: String
+  rewardToken_gte: String
+  rewardToken_lte: String
+  campaignType: BigInt
+  campaignType_not: BigInt
+  campaignType_in: [BigInt]
+  campaignType_not_in: [BigInt]
+  campaignType_gt: BigInt
+  campaignType_lt: BigInt
+  campaignType_gte: BigInt
+  campaignType_lte: BigInt
   status: Int
   status_not: Int
   status_in: [Int]
@@ -3162,22 +3181,6 @@ input campaignsFilter {
   status_lt: Int
   status_gte: Int
   status_lte: Int
-  totalParticipants: Int
-  totalParticipants_not: Int
-  totalParticipants_in: [Int]
-  totalParticipants_not_in: [Int]
-  totalParticipants_gt: Int
-  totalParticipants_lt: Int
-  totalParticipants_gte: Int
-  totalParticipants_lte: Int
-  totalClaims: Int
-  totalClaims_not: Int
-  totalClaims_in: [Int]
-  totalClaims_not_in: [Int]
-  totalClaims_gt: Int
-  totalClaims_lt: Int
-  totalClaims_gte: Int
-  totalClaims_lte: Int
   createdAtBlock: BigInt
   createdAtBlock_not: BigInt
   createdAtBlock_in: [BigInt]
@@ -3202,111 +3205,12 @@ input campaignsFilter {
   createdTxHash_lt: String
   createdTxHash_gte: String
   createdTxHash_lte: String
-  updatedAt: BigInt
-  updatedAt_not: BigInt
-  updatedAt_in: [BigInt]
-  updatedAt_not_in: [BigInt]
-  updatedAt_gt: BigInt
-  updatedAt_lt: BigInt
-  updatedAt_gte: BigInt
-  updatedAt_lte: BigInt
-}
-
-type campaignClaims {
-  id: String!
-  chainId: Int!
-  campaignId: String!
-  user: String!
-  totalClaimed: BigInt!
-  claimCount: Int!
-  firstClaimAt: BigInt!
-  lastClaimAt: BigInt!
-}
-
-type campaignClaimsPage {
-  items: [campaignClaims!]!
-  pageInfo: PageInfo!
-}
-
-input campaignClaimsFilter {
-  AND: [campaignClaimsFilter]
-  OR: [campaignClaimsFilter]
-  id: String
-  id_not: String
-  id_in: [String]
-  id_not_in: [String]
-  id_contains: String
-  id_not_contains: String
-  id_starts_with: String
-  id_ends_with: String
-  id_not_starts_with: String
-  id_not_ends_with: String
-  chainId: Int
-  chainId_not: Int
-  chainId_in: [Int]
-  chainId_not_in: [Int]
-  chainId_gt: Int
-  chainId_lt: Int
-  chainId_gte: Int
-  chainId_lte: Int
-  campaignId: String
-  campaignId_not: String
-  campaignId_in: [String]
-  campaignId_not_in: [String]
-  campaignId_contains: String
-  campaignId_not_contains: String
-  campaignId_starts_with: String
-  campaignId_ends_with: String
-  campaignId_not_starts_with: String
-  campaignId_not_ends_with: String
-  user: String
-  user_not: String
-  user_in: [String]
-  user_not_in: [String]
-  user_gt: String
-  user_lt: String
-  user_gte: String
-  user_lte: String
-  totalClaimed: BigInt
-  totalClaimed_not: BigInt
-  totalClaimed_in: [BigInt]
-  totalClaimed_not_in: [BigInt]
-  totalClaimed_gt: BigInt
-  totalClaimed_lt: BigInt
-  totalClaimed_gte: BigInt
-  totalClaimed_lte: BigInt
-  claimCount: Int
-  claimCount_not: Int
-  claimCount_in: [Int]
-  claimCount_not_in: [Int]
-  claimCount_gt: Int
-  claimCount_lt: Int
-  claimCount_gte: Int
-  claimCount_lte: Int
-  firstClaimAt: BigInt
-  firstClaimAt_not: BigInt
-  firstClaimAt_in: [BigInt]
-  firstClaimAt_not_in: [BigInt]
-  firstClaimAt_gt: BigInt
-  firstClaimAt_lt: BigInt
-  firstClaimAt_gte: BigInt
-  firstClaimAt_lte: BigInt
-  lastClaimAt: BigInt
-  lastClaimAt_not: BigInt
-  lastClaimAt_in: [BigInt]
-  lastClaimAt_not_in: [BigInt]
-  lastClaimAt_gt: BigInt
-  lastClaimAt_lt: BigInt
-  lastClaimAt_gte: BigInt
-  lastClaimAt_lte: BigInt
 }
 
 type campaignStats {
   id: String!
   totalCampaigns: Int!
   activeCampaigns: Int!
-  totalRewardsDistributed: BigInt!
-  totalParticipants: Int!
   updatedAt: BigInt!
 }
 
@@ -3344,22 +3248,6 @@ input campaignStatsFilter {
   activeCampaigns_lt: Int
   activeCampaigns_gte: Int
   activeCampaigns_lte: Int
-  totalRewardsDistributed: BigInt
-  totalRewardsDistributed_not: BigInt
-  totalRewardsDistributed_in: [BigInt]
-  totalRewardsDistributed_not_in: [BigInt]
-  totalRewardsDistributed_gt: BigInt
-  totalRewardsDistributed_lt: BigInt
-  totalRewardsDistributed_gte: BigInt
-  totalRewardsDistributed_lte: BigInt
-  totalParticipants: Int
-  totalParticipants_not: Int
-  totalParticipants_in: [Int]
-  totalParticipants_not_in: [Int]
-  totalParticipants_gt: Int
-  totalParticipants_lt: Int
-  totalParticipants_gte: Int
-  totalParticipants_lte: Int
   updatedAt: BigInt
   updatedAt_not: BigInt
   updatedAt_in: [BigInt]
@@ -3708,6 +3596,7 @@ type disputeRewardClaims {
   id: String!
   chainId: Int!
   oracle: String!
+  srcEid: Int!
   tokenId: BigInt!
   claimer: String!
   rewardToken: String!
@@ -3752,6 +3641,14 @@ input disputeRewardClaimsFilter {
   oracle_lt: String
   oracle_gte: String
   oracle_lte: String
+  srcEid: Int
+  srcEid_not: Int
+  srcEid_in: [Int]
+  srcEid_not_in: [Int]
+  srcEid_gt: Int
+  srcEid_lt: Int
+  srcEid_gte: Int
+  srcEid_lte: Int
   tokenId: BigInt
   tokenId_not: BigInt
   tokenId_in: [BigInt]

@@ -23,9 +23,6 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
     event.log.logIndex
   );
 
-  const imbalanceVolume =
-    (amounts.yesToReturn ?? 0n) + (amounts.noToReturn ?? 0n);
-
   const market = await getOrCreateMinimalMarket(
     context,
     marketAddress,
@@ -70,20 +67,57 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
 
   const yesToReturn = BigInt(amounts.yesToReturn ?? 0);
   const noToReturn = BigInt(amounts.noToReturn ?? 0);
+  const yesCost = yesToReturn > 0n ? (yesToReturn * currentYesChance) / PRICE_SCALE : 0n;
+  const noCost = noToReturn > 0n ? (noToReturn * (PRICE_SCALE - currentYesChance)) / PRICE_SCALE : 0n;
+  const imbalanceVolume = yesCost + noCost;
 
   if (yesToReturn > 0n) {
-    const yesCost = (yesToReturn * currentYesChance) / PRICE_SCALE;
     await recordPosition(
       context, chain, marketAddress, pollAddress,
       normalizedProvider, TradeSide.YES, yesCost, yesToReturn, timestamp
     );
+    await context.db.trades.create({
+      id: makeId(chain.chainId, event.transaction.hash, event.log.logIndex, "imbalance-yes"),
+      data: {
+        chainId: chain.chainId,
+        chainName: chain.chainName,
+        trader: normalizedProvider,
+        marketAddress,
+        pollAddress,
+        tradeType: "liquidity_imbalance",
+        side: TradeSide.YES,
+        collateralAmount: yesCost,
+        tokenAmount: yesToReturn,
+        feeAmount: 0n,
+        txHash: event.transaction.hash,
+        blockNumber: event.block.number,
+        timestamp,
+      },
+    });
   }
   if (noToReturn > 0n) {
-    const noCost = (noToReturn * (PRICE_SCALE - currentYesChance)) / PRICE_SCALE;
     await recordPosition(
       context, chain, marketAddress, pollAddress,
       normalizedProvider, TradeSide.NO, noCost, noToReturn, timestamp
     );
+    await context.db.trades.create({
+      id: makeId(chain.chainId, event.transaction.hash, event.log.logIndex, "imbalance-no"),
+      data: {
+        chainId: chain.chainId,
+        chainName: chain.chainName,
+        trader: normalizedProvider,
+        marketAddress,
+        pollAddress,
+        tradeType: "liquidity_imbalance",
+        side: TradeSide.NO,
+        collateralAmount: noCost,
+        tokenAmount: noToReturn,
+        feeAmount: 0n,
+        txHash: event.transaction.hash,
+        blockNumber: event.block.number,
+        timestamp,
+      },
+    });
   }
 
   const lpId = makeId(chain.chainId, marketAddress, normalizedProvider);
@@ -138,7 +172,7 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
   );
 
   await context.db.users.update({
-    id: makeId(chain.chainId, provider.toLowerCase()),
+    id: provider.toLowerCase(),
     data: {
       totalDeposited: user.totalDeposited + collateralAmount,
       totalVolume:
@@ -148,33 +182,6 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
       lastTradeAt: timestamp,
     },
   });
-
-  if (imbalanceVolume > 0n) {
-    const tradeId = makeId(
-      chain.chainId,
-      event.transaction.hash,
-      event.log.logIndex,
-      "imbalance"
-    );
-    await context.db.trades.create({
-      id: tradeId,
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        trader: provider.toLowerCase() as `0x${string}`,
-        marketAddress,
-        pollAddress,
-        tradeType: "liquidity_imbalance",
-        side: "imbalance",
-        collateralAmount: imbalanceVolume,
-        tokenAmount: 0n,
-        feeAmount: 0n,
-        txHash: event.transaction.hash,
-        blockNumber: event.block.number,
-        timestamp,
-      },
-    });
-  }
 
   const isFirstLiquidity = (market.initialLiquidity ?? 0n) === 0n;
 
@@ -301,7 +308,7 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
   );
 
   await context.db.users.update({
-    id: makeId(chain.chainId, provider.toLowerCase()),
+    id: provider.toLowerCase(),
     data: {
       totalWithdrawn: newTotalWithdrawn,
       realizedPnL: newRealizedPnL,
