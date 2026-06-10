@@ -40,7 +40,7 @@ import { CHAINS } from "./config";
 
 const ethereum = CHAINS[1];
 const rpcUrl = process.env.PONDER_RPC_URL_1 ?? ethereum.rpcUrls[0];
-const allRpcUrls = [rpcUrl, ...ethereum.rpcUrls.filter((url) => url !== rpcUrl)];
+const fallbackRpcUrls = ethereum.rpcUrls.filter((url) => url !== rpcUrl);
 
 // =============================================================================
 // STARTUP LOG — resolved addresses going into Ponder
@@ -50,7 +50,7 @@ console.log("║           PONDER INDEXER — RESOLVED CONFIGURATION          �
 console.log("╠══════════════════════════════════════════════════════════════╣");
 console.log(`║  Chain:            ${ethereum.name} (id: ${ethereum.chainId})`);
 console.log(`║  RPC:              ${rpcUrl}`);
-console.log(`║  All RPCs:         ${allRpcUrls.join(", ")}`);
+console.log(`║  Fallback RPCs:    ${fallbackRpcUrls.length > 0 ? fallbackRpcUrls.join(", ") : "none"}`);
 console.log(`║  Start Block:      ${ethereum.startBlock}`);
 console.log("╠══════════════════════════════════════════════════════════════╣");
 console.log(`║  Oracle:           ${ethereum.contracts.oracle}`);
@@ -73,9 +73,10 @@ export default createConfig({
 	networks: {
 		ethereum: {
 			chainId: 1,
-			transport: loadBalance(
-				allRpcUrls.map((url) => rateLimit(http(url), { requestsPerSecond: 25 })),
-			),
+			transport: loadBalance([
+				rateLimit(http(rpcUrl), { requestsPerSecond: 150 }),
+				...fallbackRpcUrls.map((url) => rateLimit(http(url), { requestsPerSecond: 10 })),
+			]),
 			pollingInterval: 6_000,
 			maxRequestsPerSecond: 300,
 		},
