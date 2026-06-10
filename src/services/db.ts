@@ -111,18 +111,14 @@ export async function getOrCreateUser(
   address: `0x${string}`,
   chain: ChainInfo
 ) {
-  // Normalize address to lowercase for consistent storage
   const normalizedAddress = address.toLowerCase() as `0x${string}`;
-  const id = makeId(chain.chainId, normalizedAddress);
 
   return withRetry(async () => {
-    // Try to fetch existing user
-    let user = await context.db.users.findUnique({ id });
+    let user = await context.db.users.findUnique({ id: normalizedAddress });
 
-    // If not found, create with zero-initialized stats
     if (!user) {
       user = await context.db.users.create({
-        id,
+        id: normalizedAddress,
         data: {
           chainId: chain.chainId,
           chainName: chain.chainName,
@@ -146,6 +142,7 @@ export async function getOrCreateUser(
           // Referral stats (all start at zero/null)
           totalReferrals: 0,
           totalReferralVolume: 0n,
+          totalReferralExitVolume: 0n,
           totalReferralFees: 0n,
           totalReferralRewards: 0n,
           // Timestamps left null until first trade
@@ -241,6 +238,7 @@ export async function getOrCreateMinimalMarket(
             ).toLowerCase() as `0x${string}`,
             totalVolume: 0n,
             volume24h: 0n,
+            trades24h: 0,
             totalTrades: 0,
             currentTvl: 0n,
             uniqueTraders: 0,
@@ -333,6 +331,7 @@ export async function getOrCreateMinimalMarket(
             marketCloseTimestamp: BigInt(marketCloseTimestamp),
             totalVolume: 0n,
             volume24h: 0n,
+            trades24h: 0,
             totalTrades: 0,
             currentTvl: 0n,
             uniqueTraders: 0,

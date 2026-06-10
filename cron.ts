@@ -4,8 +4,7 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
-const PONDER_HEALTH_URL =
-	process.env.PONDER_HEALTH_URL || "http://localhost:42069/health";
+const PONDER_HEALTH_URL = process.env.PONDER_HEALTH_URL || "http://localhost:42069/health";
 
 const INITIAL_DELAY_MS = 60_000;
 const SYNC_POLL_INTERVAL_MS = 30_000;
@@ -42,14 +41,9 @@ async function runRecalculation() {
 		console.log("[Cron] Skipping recalculation — Ponder still syncing");
 		return;
 	}
-	console.log(
-		`[Cron] Running volume24h + trades24h recalculation at ${new Date().toISOString()}`
-	);
+	console.log(`[Cron] Running volume24h + trades24h recalculation at ${new Date().toISOString()}`);
 	try {
-		const { stdout, stderr } = await execAsync(
-			"npm run recalculate:volume24h",
-			{ timeout: 120_000 }
-		);
+		const { stdout, stderr } = await execAsync("npm run recalculate:volume24h", { timeout: 120_000 });
 		if (stdout) console.log("[Cron] Output:", stdout);
 		if (stderr && stderr.trim()) console.error("[Cron] Errors:", stderr);
 		console.log("[Cron] ✅ Recalculation completed");
@@ -63,16 +57,13 @@ async function runEventSync() {
 		console.log("[Cron] Skipping event sync — Ponder still syncing");
 		return;
 	}
-	console.log(
-		`[Cron] Running periodic event sync at ${new Date().toISOString()}`
-	);
+	console.log(`[Cron] Running periodic event sync at ${new Date().toISOString()}`);
 	try {
 		const { stdout, stderr } = await execAsync("npm run sync:events", {
 			timeout: 60_000,
 		});
 		if (stdout) console.log("[Cron] Event sync output:", stdout);
-		if (stderr && stderr.trim())
-			console.error("[Cron] Event sync errors:", stderr);
+		if (stderr && stderr.trim()) console.error("[Cron] Event sync errors:", stderr);
 		console.log("[Cron] ✅ Periodic event sync completed");
 	} catch (error) {
 		console.error("[Cron] ❌ Event sync failed:", error);

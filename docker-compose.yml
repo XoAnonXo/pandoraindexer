@@ -15,14 +15,14 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pandora}
       POSTGRES_DB: ${POSTGRES_DB:-anymarket}
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-pandora} -d ${POSTGRES_DB:-anymarket}",
+          "pg_isready -U ${POSTGRES_USER:-ponder} -d ${POSTGRES_DB:-anymarket}",
         ]
       interval: 10s
       timeout: 5s
@@ -40,9 +40,21 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: pandora-evm-indexer
-    network_mode: host
+    depends_on:
+      postgres:
+        condition: service_healthy
     env_file:
       - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ponder}:${POSTGRES_PASSWORD:-pandora}@postgres:5432/${POSTGRES_DB:-anymarket}
+    ports:
+      - "42069:42069"
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
     restart: unless-stopped
     logging:
       driver: json-file

@@ -19,6 +19,10 @@ import { Pool } from "pg";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
+function hexToBuffer(hex: string): Buffer {
+  return Buffer.from(hex.replace(/^0x/, ""), "hex");
+}
+
 if (!DATABASE_URL) {
   console.error("[SyncEvents] DATABASE_URL environment variable is required");
   process.exit(1);
@@ -42,6 +46,7 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 
 interface EventRow {
   id: string;
+  title: string;
   creator: string;
   market_type: string;
   arbiter: string;
@@ -58,40 +63,89 @@ interface EventRow {
 }
 
 async function syncCompletedEvents(client: any): Promise<{ polls: number; markets: number }> {
+  // For each poll/market, only the most recent event (by created_at) wins.
+  // This prevents stale events from overwriting the correct eventId.
   const eventsResult = await client.query(
-    `SELECT id, poll_addresses, market_addresses
+    `SELECT id, title, poll_addresses, market_addresses
      FROM app_internal.events
-     WHERE array_length(poll_addresses, 1) > 0`
+     WHERE array_length(poll_addresses, 1) > 0
+     ORDER BY created_at ASC`
   );
 
-  const events: Pick<EventRow, "id" | "poll_addresses" | "market_addresses">[] = eventsResult.rows;
+  const events: Pick<EventRow, "id" | "title" | "poll_addresses" | "market_addresses">[] =
+    eventsResult.rows;
+
+  // Build a map: poll_address → newest event (last write wins with ASC order)
+  const pollToEvent = new Map<string, { eventId: string; title: string }>();
+  const marketToEvent = new Map<string, string>();
+
+  for (const event of events) {
+    const isSolana = event.poll_addresses.length > 0 && !event.poll_addresses[0].startsWith("0x");
+    if (isSolana) continue;
+
+    for (const poll of event.poll_addresses) {
+      pollToEvent.set(poll.toLowerCase(), { eventId: event.id, title: event.title ?? "" });
+    }
+    for (const market of event.market_addresses) {
+      marketToEvent.set(market.toLowerCase(), event.id);
+    }
+  }
+
   let syncedPolls = 0;
   let syncedMarkets = 0;
 
-  for (const event of events) {
-    if (event.poll_addresses.length > 0) {
-      const result = await client.query(
-        `UPDATE polls SET "eventId" = $1 WHERE id = ANY($2) AND "eventId" IS DISTINCT FROM $1`,
-        [event.id, event.poll_addresses]
-      );
-      syncedPolls += result.rowCount ?? 0;
+  // Group polls by eventId to batch updates
+  const pollsByEvent = new Map<string, { buffers: Buffer[]; title: string }>();
+  for (const [pollHex, { eventId, title }] of pollToEvent) {
+    const entry = pollsByEvent.get(eventId);
+    if (entry) {
+      entry.buffers.push(hexToBuffer(pollHex));
+    } else {
+      pollsByEvent.set(eventId, { buffers: [hexToBuffer(pollHex)], title });
     }
+  }
 
-    if (event.market_addresses.length > 0) {
-      const result = await client.query(
-        `UPDATE markets SET "eventId" = $1 WHERE id = ANY($2) AND "eventId" IS DISTINCT FROM $1`,
-        [event.id, event.market_addresses]
-      );
-      syncedMarkets += result.rowCount ?? 0;
-    }
+  for (const [eventId, { buffers, title }] of pollsByEvent) {
+    const result = await client.query(
+      `UPDATE polls SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
+      [eventId, buffers]
+    );
+    syncedPolls += result.rowCount ?? 0;
 
-    if (event.poll_addresses.length > 0) {
-      const result = await client.query(
-        `UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2) AND "eventId" IS DISTINCT FROM $1`,
-        [event.id, event.poll_addresses]
+    // Also sync markets by pollAddress
+    const mResult = await client.query(
+      `UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
+      [eventId, buffers]
+    );
+    syncedMarkets += mResult.rowCount ?? 0;
+
+    if (title) {
+      await client.query(
+        `UPDATE polls SET "displayTitle" = COALESCE("question", '') || ' — ' || $1
+         WHERE id = ANY($2::bytea[])
+           AND ("displayTitle" IS NULL OR "displayTitle" = '')`,
+        [title, buffers]
       );
-      syncedMarkets += result.rowCount ?? 0;
     }
+  }
+
+  // Sync markets by direct market_addresses
+  const marketsByEvent = new Map<string, Buffer[]>();
+  for (const [marketHex, eventId] of marketToEvent) {
+    const entry = marketsByEvent.get(eventId);
+    if (entry) {
+      entry.push(hexToBuffer(marketHex));
+    } else {
+      marketsByEvent.set(eventId, [hexToBuffer(marketHex)]);
+    }
+  }
+
+  for (const [eventId, buffers] of marketsByEvent) {
+    const result = await client.query(
+      `UPDATE markets SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
+      [eventId, buffers]
+    );
+    syncedMarkets += result.rowCount ?? 0;
   }
 
   return { polls: syncedPolls, markets: syncedMarkets };
@@ -103,7 +157,7 @@ async function syncCompletedEvents(client: any): Promise<{ polls: number; market
  */
 async function syncEventsTable(client: any): Promise<number> {
   const allEventsResult = await client.query(
-    `SELECT id, creator, market_type, arbiter, sources, category,
+    `SELECT id, title, creator, market_type, arbiter, sources, category,
             fee_tier, max_price_imbalance, curve_flattener, curve_offset,
             poll_addresses, market_addresses, status, created_at
      FROM app_internal.events`
@@ -124,17 +178,19 @@ async function syncEventsTable(client: any): Promise<number> {
 
     const result = await client.query(
       `INSERT INTO events (
-        id, creator, "marketType", arbiter, sources, category,
+        id, title, creator, "marketType", arbiter, sources, category,
         "feeTier", "maxPriceImbalance", "curveFlattener", "curveOffset",
         "pollAddresses", "marketAddresses", status, "marketCount", "createdAt"
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
         "pollAddresses" = EXCLUDED."pollAddresses",
         "marketAddresses" = EXCLUDED."marketAddresses",
         status = EXCLUDED.status,
         "marketCount" = EXCLUDED."marketCount"`,
       [
         ev.id,
+        ev.title || "",
         ev.creator,
         ev.market_type,
         ev.arbiter,

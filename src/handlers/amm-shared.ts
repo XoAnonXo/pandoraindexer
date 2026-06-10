@@ -47,6 +47,7 @@ export async function updateMarketReserves(
     data: {
       reserveYes,
       reserveNo,
+      totalHold: reserveYes + reserveNo,
       ...(resolved ? {} : { yesChance }),
       currentTvl: collateralTvl,
     },

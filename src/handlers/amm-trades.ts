@@ -9,6 +9,7 @@ import {
 } from "../services/db";
 import { recordPosition, reducePosition } from "../services/positions";
 import { recordAmmPriceTickAndCandles } from "../services/candles";
+import { updateReferralVolume } from "../services/referral";
 import { toBigInt, updateMarketReserves } from "./amm-shared";
 
 ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
@@ -104,7 +105,7 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
   );
 
   await context.db.users.update({
-    id: makeId(chain.chainId, trader.toLowerCase()),
+    id: trader.toLowerCase(),
     data: {
       totalTrades: user.totalTrades + 1,
       totalVolume: user.totalVolume + collateralAmount,
@@ -234,7 +235,7 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     (user.totalDeposited ?? 0n);
 
   await context.db.users.update({
-    id: makeId(chain.chainId, trader.toLowerCase()),
+    id: trader.toLowerCase(),
     data: {
       totalTrades: user.totalTrades + 1,
       totalVolume: user.totalVolume + collateralAmount,
@@ -262,6 +263,18 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     fees: fee,
     activeUsers: 1,
   });
+
+  const platformShare = fee / 2n;
+  await updateReferralVolume(
+    context,
+    trader.toLowerCase() as `0x${string}`,
+    collateralAmount,
+    platformShare,
+    timestamp,
+    event.block.number,
+    chain,
+    marketAddress
+  );
 });
 
 ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
@@ -330,7 +343,7 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
   );
 
   await context.db.users.update({
-    id: makeId(chain.chainId, trader.toLowerCase()),
+    id: trader.toLowerCase(),
     data: {
       totalTrades: user.totalTrades + 1,
       lastTradeAt: timestamp,
