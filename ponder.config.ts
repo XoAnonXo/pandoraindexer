@@ -60,6 +60,8 @@ console.log(`║  Vault:            ${ethereum.contracts.vault ?? "—"}`);
 console.log(`║  DisputeRemote:    ${ethereum.contracts.disputeResolverRemote ?? "—"}`);
 console.log(`║  ReferralFactory:  ${ethereum.contracts.referralFactory ?? "—"}`);
 console.log(`║  LaunchpadFactory: ${ethereum.contracts.launchpadFactory ?? "—"}`);
+const ponderSchema = process.env.PONDER_SCHEMA ?? "pandora_indexer";
+console.log(`║  DB Schema:        ${ponderSchema}`);
 console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
 // =============================================================================
@@ -67,6 +69,10 @@ console.log("╚═════════════════════�
 // =============================================================================
 
 export default createConfig({
+	database: {
+		kind: "postgres",
+		schema: ponderSchema,
+	},
 	// ---------------------------------------------------------------------------
 	// Networks
 	// ---------------------------------------------------------------------------
