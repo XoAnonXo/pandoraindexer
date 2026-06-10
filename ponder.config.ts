@@ -13,7 +13,7 @@
  * @see https://ponder.sh/docs/getting-started/new-project
  */
 
-import { createConfig, loadBalance, rateLimit } from "@ponder/core";
+import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
 // =============================================================================
