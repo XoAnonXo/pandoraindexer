@@ -83,7 +83,6 @@ export const CHAINS: Record<number, ChainConfig> = {
     rpcUrl: process.env.PONDER_RPC_URL_1 ?? "https://ethereum-rpc.publicnode.com",
     rpcUrls: [
       "https://ethereum-rpc.publicnode.com",
-      "https://1rpc.io/eth",
       "https://eth.drpc.org",
     ],
     explorerUrl: "https://etherscan.io",
