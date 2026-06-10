@@ -13,7 +13,7 @@
  * @see https://ponder.sh/docs/getting-started/new-project
  */
 
-import { createConfig, loadBalance, rateLimit } from "@ponder/core";
+import { createConfig } from "@ponder/core";
 import { http } from "viem";
 
 // =============================================================================
@@ -76,8 +76,8 @@ export default createConfig({
 		ethereum: {
 			chainId: 1,
 			transport: http(rpcUrl),
-			pollingInterval: 6_000, // Ethereum L1: ~12s blocks
-			maxRequestsPerSecond: 500,
+			pollingInterval: 6_000,
+			maxRequestsPerSecond: 400,
 		},
 
 		// To add more networks:
@@ -162,25 +162,26 @@ export default createConfig({
 		// TODO: REFERRAL CONTRACTS — uncomment when deployed on Ethereum
 		// =========================================================================
 
-		// ReferralFactory: {
-		//   network: "ethereum",
-		//   abi: ReferralFactoryAbi,
-		//   address: ethereum.contracts.referralFactory,
-		//   startBlock: ethereum.startBlock,
-		// },
+		ReferralFactory: {
+			network: "ethereum" as const,
+			abi: ReferralFactoryAbi,
+			address: ethereum.contracts.referralFactory!,
+			startBlock: ethereum.startBlock,
+		},
 
-		// ReferralCampaign: {
-		//   network: "ethereum",
-		//   abi: ReferralCampaignAbi,
-		//   factory: {
-		//     address: ethereum.contracts.referralFactory,
-		//     event: ReferralFactoryAbi.find(
-		//       (e) => e.type === "event" && e.name === "CampaignCreated"
-		//     )!,
-		//     parameter: "campaign",
-		//   },
-		//   startBlock: ethereum.startBlock,
-		// },
+		ReferralCampaign: {
+			network: "ethereum" as const,
+			abi: ReferralCampaignAbi,
+			factory: {
+				address: ethereum.contracts.referralFactory!,
+				event: ReferralFactoryAbi.find(
+					(e): e is Extract<typeof e, { type: "event" }> =>
+						e.type === "event" && "name" in e && e.name === "CampaignCreated",
+				)!,
+				parameter: "campaign",
+			},
+			startBlock: ethereum.startBlock,
+		},
 
 		// =========================================================================
 		// DISPUTE CONTRACTS

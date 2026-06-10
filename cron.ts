@@ -5,16 +5,15 @@ import { promisify } from "util";
 const execAsync = promisify(exec);
 
 const PONDER_HEALTH_URL = process.env.PONDER_HEALTH_URL || "http://localhost:42069/health";
-
-const INITIAL_DELAY_MS = 60_000;
 const SYNC_POLL_INTERVAL_MS = 30_000;
+const INITIAL_DELAY_MS = 60_000;
 
 let ponderReady = false;
 
 /**
- * Wait until Ponder's /health endpoint reports that historical sync is
- * complete. While Ponder is still catching up, spawning heavy child
- * processes (tsx) risks OOM-killing the whole container.
+ * Poll Ponder /health until it returns 200 (historical sync complete).
+ * While Ponder is catching up, child processes would spike memory and
+ * risk OOM-killing the container.
  */
 async function waitForPonderSync(): Promise<void> {
 	console.log("[Cron] Waiting for Ponder to finish historical sync...");
@@ -23,12 +22,9 @@ async function waitForPonderSync(): Promise<void> {
 		try {
 			const res = await fetch(PONDER_HEALTH_URL);
 			if (res.ok) {
-				const body = await res.text();
-				// Ponder /health returns 200 once realtime sync is reached
 				console.log("[Cron] Ponder health OK — historical sync complete");
 				return;
 			}
-			// 503 = still syncing
 		} catch {
 			// Connection refused — Ponder not started yet
 		}
@@ -72,22 +68,21 @@ async function runEventSync() {
 
 console.log("[Cron] Initializing cron jobs...");
 
-// Schedule: recalculate volume24h every 5 minutes
+// Recalculate volume24h + trades24h every 5 minutes
 cron.schedule("*/5 * * * *", runRecalculation);
 
-// Schedule: sync events every 10 minutes
+// Periodic event sync every 10 minutes
 cron.schedule("*/10 * * * *", runEventSync);
 
 console.log("[Cron] ✅ Cron jobs scheduled (volume24h @5m, eventSync @10m)");
 
-// Wait for Ponder to be ready before allowing cron jobs to run
+// Wait for Ponder to be fully synced before running any child processes
 (async () => {
 	await new Promise((r) => setTimeout(r, INITIAL_DELAY_MS));
 	await waitForPonderSync();
 	ponderReady = true;
 	console.log("[Cron] ✅ Ponder is ready — cron jobs are now active");
 
-	// Run initial jobs immediately
 	await runRecalculation();
 	await runEventSync();
 })();
