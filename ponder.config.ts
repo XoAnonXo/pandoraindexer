@@ -76,15 +76,16 @@ export default createConfig({
 			chainId: 1,
 			transport:
 				fallbackRpcUrls.length > 0
-					? createResilientTransport({
-							primary: rpcUrl,
-							fallbacks: fallbackRpcUrls,
-							failThreshold: 5,
-							recoveryIntervalMs: 60 * 60 * 1000,
-						})
+				? createResilientTransport({
+						primary: rpcUrl,
+						fallbacks: fallbackRpcUrls,
+						failThreshold: 3,
+						recoveryIntervalMs: 60_000,
+					})
 					: http(rpcUrl),
 			pollingInterval: 6_000,
-			maxRequestsPerSecond: 50,
+			maxRequestsPerSecond: 300,
+			maxBlockRange: 2000,
 		},
 
 		// To add more networks:
