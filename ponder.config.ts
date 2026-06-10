@@ -13,9 +13,8 @@
  * @see https://ponder.sh/docs/getting-started/new-project
  */
 
-import { createConfig } from "@ponder/core";
+import { createConfig, loadBalance, rateLimit } from "@ponder/core";
 import { http } from "viem";
-import { createResilientTransport } from "./src/transport/resilient-transport";
 
 // =============================================================================
 // CONTRACT ABIS
@@ -61,6 +60,8 @@ console.log(`║  Vault:            ${ethereum.contracts.vault ?? "—"}`);
 console.log(`║  DisputeRemote:    ${ethereum.contracts.disputeResolverRemote ?? "—"}`);
 console.log(`║  ReferralFactory:  ${ethereum.contracts.referralFactory ?? "—"}`);
 console.log(`║  LaunchpadFactory: ${ethereum.contracts.launchpadFactory ?? "—"}`);
+const ponderSchema = process.env.PONDER_SCHEMA ?? "pandora_indexer";
+console.log(`║  DB Schema:        ${ponderSchema}`);
 console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
 // =============================================================================
@@ -68,31 +69,23 @@ console.log("╚═════════════════════�
 // =============================================================================
 
 export default createConfig({
+	database: {
+		kind: "postgres",
+		schema: ponderSchema,
+	},
 	// ---------------------------------------------------------------------------
 	// Networks
 	// ---------------------------------------------------------------------------
 	networks: {
 		ethereum: {
 			chainId: 1,
-			transport:
-				fallbackRpcUrls.length > 0
-					? createResilientTransport({
-							primary: rpcUrl,
-							fallbacks: fallbackRpcUrls,
-							failThreshold: 5,
-							recoveryIntervalMs: 60 * 60 * 1000,
-						})
-					: http(rpcUrl),
+			transport: loadBalance([
+				rateLimit(http(rpcUrl), { requestsPerSecond: 150 }),
+				...fallbackRpcUrls.map((url) => rateLimit(http(url), { requestsPerSecond: 10 })),
+			]),
 			pollingInterval: 6_000,
-			maxRequestsPerSecond: 50,
+			maxRequestsPerSecond: 300,
 		},
-
-		// To add more networks:
-		// base: {
-		//   chainId: 8453,
-		//   transport: http(process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org"),
-		//   pollingInterval: 2_000,
-		// },
 	},
 
 	// ---------------------------------------------------------------------------

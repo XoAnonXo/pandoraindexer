@@ -24,8 +24,6 @@ interface ResilientTransportOptions {
   recoveryIntervalMs?: number;
   /** Request timeout in ms (default: 30000) */
   requestTimeoutMs?: number;
-  /** Retry rounds when all RPCs fail (default: 4). Waits between rounds with backoff. */
-  retryRounds?: number;
 }
 
 export function createResilientTransport(opts: ResilientTransportOptions): Transport {
@@ -35,7 +33,6 @@ export function createResilientTransport(opts: ResilientTransportOptions): Trans
     failThreshold = 3,
     recoveryIntervalMs = 60_000,
     requestTimeoutMs = 30_000,
-    retryRounds = 4,
   } = opts;
 
   let consecutiveFailures = 0;
@@ -130,22 +127,19 @@ export function createResilientTransport(opts: ResilientTransportOptions): Trans
     async request({ method, params }: { method: string; params?: any[] }) {
       const rpcBody = { jsonrpc: "2.0", id: 1, method, params: params ?? [] };
 
-      for (let round = 0; round < retryRounds; round++) {
+      // Never throw — retry forever with exponential backoff (max 30s pause)
+      let round = 0;
+      while (true) {
         const result = await attemptAllRpcs(rpcBody, method);
         if (result !== undefined) return result;
 
-        if (round < retryRounds - 1) {
-          const delayMs = Math.min(2_000 * 2 ** round, 15_000);
-          console.warn(
-            `[RPC] ⏳ All RPCs failed for ${method}, retrying in ${delayMs / 1000}s (round ${round + 1}/${retryRounds})`
-          );
-          await new Promise((r) => setTimeout(r, delayMs));
-        }
+        round++;
+        const delayMs = Math.min(2_000 * 2 ** Math.min(round, 4), 30_000);
+        console.warn(
+          `[RPC] ⏳ All RPCs failed for ${method}, retrying in ${delayMs / 1000}s (round ${round})`
+        );
+        await new Promise((r) => setTimeout(r, delayMs));
       }
-
-      throw new Error(
-        `[RPC] All RPCs failed after ${retryRounds} rounds (primary + ${fallbacks.length} fallbacks) for ${method}`
-      );
     },
   } as TransportConfig["value"] as any);
 }
