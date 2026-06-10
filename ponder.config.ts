@@ -65,164 +65,157 @@ console.log("╚═════════════════════�
 // =============================================================================
 
 export default createConfig({
-  // ---------------------------------------------------------------------------
-  // Networks
-  // ---------------------------------------------------------------------------
-  networks: {
-    ethereum: {
-      chainId: 1,
-      transport: http(rpcUrl),
-      pollingInterval: 6_000, // Ethereum L1: ~12s blocks
-      maxRequestsPerSecond: 300
-    },
+	// ---------------------------------------------------------------------------
+	// Networks
+	// ---------------------------------------------------------------------------
+	networks: {
+		ethereum: {
+			chainId: 1,
+			transport: http(rpcUrl),
+			pollingInterval: 6_000, // Ethereum L1: ~12s blocks
+			maxRequestsPerSecond: 500,
+		},
 
-    // To add more networks:
-    // base: {
-    //   chainId: 8453,
-    //   transport: http(process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org"),
-    //   pollingInterval: 2_000,
-    // },
-  },
+		// To add more networks:
+		// base: {
+		//   chainId: 8453,
+		//   transport: http(process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org"),
+		//   pollingInterval: 2_000,
+		// },
+	},
 
-  // ---------------------------------------------------------------------------
-  // Contracts
-  // ---------------------------------------------------------------------------
-  contracts: {
-    // =========================================================================
-    // PREDICTION MARKET CONTRACTS (Ethereum)
-    // =========================================================================
+	// ---------------------------------------------------------------------------
+	// Contracts
+	// ---------------------------------------------------------------------------
+	contracts: {
+		// =========================================================================
+		// PREDICTION MARKET CONTRACTS (Ethereum)
+		// =========================================================================
 
-    /**
-     * PredictionOracle (Ethereum) — static, emits PollCreated
-     */
-    PredictionOracle: {
-      network: "ethereum",
-      abi: PredictionOracleAbi,
-      address: ethereum.contracts.oracle,
-      startBlock: ethereum.startBlock,
-    },
+		/**
+		 * PredictionOracle (Ethereum) — static, emits PollCreated
+		 */
+		PredictionOracle: {
+			network: "ethereum",
+			abi: PredictionOracleAbi,
+			address: ethereum.contracts.oracle,
+			startBlock: ethereum.startBlock,
+		},
 
-    /**
-     * PredictionPoll (Ethereum) — dynamic, created by PredictionOracle:PollCreated
-     */
-    PredictionPoll: {
-      network: "ethereum",
-      abi: PredictionPollAbi,
-      factory: {
-        address: ethereum.contracts.oracle,
-        event: PredictionOracleAbi.find(
-          (e) => e.type === "event" && e.name === "PollCreated"
-        )!,
-        parameter: "pollAddress",
-      },
-      startBlock: ethereum.startBlock,
-    },
+		/**
+		 * PredictionPoll (Ethereum) — dynamic, created by PredictionOracle:PollCreated
+		 */
+		PredictionPoll: {
+			network: "ethereum",
+			abi: PredictionPollAbi,
+			factory: {
+				address: ethereum.contracts.oracle,
+				event: PredictionOracleAbi.find((e) => e.type === "event" && e.name === "PollCreated")!,
+				parameter: "pollAddress",
+			},
+			startBlock: ethereum.startBlock,
+		},
 
-    /**
-     * MarketFactory (Ethereum) — static, emits MarketCreated & PariMutuelCreated
-     */
-    MarketFactory: {
-      network: "ethereum",
-      abi: MarketFactoryAbi,
-      address: ethereum.contracts.marketFactory,
-      startBlock: ethereum.startBlock,
-    },
+		/**
+		 * MarketFactory (Ethereum) — static, emits MarketCreated & PariMutuelCreated
+		 */
+		MarketFactory: {
+			network: "ethereum",
+			abi: MarketFactoryAbi,
+			address: ethereum.contracts.marketFactory,
+			startBlock: ethereum.startBlock,
+		},
 
-    /**
-     * PredictionAMM (Ethereum) — dynamic, created by MarketFactory:MarketCreated
-     */
-    PredictionAMM: {
-      network: "ethereum",
-      abi: PredictionAMMAbi,
-      factory: {
-        address: ethereum.contracts.marketFactory,
-        event: MarketFactoryAbi.find(
-          (e) => e.type === "event" && e.name === "MarketCreated"
-        )!,
-        parameter: "marketAddress",
-      },
-      startBlock: ethereum.startBlock,
-    },
+		/**
+		 * PredictionAMM (Ethereum) — dynamic, created by MarketFactory:MarketCreated
+		 */
+		PredictionAMM: {
+			network: "ethereum",
+			abi: PredictionAMMAbi,
+			factory: {
+				address: ethereum.contracts.marketFactory,
+				event: MarketFactoryAbi.find((e) => e.type === "event" && e.name === "MarketCreated")!,
+				parameter: "marketAddress",
+			},
+			startBlock: ethereum.startBlock,
+		},
 
-    /**
-     * PredictionPariMutuel (Ethereum) — dynamic, created by MarketFactory:PariMutuelCreated
-     */
-    PredictionPariMutuel: {
-      network: "ethereum",
-      abi: PredictionPariMutuelAbi,
-      factory: {
-        address: ethereum.contracts.marketFactory,
-        event: MarketFactoryAbi.find(
-          (e) => e.type === "event" && e.name === "PariMutuelCreated"
-        )!,
-        parameter: "marketAddress",
-      },
-      startBlock: ethereum.startBlock,
-    },
+		/**
+		 * PredictionPariMutuel (Ethereum) — dynamic, created by MarketFactory:PariMutuelCreated
+		 */
+		PredictionPariMutuel: {
+			network: "ethereum",
+			abi: PredictionPariMutuelAbi,
+			factory: {
+				address: ethereum.contracts.marketFactory,
+				event: MarketFactoryAbi.find((e) => e.type === "event" && e.name === "PariMutuelCreated")!,
+				parameter: "marketAddress",
+			},
+			startBlock: ethereum.startBlock,
+		},
 
-    // =========================================================================
-    // TODO: REFERRAL CONTRACTS — uncomment when deployed on Ethereum
-    // =========================================================================
+		// =========================================================================
+		// TODO: REFERRAL CONTRACTS — uncomment when deployed on Ethereum
+		// =========================================================================
 
-    // ReferralFactory: {
-    //   network: "ethereum",
-    //   abi: ReferralFactoryAbi,
-    //   address: ethereum.contracts.referralFactory,
-    //   startBlock: ethereum.startBlock,
-    // },
+		// ReferralFactory: {
+		//   network: "ethereum",
+		//   abi: ReferralFactoryAbi,
+		//   address: ethereum.contracts.referralFactory,
+		//   startBlock: ethereum.startBlock,
+		// },
 
-    // ReferralCampaign: {
-    //   network: "ethereum",
-    //   abi: ReferralCampaignAbi,
-    //   factory: {
-    //     address: ethereum.contracts.referralFactory,
-    //     event: ReferralFactoryAbi.find(
-    //       (e) => e.type === "event" && e.name === "CampaignCreated"
-    //     )!,
-    //     parameter: "campaign",
-    //   },
-    //   startBlock: ethereum.startBlock,
-    // },
+		// ReferralCampaign: {
+		//   network: "ethereum",
+		//   abi: ReferralCampaignAbi,
+		//   factory: {
+		//     address: ethereum.contracts.referralFactory,
+		//     event: ReferralFactoryAbi.find(
+		//       (e) => e.type === "event" && e.name === "CampaignCreated"
+		//     )!,
+		//     parameter: "campaign",
+		//   },
+		//   startBlock: ethereum.startBlock,
+		// },
 
-    // =========================================================================
-    // DISPUTE CONTRACTS
-    // DisputeResolverRemote: manages disputes on remote chains (Ethereum)
-    // =========================================================================
+		// =========================================================================
+		// DISPUTE CONTRACTS
+		// DisputeResolverRemote: manages disputes on remote chains (Ethereum)
+		// =========================================================================
 
-    ...(ethereum.contracts.disputeResolverRemote
-      ? {
-        DisputeResolverRemote: {
-          network: "ethereum" as const,
-          abi: DisputeResolverRemoteAbi,
-          address: ethereum.contracts.disputeResolverRemote,
-          startBlock: ethereum.startBlock,
-        },
-      }
-      : {}),
+		...(ethereum.contracts.disputeResolverRemote
+			? {
+					DisputeResolverRemote: {
+						network: "ethereum" as const,
+						abi: DisputeResolverRemoteAbi,
+						address: ethereum.contracts.disputeResolverRemote,
+						startBlock: ethereum.startBlock,
+					},
+				}
+			: {}),
 
+		// =========================================================================
+		// TODO: LAUNCHPAD CONTRACTS — uncomment when deployed on Ethereum
+		// =========================================================================
 
-    // =========================================================================
-    // TODO: LAUNCHPAD CONTRACTS — uncomment when deployed on Ethereum
-    // =========================================================================
+		// TokensFactory: {
+		//   network: "ethereum",
+		//   abi: TokensFactoryAbi,
+		//   address: ethereum.contracts.launchpadFactory,
+		//   startBlock: ethereum.startBlock,
+		// },
 
-    // TokensFactory: {
-    //   network: "ethereum",
-    //   abi: TokensFactoryAbi,
-    //   address: ethereum.contracts.launchpadFactory,
-    //   startBlock: ethereum.startBlock,
-    // },
-
-    // BondingCurve: {
-    //   network: "ethereum",
-    //   abi: BondingCurveAbi,
-    //   factory: {
-    //     address: ethereum.contracts.launchpadFactory,
-    //     event: TokensFactoryAbi.find(
-    //       (e) => e.type === "event" && e.name === "TokenCreated"
-    //     )!,
-    //     parameter: "bondingCurve",
-    //   },
-    //   startBlock: ethereum.startBlock,
-    // },
-  },
+		// BondingCurve: {
+		//   network: "ethereum",
+		//   abi: BondingCurveAbi,
+		//   factory: {
+		//     address: ethereum.contracts.launchpadFactory,
+		//     event: TokensFactoryAbi.find(
+		//       (e) => e.type === "event" && e.name === "TokenCreated"
+		//     )!,
+		//     parameter: "bondingCurve",
+		//   },
+		//   startBlock: ethereum.startBlock,
+		// },
+	},
 });
