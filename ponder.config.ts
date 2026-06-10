@@ -158,30 +158,26 @@ export default createConfig({
 		// REFERRAL CONTRACTS
 		// =========================================================================
 
-		...(ethereum.contracts.referralFactory
-			? {
-					ReferralFactory: {
-						network: "ethereum" as const,
-						abi: ReferralFactoryAbi,
-						address: ethereum.contracts.referralFactory,
-						startBlock: ethereum.startBlock,
-					},
+		ReferralFactory: {
+			network: "ethereum" as const,
+			abi: ReferralFactoryAbi,
+			address: ethereum.contracts.referralFactory!,
+			startBlock: ethereum.startBlock,
+		},
 
-					ReferralCampaign: {
-						network: "ethereum" as const,
-						abi: ReferralCampaignAbi,
-						factory: {
-							address: ethereum.contracts.referralFactory,
-							event: ReferralFactoryAbi.find(
-								(e): e is Extract<typeof e, { type: "event" }> =>
-									e.type === "event" && "name" in e && e.name === "CampaignCreated",
-							)!,
-							parameter: "campaign",
-						},
-						startBlock: ethereum.startBlock,
-					},
-				}
-			: {}),
+		ReferralCampaign: {
+			network: "ethereum" as const,
+			abi: ReferralCampaignAbi,
+			factory: {
+				address: ethereum.contracts.referralFactory!,
+				event: ReferralFactoryAbi.find(
+					(e): e is Extract<typeof e, { type: "event" }> =>
+						e.type === "event" && "name" in e && e.name === "CampaignCreated",
+				)!,
+				parameter: "campaign",
+			},
+			startBlock: ethereum.startBlock,
+		},
 
 		// =========================================================================
 		// DISPUTE CONTRACTS
