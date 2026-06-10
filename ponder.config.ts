@@ -85,7 +85,6 @@ export default createConfig({
 					: http(rpcUrl),
 			pollingInterval: 6_000,
 			maxRequestsPerSecond: 300,
-			maxBlockRange: 2000,
 		},
 
 		// To add more networks:
