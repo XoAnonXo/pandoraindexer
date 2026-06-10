@@ -78,10 +78,7 @@ export default createConfig({
 	networks: {
 		ethereum: {
 			chainId: 1,
-			transport: loadBalance([
-				rateLimit(http(rpcUrl), { requestsPerSecond: 150 }),
-				...fallbackRpcUrls.map((url) => rateLimit(http(url), { requestsPerSecond: 10 })),
-			]),
+			transport: http(rpcUrl),
 			pollingInterval: 6_000,
 			maxRequestsPerSecond: 300,
 		},
