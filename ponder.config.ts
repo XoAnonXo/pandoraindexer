@@ -69,9 +69,6 @@ console.log("╚═════════════════════�
 // =============================================================================
 
 export default createConfig({
-	...(process.env.DATABASE_URL
-		? { database: { kind: "postgres" as const, schema: ponderSchema } }
-		: {}),
 	// ---------------------------------------------------------------------------
 	// Networks
 	// ---------------------------------------------------------------------------
@@ -80,8 +77,15 @@ export default createConfig({
 			chainId: 1,
 			transport: http(rpcUrl),
 			pollingInterval: 6_000,
-			maxRequestsPerSecond: 300,
+			maxRequestsPerSecond: 400,
 		},
+
+		// To add more networks:
+		// base: {
+		//   chainId: 8453,
+		//   transport: http(process.env.PONDER_RPC_URL_8453 ?? "https://mainnet.base.org"),
+		//   pollingInterval: 2_000,
+		// },
 	},
 
 	// ---------------------------------------------------------------------------
@@ -155,7 +159,7 @@ export default createConfig({
 		},
 
 		// =========================================================================
-		// REFERRAL CONTRACTS
+		// TODO: REFERRAL CONTRACTS — uncomment when deployed on Ethereum
 		// =========================================================================
 
 		ReferralFactory: {

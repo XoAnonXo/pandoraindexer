@@ -1,14 +1,16 @@
 #!/bin/sh
 set -e
 
-echo "🚀 Starting Ponder Indexer with cron jobs..."
+export NODE_OPTIONS="--max-old-space-size=4096"
 
-# Запустить cron в фоне
+echo "🚀 Starting Ponder Indexer (heap limited to 4 GB)..."
+
+# Start cron scheduler in background
 echo "⏰ Starting cron scheduler..."
 npx tsx /app/cron.ts &
 CRON_PID=$!
 echo "✅ Cron started with PID: $CRON_PID"
 
-# Запустить основной процесс
+# Start main Ponder process
 echo "📊 Starting Ponder indexer..."
 exec npm run start

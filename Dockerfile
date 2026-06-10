@@ -28,7 +28,7 @@ ENV PORT=42069
 EXPOSE 42069
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=60s --timeout=10s --start-period=300s --retries=5 \
   CMD wget --quiet --tries=1 --spider http://localhost:42069/health || exit 1
 
 # Start with custom script that includes cron

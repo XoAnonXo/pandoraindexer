@@ -4,8 +4,7 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
-const PONDER_HEALTH_URL =
-	process.env.PONDER_HEALTH_URL || "http://localhost:42069/health";
+const PONDER_HEALTH_URL = process.env.PONDER_HEALTH_URL || "http://localhost:42069/health";
 const SYNC_POLL_INTERVAL_MS = 30_000;
 const INITIAL_DELAY_MS = 60_000;
 
@@ -23,9 +22,7 @@ async function waitForPonderSync(): Promise<void> {
 		try {
 			const res = await fetch(PONDER_HEALTH_URL);
 			if (res.ok) {
-				console.log(
-					"[Cron] Ponder health OK — historical sync complete"
-				);
+				console.log("[Cron] Ponder health OK — historical sync complete");
 				return;
 			}
 		} catch {
@@ -40,14 +37,9 @@ async function runRecalculation() {
 		console.log("[Cron] Skipping recalculation — Ponder still syncing");
 		return;
 	}
-	console.log(
-		`[Cron] Running volume24h + trades24h recalculation at ${new Date().toISOString()}`
-	);
+	console.log(`[Cron] Running volume24h + trades24h recalculation at ${new Date().toISOString()}`);
 	try {
-		const { stdout, stderr } = await execAsync(
-			"npm run recalculate:volume24h",
-			{ timeout: 120_000 }
-		);
+		const { stdout, stderr } = await execAsync("npm run recalculate:volume24h", { timeout: 120_000 });
 		if (stdout) console.log("[Cron] Output:", stdout);
 		if (stderr && stderr.trim()) console.error("[Cron] Errors:", stderr);
 		console.log("[Cron] ✅ Recalculation completed");
@@ -61,19 +53,16 @@ async function runEventSync() {
 		console.log("[Cron] Skipping event sync — Ponder still syncing");
 		return;
 	}
-	console.log(
-		`[Cron] Running periodic event sync at ${new Date().toISOString()}`
-	);
+	console.log(`[Cron] Running periodic event sync at ${new Date().toISOString()}`);
 	try {
 		const { stdout, stderr } = await execAsync("npm run sync:events", {
 			timeout: 60_000,
 		});
 		if (stdout) console.log("[Cron] Event sync output:", stdout);
-		if (stderr && stderr.trim())
-			console.error("[Cron] Event sync errors:", stderr);
+		if (stderr && stderr.trim()) console.error("[Cron] Event sync errors:", stderr);
 		console.log("[Cron] ✅ Periodic event sync completed");
 	} catch (error) {
-		console.error("[Cron] ❌ Periodic event sync failed:", error);
+		console.error("[Cron] ❌ Event sync failed:", error);
 	}
 }
 
@@ -85,9 +74,7 @@ cron.schedule("*/5 * * * *", runRecalculation);
 // Periodic event sync every 10 minutes
 cron.schedule("*/10 * * * *", runEventSync);
 
-console.log(
-	"[Cron] ✅ Cron jobs scheduled (volume24h @5m, eventSync @10m)"
-);
+console.log("[Cron] ✅ Cron jobs scheduled (volume24h @5m, eventSync @10m)");
 
 // Wait for Ponder to be fully synced before running any child processes
 (async () => {
