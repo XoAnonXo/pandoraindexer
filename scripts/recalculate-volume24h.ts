@@ -12,11 +12,12 @@
  *
  * Environment:
  *   DATABASE_URL - PostgreSQL connection string (required)
- *   RAILWAY_SERVICE_NAME - Railway service name (e.g., "blue-sonicmarketindexer")
- *   RAILWAY_DEPLOYMENT_ID - Railway deployment ID (used by Ponder for schema suffix)
+ *   RAILWAY_SERVICE_NAME - Used to determine blue/green for schema discovery
+ *   PONDER_SCHEMA - Explicit override (optional, for local dev)
  */
 
 import { Pool } from "pg";
+import { discoverPonderSchema } from "./utils/discover-schema.js";
 
 // Get database URL from environment
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -26,34 +27,7 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-function getPonderSchemaName(): string {
-  if (process.env.PONDER_SCHEMA) {
-    return process.env.PONDER_SCHEMA;
-  }
-
-  const railwayServiceName = process.env.RAILWAY_SERVICE_NAME;
-  const railwayDeploymentId = process.env.RAILWAY_DEPLOYMENT_ID;
-
-  if (railwayServiceName && railwayDeploymentId) {
-    const shortId = railwayDeploymentId.replace(/-/g, "").slice(0, 8);
-    return `${railwayServiceName}_${shortId}`;
-  }
-
-  return "public";
-}
-
-const schemaName = getPonderSchemaName();
-
-console.log(`[Recalculate] Using database schema: ${schemaName}`);
-console.log(`[Recalculate] RAILWAY_SERVICE_NAME: ${process.env.RAILWAY_SERVICE_NAME}`);
-const fullId = process.env.RAILWAY_DEPLOYMENT_ID!;
-const shortId = fullId.replace(/-/g, "").slice(0, 8);
-console.log(`[Recalculate] RAILWAY_DEPLOYMENT_ID: ${fullId} (truncated to: ${shortId})`);
-
-// Create PostgreSQL connection pool with schema
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-});
+const pool = new Pool({ connectionString: DATABASE_URL });
 
 interface Market {
   id: string;
@@ -65,13 +39,14 @@ interface Market {
 async function recalculateVolume24h() {
   console.log("[Recalculate] Starting volume24h + trades24h recalculation...");
 
+  const schemaName = await discoverPonderSchema(pool, "[Recalculate]");
+
   const timestamp24hAgo = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
   const startTime = Date.now();
 
   const client = await pool.connect();
 
   try {
-    // Set search_path to use Ponder's schema
     await client.query(`SET search_path TO "${schemaName}", public`);
     console.log(`[Recalculate] Set search_path to: ${schemaName}`);
 
