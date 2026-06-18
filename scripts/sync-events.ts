@@ -11,11 +11,12 @@
  *
  * Environment:
  *   DATABASE_URL - PostgreSQL connection string (required)
- *   RAILWAY_SERVICE_NAME - Railway service name (for Ponder schema detection)
- *   RAILWAY_DEPLOYMENT_ID - Railway deployment ID (for Ponder schema detection)
+ *   RAILWAY_SERVICE_NAME - Used to determine blue/green for schema discovery
+ *   PONDER_SCHEMA - Explicit override (optional, for local dev)
  */
 
 import { Pool } from "pg";
+import { discoverPonderSchema } from "./utils/discover-schema.js";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -28,20 +29,6 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-function getPonderSchemaName(): string {
-  const railwayDeploymentId = process.env.RAILWAY_DEPLOYMENT_ID;
-  const railwayServiceName = process.env.RAILWAY_SERVICE_NAME;
-
-  if (!railwayServiceName || !railwayDeploymentId) {
-    console.error("[SyncEvents] RAILWAY_SERVICE_NAME and RAILWAY_DEPLOYMENT_ID are required");
-    process.exit(1);
-  }
-
-  const shortId = railwayDeploymentId.replace(/-/g, "").slice(0, 8);
-  return `${railwayServiceName}_${shortId}`;
-}
-
-const schemaName = getPonderSchemaName();
 const pool = new Pool({ connectionString: DATABASE_URL });
 
 interface EventRow {
@@ -215,7 +202,7 @@ async function syncEventsTable(client: any): Promise<number> {
 }
 
 async function syncEvents() {
-  console.log(`[SyncEvents] Using Ponder schema: ${schemaName}`);
+  const schemaName = await discoverPonderSchema(pool, "[SyncEvents]");
 
   const client = await pool.connect();
   const startTime = Date.now();

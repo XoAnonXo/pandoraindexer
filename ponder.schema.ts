@@ -199,6 +199,8 @@ export default createSchema((p) => ({
     eventId: p.string().optional(),
     /** Full search/display title for event-grouped markets (set by pandora-api / sync script) */
     displayTitle: p.string().optional(),
+    /** Topic slug for subcategory navigation (set externally by pandora-api / sync script) */
+    topicSlug: p.string().optional(),
 
     /** Maximum TVL among all markets for this poll (6 decimals) - for filtering/sorting */
     maxMarketTvl: p.bigint().optional(),
