@@ -24,8 +24,8 @@ export async function discoverPonderSchema(
 
   const serviceName = process.env.RAILWAY_SERVICE_NAME || "";
   const prefix = serviceName.startsWith("green-")
-    ? "green-pandoraindexer_"
-    : "blue-pandoraindexer_";
+    ? "green-evm-pandoraindexer_"
+    : "blue-evm-pandoraindexer_";
 
   console.log(
     `${logPrefix} Discovering schema with prefix: ${prefix} (service: ${serviceName})`
