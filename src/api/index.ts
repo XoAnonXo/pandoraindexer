@@ -1,4 +1,7 @@
+import { db } from "ponder:api";
+import schema from "ponder:schema";
 import { Hono } from "hono";
+import { graphql } from "ponder";
 import { cors } from "hono/cors";
 
 const app = new Hono();
@@ -100,7 +103,11 @@ setInterval(printAndResetSummary, SUMMARY_INTERVAL_MS);
 // ─── Logging Middleware ──────────────────────────────────────────────
 
 app.use("*", async (c, next) => {
-  if (c.req.method === "OPTIONS" || !c.req.path.includes("graphql")) {
+  const isGraphQL =
+    c.req.path === "/" ||
+    c.req.path === "/graphql" ||
+    c.req.path.includes("graphql");
+  if (c.req.method === "OPTIONS" || !isGraphQL) {
     return next();
   }
 
@@ -142,5 +149,8 @@ app.use("*", async (c, next) => {
     );
   }
 });
+
+app.use("/", graphql({ db, schema }));
+app.use("/graphql", graphql({ db, schema }));
 
 export default app;
