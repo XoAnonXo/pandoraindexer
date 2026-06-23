@@ -1,14 +1,11 @@
 /**
  * Recalculate 24h Volume for All Markets
  *
- * This script recalculates the volume24h field for all markets by summing
- * trades from the last 24 hours. Should be run periodically (e.g., every hour).
+ * Uses a single aggregated query instead of per-market queries,
+ * then batch-updates only changed rows.
  *
  * Usage:
  *   tsx scripts/recalculate-volume24h.ts
- *
- * Or as a cron job (every hour):
- *   0 * * * * cd /path/to/pandoraindexer-1 && tsx scripts/recalculate-volume24h.ts
  *
  * Environment:
  *   DATABASE_URL - PostgreSQL connection string (required)
@@ -19,7 +16,6 @@
 import { Pool } from "pg";
 import { discoverPonderSchema } from "./utils/discover-schema.js";
 
-// Get database URL from environment
 const DATABASE_URL = process.env.DATABASE_URL;
 
 if (!DATABASE_URL) {
@@ -29,11 +25,13 @@ if (!DATABASE_URL) {
 
 const pool = new Pool({ connectionString: DATABASE_URL });
 
-interface Market {
-  id: string;
-  chainId: number;
-  volume24h: string;
-  trades24h: number;
+async function ensureIndexes(client: import("pg").PoolClient) {
+  const start = Date.now();
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS idx_trades_market_timestamp
+    ON trades ("marketAddress", timestamp)
+  `);
+  console.log(`[Recalculate] Index ensured in ${Date.now() - start}ms`);
 }
 
 async function recalculateVolume24h() {
@@ -49,71 +47,90 @@ async function recalculateVolume24h() {
   try {
     await client.query(`SET search_path TO "${schemaName}", public`);
     console.log(`[Recalculate] Set search_path to: ${schemaName}`);
-
     console.log(`[Recalculate] Timestamp 24h ago: ${timestamp24hAgo}`);
-    console.log("[Recalculate] Fetching all markets...");
 
-    // Get all markets
-    const marketsResult = await client.query<Market>(
-      'SELECT id, "chainId", volume24h, COALESCE(trades24h, 0) AS trades24h FROM markets ORDER BY id'
+    await ensureIndexes(client);
+
+    // Single aggregated query: volume + trade count per market in one pass
+    const aggregateResult = await client.query<{
+      marketAddress: string;
+      trade_count: number;
+      volume: string;
+    }>(
+      `SELECT "marketAddress",
+              COUNT(*)::int AS trade_count,
+              COALESCE(SUM("collateralAmount"), 0)::text AS volume
+       FROM trades
+       WHERE timestamp >= $1
+       GROUP BY "marketAddress"`,
+      [timestamp24hAgo]
+    );
+
+    const volumeMap = new Map<string, { volume: bigint; trades: number }>();
+    for (const row of aggregateResult.rows) {
+      volumeMap.set(row.marketAddress, {
+        volume: BigInt(row.volume || "0"),
+        trades: row.trade_count ?? 0,
+      });
+    }
+
+    console.log(
+      `[Recalculate] Aggregated ${volumeMap.size} markets with recent trades`
+    );
+
+    // Fetch current values from markets
+    const marketsResult = await client.query<{
+      id: string;
+      volume24h: string;
+      trades24h: number;
+    }>(
+      'SELECT id, volume24h, COALESCE(trades24h, 0) AS trades24h FROM markets ORDER BY id'
     );
 
     const markets = marketsResult.rows;
-    console.log(`[Recalculate] Found ${markets.length} markets`);
+    console.log(`[Recalculate] Found ${markets.length} total markets`);
 
     let updatedCount = 0;
     let unchangedCount = 0;
 
-    // Process markets in batches to avoid overwhelming the database
-    const BATCH_SIZE = 100;
+    // Collect rows that need updating
+    const updates: { id: string; volume24h: string; trades24h: number }[] = [];
 
-    for (let i = 0; i < markets.length; i += BATCH_SIZE) {
-      const batch = markets.slice(i, i + BATCH_SIZE);
+    for (const market of markets) {
+      const agg = volumeMap.get(market.id);
+      const newVolume = agg?.volume ?? 0n;
+      const newTrades = agg?.trades ?? 0;
 
-      await Promise.all(
-        batch.map(async (market) => {
-          try {
-            const tradesResult = await client.query(
-              `SELECT COUNT(*)::int AS trade_count,
-                      COALESCE(SUM("collateralAmount"), 0) AS volume
-               FROM trades
-               WHERE "marketAddress" = $1
-               AND timestamp >= $2`,
-              [market.id, timestamp24hAgo]
-            );
+      const currentVolume = BigInt(market.volume24h || "0");
+      const currentTrades = market.trades24h ?? 0;
 
-            const row = tradesResult.rows[0];
-            const volume24h = BigInt(row.volume || "0");
-            const trades24h: number = row.trade_count ?? 0;
+      if (newVolume !== currentVolume || newTrades !== currentTrades) {
+        updates.push({
+          id: market.id,
+          volume24h: newVolume.toString(),
+          trades24h: newTrades,
+        });
+      } else {
+        unchangedCount++;
+      }
+    }
 
-            const currentVolume24h = BigInt(market.volume24h || "0");
-            const currentTrades24h = market.trades24h ?? 0;
+    // Batch UPDATE via unnest — single round-trip for all changed rows
+    if (updates.length > 0) {
+      const ids = updates.map((u) => u.id);
+      const volumes = updates.map((u) => u.volume24h);
+      const trades = updates.map((u) => u.trades24h);
 
-            if (volume24h !== currentVolume24h || trades24h !== currentTrades24h) {
-              await client.query(
-                'UPDATE markets SET volume24h = $1, trades24h = $2 WHERE id = $3',
-                [volume24h.toString(), trades24h, market.id]
-              );
-              updatedCount++;
-
-              if (updatedCount % 10 === 0) {
-                console.log(
-                  `[Recalculate] Progress: ${i + batch.indexOf(market) + 1
-                  }/${markets.length
-                  } (${updatedCount} updated)`
-                );
-              }
-            } else {
-              unchangedCount++;
-            }
-          } catch (error) {
-            console.error(
-              `[Recalculate] Error processing market ${market.id}:`,
-              error
-            );
-          }
-        })
+      await client.query(
+        `UPDATE markets AS m
+         SET volume24h = u.vol::bigint,
+             trades24h = u.tc::int
+         FROM unnest($1::text[], $2::text[], $3::int[])
+           AS u(id, vol, tc)
+         WHERE m.id = u.id`,
+        [ids, volumes, trades]
       );
+      updatedCount = updates.length;
     }
 
     const duration = Date.now() - startTime;
@@ -130,7 +147,6 @@ async function recalculateVolume24h() {
   }
 }
 
-// Run immediately
 recalculateVolume24h()
   .then(async () => {
     console.log("[Recalculate] Done!");

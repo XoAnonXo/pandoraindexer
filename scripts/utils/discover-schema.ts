@@ -11,48 +11,39 @@ import type { Pool, PoolClient } from "pg";
  *
  * Falls back to PONDER_SCHEMA env var if set (for local dev or overrides).
  */
-export async function discoverPonderSchema(
-  pool: Pool,
-  logPrefix = "[Schema]"
-): Promise<string> {
-  if (process.env.PONDER_SCHEMA) {
-    console.log(
-      `${logPrefix} Using explicit PONDER_SCHEMA: ${process.env.PONDER_SCHEMA}`
-    );
-    return process.env.PONDER_SCHEMA;
-  }
+export async function discoverPonderSchema(pool: Pool, logPrefix = "[Schema]"): Promise<string> {
+	if (process.env.PONDER_SCHEMA) {
+		console.log(`${logPrefix} Using explicit PONDER_SCHEMA: ${process.env.PONDER_SCHEMA}`);
+		return process.env.PONDER_SCHEMA;
+	}
 
-  const serviceName = process.env.RAILWAY_SERVICE_NAME || "";
-  const prefix = serviceName.startsWith("green-")
-    ? "green-evm-pandoraindexer_"
-    : "blue-evm-pandoraindexer_";
+	const serviceName = process.env.RAILWAY_SERVICE_NAME || "";
+	const prefix = serviceName.startsWith("green-") ? "green-evm-pandoraindexer_" : "blue-evm-pandoraindexer_";
 
-  console.log(
-    `${logPrefix} Discovering schema with prefix: ${prefix} (service: ${serviceName})`
-  );
+	console.log(`${logPrefix} Discovering schema with prefix: ${prefix} (service: ${serviceName})`);
 
-  const client: PoolClient = await pool.connect();
-  try {
-    const result = await client.query(
-      `SELECT schemaname FROM pg_tables
+	const client: PoolClient = await pool.connect();
+	try {
+		const result = await client.query(
+			`SELECT schemaname FROM pg_tables
        WHERE tablename = 'markets'
          AND schemaname LIKE $1
        ORDER BY schemaname DESC
        LIMIT 1`,
-      [`${prefix}%`]
-    );
+			[`${prefix}%`],
+		);
 
-    if (result.rows.length === 0) {
-      throw new Error(
-        `No Ponder schema found matching "${prefix}*" with a "markets" table. ` +
-          `Ponder may still be syncing or the schema was not yet created.`
-      );
-    }
+		if (result.rows.length === 0) {
+			throw new Error(
+				`No Ponder schema found matching "${prefix}*" with a "markets" table. ` +
+					`Ponder may still be syncing or the schema was not yet created.`,
+			);
+		}
 
-    const schema = result.rows[0].schemaname as string;
-    console.log(`${logPrefix} Discovered Ponder schema: ${schema}`);
-    return schema;
-  } finally {
-    client.release();
-  }
+		const schema = result.rows[0].schemaname as string;
+		console.log(`${logPrefix} Discovered Ponder schema: ${schema}`);
+		return schema;
+	} finally {
+		client.release();
+	}
 }
