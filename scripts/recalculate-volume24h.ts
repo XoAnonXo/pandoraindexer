@@ -51,92 +51,45 @@ async function recalculateVolume24h() {
 
     await ensureIndexes(client);
 
-    // Single aggregated query: volume + trade count per market in one pass
-    const aggregateResult = await client.query<{
-      marketAddress: string;
-      trade_count: number;
-      volume: string;
-    }>(
-      `SELECT "marketAddress",
-              COUNT(*)::int AS trade_count,
-              COALESCE(SUM("collateralAmount"), 0)::text AS volume
-       FROM trades
-       WHERE timestamp >= $1
-       GROUP BY "marketAddress"`,
+    const countResult = await client.query(
+      "SELECT COUNT(*)::int AS total FROM markets"
+    );
+    const totalMarkets: number = countResult.rows[0].total;
+    console.log(`[Recalculate] Found ${totalMarkets} total markets`);
+
+    // Single CTE: aggregate 24h trades, LEFT JOIN markets, update only changed rows.
+    // All joins are bytea=bytea inside PostgreSQL — no type mismatch.
+    const updateResult = await client.query(
+      `WITH agg AS (
+         SELECT "marketAddress",
+                COUNT(*)::int AS trade_count,
+                COALESCE(SUM("collateralAmount"), 0) AS volume
+         FROM trades
+         WHERE timestamp >= $1
+         GROUP BY "marketAddress"
+       )
+       UPDATE markets AS m
+       SET volume24h = COALESCE(sub.volume, 0),
+           trades24h = COALESCE(sub.trade_count, 0)
+       FROM (
+         SELECT m2.id,
+                COALESCE(a.trade_count, 0) AS trade_count,
+                COALESCE(a.volume, 0) AS volume
+         FROM markets m2
+         LEFT JOIN agg a ON m2.id = a."marketAddress"
+         WHERE m2.volume24h IS DISTINCT FROM COALESCE(a.volume, 0)
+            OR COALESCE(m2.trades24h, 0) IS DISTINCT FROM COALESCE(a.trade_count, 0)
+       ) AS sub
+       WHERE m.id = sub.id`,
       [timestamp24hAgo]
     );
 
-    const volumeMap = new Map<string, { volume: bigint; trades: number }>();
-    for (const row of aggregateResult.rows) {
-      volumeMap.set(row.marketAddress, {
-        volume: BigInt(row.volume || "0"),
-        trades: row.trade_count ?? 0,
-      });
-    }
-
-    console.log(
-      `[Recalculate] Aggregated ${volumeMap.size} markets with recent trades`
-    );
-
-    // Fetch current values from markets
-    const marketsResult = await client.query<{
-      id: string;
-      volume24h: string;
-      trades24h: number;
-    }>(
-      'SELECT id, volume24h, COALESCE(trades24h, 0) AS trades24h FROM markets ORDER BY id'
-    );
-
-    const markets = marketsResult.rows;
-    console.log(`[Recalculate] Found ${markets.length} total markets`);
-
-    let updatedCount = 0;
-    let unchangedCount = 0;
-
-    // Collect rows that need updating
-    const updates: { id: string; volume24h: string; trades24h: number }[] = [];
-
-    for (const market of markets) {
-      const agg = volumeMap.get(market.id);
-      const newVolume = agg?.volume ?? 0n;
-      const newTrades = agg?.trades ?? 0;
-
-      const currentVolume = BigInt(market.volume24h || "0");
-      const currentTrades = market.trades24h ?? 0;
-
-      if (newVolume !== currentVolume || newTrades !== currentTrades) {
-        updates.push({
-          id: market.id,
-          volume24h: newVolume.toString(),
-          trades24h: newTrades,
-        });
-      } else {
-        unchangedCount++;
-      }
-    }
-
-    // Batch UPDATE via unnest — single round-trip for all changed rows
-    if (updates.length > 0) {
-      const ids = updates.map((u) => u.id);
-      const volumes = updates.map((u) => u.volume24h);
-      const trades = updates.map((u) => u.trades24h);
-
-      await client.query(
-        `UPDATE markets AS m
-         SET volume24h = u.vol::bigint,
-             trades24h = u.tc::int
-         FROM unnest($1::text[], $2::text[], $3::int[])
-           AS u(id, vol, tc)
-         WHERE m.id = u.id`,
-        [ids, volumes, trades]
-      );
-      updatedCount = updates.length;
-    }
-
+    const updatedCount = updateResult.rowCount ?? 0;
+    const unchangedCount = totalMarkets - updatedCount;
     const duration = Date.now() - startTime;
 
     console.log(`\n[Recalculate] ✅ Completed in ${duration}ms`);
-    console.log(`[Recalculate] Total markets: ${markets.length}`);
+    console.log(`[Recalculate] Total markets: ${totalMarkets}`);
     console.log(`[Recalculate] Updated: ${updatedCount}`);
     console.log(`[Recalculate] Unchanged: ${unchangedCount}`);
   } catch (error) {
