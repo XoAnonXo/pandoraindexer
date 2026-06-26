@@ -20,8 +20,9 @@ const pool = DATABASE_URL
 		})
 	: null;
 
-function hexToBuffer(hex: string): Buffer {
-	return Buffer.from(hex.replace(/^0x/, ""), "hex");
+function normalizeHex(hex: string): string {
+	const h = hex.toLowerCase();
+	return h.startsWith("0x") ? h : `0x${h}`;
 }
 
 async function waitForPonderSync(): Promise<void> {
@@ -61,10 +62,14 @@ async function runRecalculation(): Promise<void> {
 		await client.query(`SET statement_timeout = '${STATEMENT_TIMEOUT_MS}'`);
 		await client.query(`SET search_path TO "${schema}", public`);
 
-		await client.query(`
-			CREATE INDEX IF NOT EXISTS idx_trades_market_timestamp
-			ON trades ("marketAddress", timestamp)
-		`);
+		try {
+			await client.query(`
+				CREATE INDEX IF NOT EXISTS idx_trades_market_timestamp
+				ON trades ("marketAddress", timestamp)
+			`);
+		} catch {
+			// Views don't support indexes — non-critical, skip silently
+		}
 
 		const timestamp24hAgo = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
 
@@ -152,53 +157,53 @@ async function syncCompletedEvents(client: any): Promise<{ polls: number; market
 	let syncedPolls = 0;
 	let syncedMarkets = 0;
 
-	const pollsByEvent = new Map<string, { buffers: Buffer[]; title: string }>();
+	const pollsByEvent = new Map<string, { addresses: string[]; title: string }>();
 	for (const [pollHex, { eventId, title }] of pollToEvent) {
 		const entry = pollsByEvent.get(eventId);
 		if (entry) {
-			entry.buffers.push(hexToBuffer(pollHex));
+			entry.addresses.push(normalizeHex(pollHex));
 		} else {
-			pollsByEvent.set(eventId, { buffers: [hexToBuffer(pollHex)], title });
+			pollsByEvent.set(eventId, { addresses: [normalizeHex(pollHex)], title });
 		}
 	}
 
-	for (const [eventId, { buffers, title }] of pollsByEvent) {
+	for (const [eventId, { addresses, title }] of pollsByEvent) {
 		const result = await client.query(
-			`UPDATE polls SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
-			[eventId, buffers]
+			`UPDATE polls SET "eventId" = $1 WHERE id = ANY($2::text[]) AND "eventId" IS DISTINCT FROM $1`,
+			[eventId, addresses]
 		);
 		syncedPolls += result.rowCount ?? 0;
 
 		const mResult = await client.query(
-			`UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
-			[eventId, buffers]
+			`UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2::text[]) AND "eventId" IS DISTINCT FROM $1`,
+			[eventId, addresses]
 		);
 		syncedMarkets += mResult.rowCount ?? 0;
 
 		if (title) {
 			await client.query(
 				`UPDATE polls SET "displayTitle" = COALESCE("question", '') || ' — ' || $1
-				 WHERE id = ANY($2::bytea[])
+				 WHERE id = ANY($2::text[])
 				   AND ("displayTitle" IS NULL OR "displayTitle" = '')`,
-				[title, buffers]
+				[title, addresses]
 			);
 		}
 	}
 
-	const marketsByEvent = new Map<string, Buffer[]>();
+	const marketsByEvent = new Map<string, string[]>();
 	for (const [marketHex, eventId] of marketToEvent) {
 		const entry = marketsByEvent.get(eventId);
 		if (entry) {
-			entry.push(hexToBuffer(marketHex));
+			entry.push(normalizeHex(marketHex));
 		} else {
-			marketsByEvent.set(eventId, [hexToBuffer(marketHex)]);
+			marketsByEvent.set(eventId, [normalizeHex(marketHex)]);
 		}
 	}
 
-	for (const [eventId, buffers] of marketsByEvent) {
+	for (const [eventId, addresses] of marketsByEvent) {
 		const result = await client.query(
-			`UPDATE markets SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
-			[eventId, buffers]
+			`UPDATE markets SET "eventId" = $1 WHERE id = ANY($2::text[]) AND "eventId" IS DISTINCT FROM $1`,
+			[eventId, addresses]
 		);
 		syncedMarkets += result.rowCount ?? 0;
 	}
