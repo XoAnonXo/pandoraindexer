@@ -61,6 +61,7 @@ async function runRecalculation(): Promise<void> {
 	try {
 		await client.query(`SET statement_timeout = '${STATEMENT_TIMEOUT_MS}'`);
 		await client.query(`SET search_path TO ${sp}`);
+		await client.query(`CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)`);
 
 		try {
 			await client.query(`
@@ -277,6 +278,7 @@ async function runEventSync(): Promise<void> {
 	try {
 		await client.query(`SET statement_timeout = '${STATEMENT_TIMEOUT_MS}'`);
 		await client.query(`SET search_path TO ${sp}`);
+		await client.query(`CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)`);
 
 		const { polls: syncedPolls, markets: syncedMarkets } = await syncCompletedEvents(client);
 		const eventsSynced = await syncEventsTable(client);

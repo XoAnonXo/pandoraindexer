@@ -209,6 +209,7 @@ async function syncEvents() {
 
   try {
     await client.query(`SET search_path TO ${sp}`);
+    await client.query(`CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)`);
 
     // Phase 1: Re-apply eventId to Ponder polls/markets after reindex
     const { polls: syncedPolls, markets: syncedMarkets } = await syncCompletedEvents(client);

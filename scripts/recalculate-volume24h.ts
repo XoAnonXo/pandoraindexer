@@ -59,6 +59,7 @@ async function recalculateVolume24h() {
 
   try {
     await client.query(`SET search_path TO ${sp}`);
+    await client.query(`CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)`);
     console.log(`[Recalculate] Set search_path to: ${sp}`);
     console.log(`[Recalculate] Timestamp 24h ago: ${timestamp24hAgo}`);
 
