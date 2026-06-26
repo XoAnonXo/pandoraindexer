@@ -14,7 +14,7 @@
  */
 
 import { Pool } from "pg";
-import { discoverPonderSchema } from "./utils/discover-schema.js";
+import { buildSearchPath } from "./utils/discover-schema.js";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -50,7 +50,7 @@ async function ensureIndexes(client: import("pg").PoolClient) {
 async function recalculateVolume24h() {
   console.log("[Recalculate] Starting volume24h + trades24h recalculation...");
 
-  const schemaName = await discoverPonderSchema(pool, "[Recalculate]");
+  const sp = await buildSearchPath(pool, "[Recalculate]");
 
   const timestamp24hAgo = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
   const startTime = Date.now();
@@ -58,8 +58,8 @@ async function recalculateVolume24h() {
   const client = await pool.connect();
 
   try {
-    await client.query(`SET search_path TO "${schemaName}", public`);
-    console.log(`[Recalculate] Set search_path to: ${schemaName}`);
+    await client.query(`SET search_path TO ${sp}`);
+    console.log(`[Recalculate] Set search_path to: ${sp}`);
     console.log(`[Recalculate] Timestamp 24h ago: ${timestamp24hAgo}`);
 
     try {

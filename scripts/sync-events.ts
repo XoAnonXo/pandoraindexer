@@ -16,7 +16,7 @@
  */
 
 import { Pool } from "pg";
-import { discoverPonderSchema } from "./utils/discover-schema.js";
+import { buildSearchPath } from "./utils/discover-schema.js";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -202,13 +202,13 @@ async function syncEventsTable(client: any): Promise<number> {
 }
 
 async function syncEvents() {
-  const schemaName = await discoverPonderSchema(pool, "[SyncEvents]");
+  const sp = await buildSearchPath(pool, "[SyncEvents]");
 
   const client = await pool.connect();
   const startTime = Date.now();
 
   try {
-    await client.query(`SET search_path TO "${schemaName}", public`);
+    await client.query(`SET search_path TO ${sp}`);
 
     // Phase 1: Re-apply eventId to Ponder polls/markets after reindex
     const { polls: syncedPolls, markets: syncedMarkets } = await syncCompletedEvents(client);

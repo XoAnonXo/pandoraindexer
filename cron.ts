@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { Pool } from "pg";
-import { discoverPonderSchema } from "./scripts/utils/discover-schema.js";
+import { buildSearchPath } from "./scripts/utils/discover-schema.js";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const PONDER_HEALTH_URL = process.env.PONDER_HEALTH_URL || "http://localhost:42069/health";
@@ -9,7 +9,7 @@ const INITIAL_DELAY_MS = 60_000;
 const STATEMENT_TIMEOUT_MS = 30_000;
 
 let ponderReady = false;
-let schemaName: string | null = null;
+let searchPath: string | null = null;
 
 const pool = DATABASE_URL
 	? new Pool({
@@ -42,11 +42,11 @@ async function waitForPonderSync(): Promise<void> {
 	}
 }
 
-async function resolveSchema(): Promise<string> {
-	if (schemaName) return schemaName;
+async function resolveSearchPath(): Promise<string> {
+	if (searchPath) return searchPath;
 	if (!pool) throw new Error("DATABASE_URL not configured");
-	schemaName = await discoverPonderSchema(pool, "[Cron]");
-	return schemaName;
+	searchPath = await buildSearchPath(pool, "[Cron]");
+	return searchPath;
 }
 
 // ─── Volume24h Recalculation ────────────────────────────────────────────────
@@ -54,13 +54,13 @@ async function resolveSchema(): Promise<string> {
 async function runRecalculation(): Promise<void> {
 	if (!ponderReady || !pool) return;
 
-	const schema = await resolveSchema();
+	const sp = await resolveSearchPath();
 	const client = await pool.connect();
 	const t0 = Date.now();
 
 	try {
 		await client.query(`SET statement_timeout = '${STATEMENT_TIMEOUT_MS}'`);
-		await client.query(`SET search_path TO "${schema}", public`);
+		await client.query(`SET search_path TO ${sp}`);
 
 		try {
 			await client.query(`
@@ -103,8 +103,7 @@ async function runRecalculation(): Promise<void> {
 	} catch (error: any) {
 		console.error(`[Cron] Recalculation failed: ${error.message}`);
 	} finally {
-		await client.query("RESET statement_timeout").catch(() => {});
-		client.release();
+		client.release(true);
 	}
 }
 
@@ -271,13 +270,13 @@ async function syncEventsTable(client: any): Promise<number> {
 async function runEventSync(): Promise<void> {
 	if (!ponderReady || !pool) return;
 
-	const schema = await resolveSchema();
+	const sp = await resolveSearchPath();
 	const client = await pool.connect();
 	const t0 = Date.now();
 
 	try {
 		await client.query(`SET statement_timeout = '${STATEMENT_TIMEOUT_MS}'`);
-		await client.query(`SET search_path TO "${schema}", public`);
+		await client.query(`SET search_path TO ${sp}`);
 
 		const { polls: syncedPolls, markets: syncedMarkets } = await syncCompletedEvents(client);
 		const eventsSynced = await syncEventsTable(client);
@@ -288,8 +287,7 @@ async function runEventSync(): Promise<void> {
 	} catch (error: any) {
 		console.error(`[Cron] Event sync failed: ${error.message}`);
 	} finally {
-		await client.query("RESET statement_timeout").catch(() => {});
-		client.release();
+		client.release(true);
 	}
 }
 
