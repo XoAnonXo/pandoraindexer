@@ -62,7 +62,11 @@ async function recalculateVolume24h() {
     console.log(`[Recalculate] Set search_path to: ${schemaName}`);
     console.log(`[Recalculate] Timestamp 24h ago: ${timestamp24hAgo}`);
 
-    await ensureIndexes(client);
+    try {
+      await ensureIndexes(client);
+    } catch (indexErr: any) {
+      console.warn(`[Recalculate] Index creation skipped: ${indexErr.message}`);
+    }
 
     const countResult = await client.query(
       "SELECT COUNT(*)::int AS total FROM markets"
