@@ -1,4 +1,4 @@
-import { platformStats, dailyStats, hourlyStats } from "ponder:schema";
+import { platformStats, dailyStats, hourlyStats, dailyActiveUsers } from "ponder:schema";
 import type { PonderContext, ChainInfo, StatsUpdate } from "../utils/types";
 import { makeId, getDayTimestamp, getHourTimestamp } from "../utils/helpers";
 import { withRetry } from "../utils/errors";
@@ -98,33 +98,25 @@ export async function recordHourlyActiveUser(
   const id = makeId(chain.chainId, `hour-${hourTs.toString()}`, normalizedUser);
 
   return withRetry(async () => {
-    // dailyActiveUsers table does not exist in schema — pre-existing bug
-    // const existing = await context.db.find(dailyActiveUsers, { id });
-    // const isFirstActivity = !existing;
-    //
-    // await context.db.insert(dailyActiveUsers).values({
-    //   id,
-    //   chainId: chain.chainId,
-    //   dayTimestamp: hourTs, // Reusing field for hour timestamp
-    //   user: normalizedUser,
-    //   firstActivityAt: timestamp,
-    //   tradesCount: 1,
-    // }).onConflictDoUpdate({
-    //   // No-op update - we just need to ensure the record exists
-    // });
-    //
-    // return isFirstActivity;
-    return false;
+    const existing = await context.db.find(dailyActiveUsers, { id });
+    const isFirstActivity = !existing;
+
+    await context.db.insert(dailyActiveUsers).values({
+      id,
+      chainId: chain.chainId,
+      dayTimestamp: hourTs,
+      user: normalizedUser,
+      firstActivityAt: timestamp,
+      tradesCount: 1,
+    }).onConflictDoUpdate({});
+
+    return isFirstActivity;
   });
 }
 
 /**
  * Record a user as active for a specific day.
  * Returns true if this is the first activity for this user today.
- * 
- * Uses findUnique + upsert pattern for Ponder compatibility:
- * - Check if record exists first
- * - Use upsert to handle concurrent writes within the same batch
  */
 export async function recordDailyActiveUser(
   context: PonderContext,
@@ -137,24 +129,21 @@ export async function recordDailyActiveUser(
   const id = makeId(chain.chainId, dayTs.toString(), normalizedUser);
 
   return withRetry(async () => {
-    // dailyActiveUsers table does not exist in schema — pre-existing bug
-    // const existing = await context.db.find(dailyActiveUsers, { id });
-    // const isFirstActivity = !existing;
-    //
-    // await context.db.insert(dailyActiveUsers).values({
-    //   id,
-    //   chainId: chain.chainId,
-    //   dayTimestamp: dayTs,
-    //   user: normalizedUser,
-    //   firstActivityAt: timestamp,
-    //   tradesCount: 1,
-    // }).onConflictDoUpdate((row) => ({
-    //   // Increment trade count for returning users
-    //   tradesCount: (existing?.tradesCount ?? row.tradesCount) + 1,
-    // }));
-    //
-    // return isFirstActivity;
-    return false;
+    const existing = await context.db.find(dailyActiveUsers, { id });
+    const isFirstActivity = !existing;
+
+    await context.db.insert(dailyActiveUsers).values({
+      id,
+      chainId: chain.chainId,
+      dayTimestamp: dayTs,
+      user: normalizedUser,
+      firstActivityAt: timestamp,
+      tradesCount: 1,
+    }).onConflictDoUpdate((row: any) => ({
+      tradesCount: row.tradesCount + 1,
+    }));
+
+    return isFirstActivity;
   });
 }
 

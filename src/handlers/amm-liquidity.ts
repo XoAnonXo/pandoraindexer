@@ -116,7 +116,6 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
   }
 
   const lpId = makeId(chain.chainId, marketAddress, normalizedProvider);
-  const existingLp = await context.db.find(userLiquidityPositions, { id: lpId });
   const weightedChance = currentYesChance * collateralAmount;
 
   await context.db.insert(userLiquidityPositions).values({
@@ -136,15 +135,15 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
     removeCount: 0,
     firstAddAt: timestamp,
     lastUpdatedAt: timestamp,
-  }).onConflictDoUpdate({
-    lpTokens: (existingLp?.lpTokens ?? 0n) + lpTokens,
-    totalCollateralDeposited: (existingLp?.totalCollateralDeposited ?? 0n) + collateralAmount,
-    yesTokensReceived: (existingLp?.yesTokensReceived ?? 0n) + yesToReturn,
-    noTokensReceived: (existingLp?.noTokensReceived ?? 0n) + noToReturn,
-    weightedYesChanceSum: (existingLp?.weightedYesChanceSum ?? 0n) + weightedChance,
-    addCount: (existingLp?.addCount ?? 0) + 1,
+  }).onConflictDoUpdate((row: any) => ({
+    lpTokens: row.lpTokens + lpTokens,
+    totalCollateralDeposited: row.totalCollateralDeposited + collateralAmount,
+    yesTokensReceived: row.yesTokensReceived + yesToReturn,
+    noTokensReceived: row.noTokensReceived + noToReturn,
+    weightedYesChanceSum: row.weightedYesChanceSum + weightedChance,
+    addCount: row.addCount + 1,
     lastUpdatedAt: timestamp,
-  });
+  }));
 
   const user = await getOrCreateUser(context, provider, chain);
   const isNewUser = user.totalTrades === 0 && user.totalDeposited === 0n;

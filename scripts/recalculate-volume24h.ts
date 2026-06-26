@@ -27,11 +27,24 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 
 async function ensureIndexes(client: import("pg").PoolClient) {
   const start = Date.now();
-  await client.query(`
-    CREATE INDEX IF NOT EXISTS idx_trades_market_timestamp
-    ON trades ("marketAddress", timestamp)
-  `);
-  console.log(`[Recalculate] Index ensured in ${Date.now() - start}ms`);
+
+  // Views don't support indexes -- find the real table schema
+  const { rows } = await client.query(
+    `SELECT schemaname FROM pg_tables
+     WHERE tablename = 'trades' AND schemaname NOT IN ('public', 'pandora_views')
+     ORDER BY schemaname DESC LIMIT 1`
+  );
+
+  if (rows.length > 0) {
+    const realSchema = rows[0].schemaname;
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_trades_market_timestamp
+      ON "${realSchema}".trades ("marketAddress", timestamp)
+    `);
+    console.log(`[Recalculate] Index ensured on ${realSchema}.trades in ${Date.now() - start}ms`);
+  } else {
+    console.log(`[Recalculate] Skipped index creation — no real trades table found`);
+  }
 }
 
 async function recalculateVolume24h() {

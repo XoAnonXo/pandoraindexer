@@ -689,6 +689,23 @@ export const userLiquidityPositions = onchainTable("userLiquidityPositions", (t)
 // CLAIM EVENTS TABLE
 // ===========================================================================
 
+// ===========================================================================
+// DAILY ACTIVE USERS TABLE
+// ===========================================================================
+
+export const dailyActiveUsers = onchainTable("dailyActiveUsers", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	dayTimestamp: t.bigint().notNull(),
+	user: t.hex().notNull(),
+	firstActivityAt: t.bigint().notNull(),
+	tradesCount: t.integer().notNull(),
+}));
+
+// ===========================================================================
+// CLAIM EVENTS TABLE
+// ===========================================================================
+
 export const claimEvents = onchainTable("claimEvents", (t) => ({
 	id: t.text().primaryKey(),
 	campaignAddress: t.hex().notNull(),

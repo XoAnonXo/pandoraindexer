@@ -13,7 +13,7 @@
  *   })
  */
 
-import { type Transport, type TransportConfig, custom } from "viem";
+import { type Transport, custom } from "viem";
 
 interface ResilientTransportOptions {
   primary: string;
@@ -141,5 +141,5 @@ export function createResilientTransport(opts: ResilientTransportOptions): Trans
         await new Promise((r) => setTimeout(r, delayMs));
       }
     },
-  } as TransportConfig["value"] as any);
+  });
 }
