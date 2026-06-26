@@ -5,7 +5,8 @@
  * Tracks dispute creation, voting, resolution, and reward claims.
  */
 
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
+import { disputes, polls, disputeVotes, disputeRewardClaims } from "ponder:schema";
 import { getChainName, CHAINS } from "../../config";
 import { DisputeResolverRemoteAbi } from "../../abis/DisputeResolverRemote";
 
@@ -71,13 +72,13 @@ async function readDisputeFromContract(
  */
 
 ponder.on(
-  "DisputeResolverRemote:DisputeCreated",
+  "DisputeResolverRemote:DisputeCreated" as any,
   async ({ event, context }: any) => {
     const { disputer, oracle, draftStatus, amount, marketToken } =
       event.args;
     const { block } = event;
     const timestamp = block.timestamp;
-    const chainId = context.network.chainId;
+    const chainId = context.chain.id;
     const chainName = getChainName(chainId);
 
     const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
@@ -133,32 +134,30 @@ ponder.on(
 
     const contractInfo = await readDisputeFromContract(context, chainId, oracle, block.number);
 
-    await context.db.disputes.create({
+    await context.db.insert(disputes).values({
       id: disputeId,
-      data: {
-        chainId,
-        oracle: normalizedOracle,
-        disputer: normalizedDisputer,
-        isCollateralTaken: contractInfo?.isCollateralTaken ?? false,
-        state: contractInfo?.state ?? 1,
-        draftStatus: Number(draftStatus),
-        finalStatus: contractInfo?.finalStatus ?? 0,
-        disputerDeposit: amount,
-        endAt: contractInfo?.endAt ?? null,
-        marketToken: normalizedToken,
-        marketTokenSymbol: tokenSymbol,
-        marketTokenDecimals: tokenDecimals,
-        reason: contractInfo?.reason ?? "",
-        voteCount: 0,
-        votesYes: 0n,
-        votesNo: 0n,
-        votesUnknown: 0n,
-        createdAt: timestamp,
-        createdAtBlock: block.number,
-      },
+      chainId,
+      oracle: normalizedOracle,
+      disputer: normalizedDisputer,
+      isCollateralTaken: contractInfo?.isCollateralTaken ?? false,
+      state: contractInfo?.state ?? 1,
+      draftStatus: Number(draftStatus),
+      finalStatus: contractInfo?.finalStatus ?? 0,
+      disputerDeposit: amount,
+      endAt: contractInfo?.endAt ?? null,
+      marketToken: normalizedToken,
+      marketTokenSymbol: tokenSymbol,
+      marketTokenDecimals: tokenDecimals,
+      reason: contractInfo?.reason ?? "",
+      voteCount: 0,
+      votesYes: 0n,
+      votesNo: 0n,
+      votesUnknown: 0n,
+      createdAt: timestamp,
+      createdAtBlock: block.number,
     });
 
-    const poll = await context.db.polls.findUnique({
+    const poll = await context.db.find(polls, {
       id: normalizedOracle,
     });
     if (poll) {
@@ -166,18 +165,15 @@ ponder.on(
       // Only save if not already captured by a previous dispute.
       const shouldSavePreDispute = poll.preDisputeStatus == null;
 
-      await context.db.polls.update({
-        id: normalizedOracle,
-        data: {
-          disputedBy: normalizedDisputer,
-          disputeStake: amount,
-          disputedAt: timestamp,
-          arbitrationStarted: true,
-          ...(shouldSavePreDispute && {
-            preDisputeStatus: poll.status,
-            preDisputeResolutionReason: poll.resolutionReason ?? null,
-          }),
-        },
+      await context.db.update(polls, { id: normalizedOracle }).set({
+        disputedBy: normalizedDisputer,
+        disputeStake: amount,
+        disputedAt: timestamp,
+        arbitrationStarted: true,
+        ...(shouldSavePreDispute && {
+          preDisputeStatus: poll.status,
+          preDisputeResolutionReason: poll.resolutionReason ?? null,
+        }),
       });
 
       if (shouldSavePreDispute) {
@@ -203,11 +199,11 @@ ponder.on(
  * in the same transaction. We create the vote record here, then
  * CrossChainVoteReceived updates it with tokenIds.
  */
-ponder.on("DisputeResolverRemote:Vote", async ({ event, context }: any) => {
+ponder.on("DisputeResolverRemote:Vote" as any, async ({ event, context }: any) => {
   const { voter, oracle, power, status } = event.args;
   const { block, transaction } = event;
   const timestamp = block.timestamp;
-  const chainId = context.network.chainId;
+  const chainId = context.chain.id;
   const chainName = getChainName(chainId);
 
   const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
@@ -215,7 +211,7 @@ ponder.on("DisputeResolverRemote:Vote", async ({ event, context }: any) => {
   const disputeId = `${chainId}-${normalizedOracle}`;
   const voteId = `${chainId}-${normalizedOracle}-${normalizedVoter}-${transaction.hash}`;
 
-  const dispute = await context.db.disputes.findUnique({ id: disputeId });
+  const dispute = await context.db.find(disputes, { id: disputeId });
   if (dispute) {
     const updates: any = { voteCount: dispute.voteCount + 1 };
 
@@ -227,25 +223,20 @@ ponder.on("DisputeResolverRemote:Vote", async ({ event, context }: any) => {
       updates.votesUnknown = dispute.votesUnknown + power;
     }
 
-    await context.db.disputes.update({
-      id: disputeId,
-      data: updates,
-    });
+    await context.db.update(disputes, { id: disputeId }).set(updates);
   }
 
-  await context.db.disputeVotes.create({
+  await context.db.insert(disputeVotes).values({
     id: voteId,
-    data: {
-      chainId,
-      oracle: normalizedOracle,
-      voter: normalizedVoter,
-      votedFor: Number(status),
-      power,
-      votedAt: timestamp,
-      votedAtBlock: block.number,
-      txHash: transaction.hash as `0x${string}`,
-      isCrossChain: false,
-    },
+    chainId,
+    oracle: normalizedOracle,
+    voter: normalizedVoter,
+    votedFor: Number(status),
+    power,
+    votedAt: timestamp,
+    votedAtBlock: block.number,
+    txHash: transaction.hash as `0x${string}`,
+    isCrossChain: false,
   });
 
   console.log(
@@ -258,12 +249,12 @@ ponder.on("DisputeResolverRemote:Vote", async ({ event, context }: any) => {
  * Emitted when a dispute is resolved with a final decision.
  */
 ponder.on(
-  "DisputeResolverRemote:DisputeResolved",
+  "DisputeResolverRemote:DisputeResolved" as any,
   async ({ event, context }: any) => {
     const { oracle, finalStatus, resolver } = event.args;
     const { block } = event;
     const timestamp = block.timestamp;
-    const chainId = context.network.chainId;
+    const chainId = context.chain.id;
     const chainName = getChainName(chainId);
 
     const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
@@ -274,17 +265,14 @@ ponder.on(
     const resolvedState = contractInfo?.state ?? 2;
     const resolvedFinalStatus = contractInfo?.finalStatus ?? Number(finalStatus);
 
-    const dispute = await context.db.disputes.findUnique({ id: disputeId });
+    const dispute = await context.db.find(disputes, { id: disputeId });
     if (dispute) {
-      await context.db.disputes.update({
-        id: disputeId,
-        data: {
-          state: resolvedState,
-          finalStatus: resolvedFinalStatus,
-          isCollateralTaken: contractInfo?.isCollateralTaken ?? dispute.isCollateralTaken,
-          resolvedAt: timestamp,
-          resolvedBy: normalizedResolver,
-        },
+      await context.db.update(disputes, { id: disputeId }).set({
+        state: resolvedState,
+        finalStatus: resolvedFinalStatus,
+        isCollateralTaken: contractInfo?.isCollateralTaken ?? dispute.isCollateralTaken,
+        resolvedAt: timestamp,
+        resolvedBy: normalizedResolver,
       });
     } else {
       console.warn(
@@ -292,22 +280,19 @@ ponder.on(
       );
     }
 
-    const poll = await context.db.polls.findUnique({ id: normalizedOracle });
+    const poll = await context.db.find(polls, { id: normalizedOracle });
     if (poll) {
       const newStatus = Number(finalStatus);
       const statusChanged = poll.status !== newStatus;
 
-      await context.db.polls.update({
-        id: normalizedOracle,
-        data: {
-          ...(statusChanged && {
-            preDisputeStatus: poll.status,
-            preDisputeResolutionReason: poll.resolutionReason ?? null,
-          }),
-          status: newStatus,
-          resolutionReason: "arbiter decision",
-          resolvedAt: timestamp,
-        },
+      await context.db.update(polls, { id: normalizedOracle }).set({
+        ...(statusChanged && {
+          preDisputeStatus: poll.status,
+          preDisputeResolutionReason: poll.resolutionReason ?? null,
+        }),
+        status: newStatus,
+        resolutionReason: "arbiter decision",
+        resolvedAt: timestamp,
       });
 
       if (statusChanged) {
@@ -342,11 +327,11 @@ ponder.on(
  * Emitted when a dispute fails (not enough votes or other conditions).
  */
 ponder.on(
-  "DisputeResolverRemote:DisputeFailed",
+  "DisputeResolverRemote:DisputeFailed" as any,
   async ({ event, context }: any) => {
     const { oracle, disputer } = event.args;
     const { block } = event;
-    const chainId = context.network.chainId;
+    const chainId = context.chain.id;
     const chainName = getChainName(chainId);
 
     const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
@@ -355,15 +340,12 @@ ponder.on(
     const contractInfo = await readDisputeFromContract(context, chainId, oracle, block.number);
     const failedState = contractInfo?.state ?? 3;
 
-    const dispute = await context.db.disputes.findUnique({ id: disputeId });
+    const dispute = await context.db.find(disputes, { id: disputeId });
     if (dispute) {
-      await context.db.disputes.update({
-        id: disputeId,
-        data: {
-          state: failedState,
-          isCollateralTaken: contractInfo?.isCollateralTaken ?? dispute.isCollateralTaken,
-          finalStatus: contractInfo?.finalStatus ?? dispute.finalStatus,
-        },
+      await context.db.update(disputes, { id: disputeId }).set({
+        state: failedState,
+        isCollateralTaken: contractInfo?.isCollateralTaken ?? dispute.isCollateralTaken,
+        finalStatus: contractInfo?.finalStatus ?? dispute.finalStatus,
       });
     } else {
       console.warn(
@@ -385,12 +367,12 @@ ponder.on(
  * Emitted when a voter claims their rewards from a resolved dispute.
  */
 ponder.on(
-  "DisputeResolverRemote:VoteRewardClaimed",
+  "DisputeResolverRemote:VoteRewardClaimed" as any,
   async ({ event, context }: any) => {
     const { voter, oracle, tokenId, token, reward } = event.args;
     const { block, transaction } = event;
     const timestamp = block.timestamp;
-    const chainId = context.network.chainId;
+    const chainId = context.chain.id;
     const chainName = getChainName(chainId);
 
     const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
@@ -417,20 +399,18 @@ ponder.on(
       );
     }
 
-    await context.db.disputeRewardClaims.create({
+    await context.db.insert(disputeRewardClaims).values({
       id: claimId,
-      data: {
-        chainId,
-        oracle: normalizedOracle,
-        tokenId,
-        claimer: normalizedVoter,
-        rewardToken: normalizedToken,
-        rewardAmount: reward,
-        votedFor,
-        claimedAt: timestamp,
-        claimedAtBlock: block.number,
-        txHash: transaction.hash as `0x${string}`,
-      },
+      chainId,
+      oracle: normalizedOracle,
+      tokenId,
+      claimer: normalizedVoter,
+      rewardToken: normalizedToken,
+      rewardAmount: reward,
+      votedFor,
+      claimedAt: timestamp,
+      claimedAtBlock: block.number,
+      txHash: transaction.hash as `0x${string}`,
     });
 
     console.log(
@@ -447,11 +427,11 @@ ponder.on(
  * Emitted when disputer's collateral is taken (penalty).
  */
 ponder.on(
-  "DisputeResolverRemote:CollateralTaken",
+  "DisputeResolverRemote:CollateralTaken" as any,
   async ({ event, context }: any) => {
     const { oracle } = event.args;
     const { block } = event;
-    const chainId = context.network.chainId;
+    const chainId = context.chain.id;
     const chainName = getChainName(chainId);
 
     const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
@@ -459,15 +439,12 @@ ponder.on(
 
     const contractInfo = await readDisputeFromContract(context, chainId, oracle, block.number);
 
-    const dispute = await context.db.disputes.findUnique({ id: disputeId });
+    const dispute = await context.db.find(disputes, { id: disputeId });
     if (dispute) {
-      await context.db.disputes.update({
-        id: disputeId,
-        data: {
-          isCollateralTaken: true,
-          state: contractInfo?.state ?? dispute.state,
-          finalStatus: contractInfo?.finalStatus ?? dispute.finalStatus,
-        },
+      await context.db.update(disputes, { id: disputeId }).set({
+        isCollateralTaken: true,
+        state: contractInfo?.state ?? dispute.state,
+        finalStatus: contractInfo?.finalStatus ?? dispute.finalStatus,
       });
     } else {
       console.warn(
@@ -490,11 +467,11 @@ ponder.on(
  * Sets dispute state to Failed (3) without normal resolution flow.
  */
 ponder.on(
-  "DisputeResolverRemote:EmergencyResolved",
+  "DisputeResolverRemote:EmergencyResolved" as any,
   async ({ event, context }: any) => {
     const { oracle, caller } = event.args;
     const { block } = event;
-    const chainId = context.network.chainId;
+    const chainId = context.chain.id;
     const chainName = getChainName(chainId);
 
     const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
@@ -502,15 +479,12 @@ ponder.on(
 
     const contractInfo = await readDisputeFromContract(context, chainId, oracle, block.number);
 
-    const dispute = await context.db.disputes.findUnique({ id: disputeId });
+    const dispute = await context.db.find(disputes, { id: disputeId });
     if (dispute) {
-      await context.db.disputes.update({
-        id: disputeId,
-        data: {
-          state: contractInfo?.state ?? 3,
-          finalStatus: contractInfo?.finalStatus ?? dispute.finalStatus,
-          isCollateralTaken: contractInfo?.isCollateralTaken ?? dispute.isCollateralTaken,
-        },
+      await context.db.update(disputes, { id: disputeId }).set({
+        state: contractInfo?.state ?? 3,
+        finalStatus: contractInfo?.finalStatus ?? dispute.finalStatus,
+        isCollateralTaken: contractInfo?.isCollateralTaken ?? dispute.isCollateralTaken,
       });
     } else {
       console.warn(
@@ -530,11 +504,11 @@ ponder.on(
  * Updates the vote record created by the Vote handler with tokenIds and cross-chain info.
  */
 ponder.on(
-  "DisputeResolverRemote:CrossChainVoteReceived",
+  "DisputeResolverRemote:CrossChainVoteReceived" as any,
   async ({ event, context }: any) => {
     const { voter, oracle, srcChainEid, tokenIds } = event.args;
     const { transaction } = event;
-    const chainId = context.network.chainId;
+    const chainId = context.chain.id;
     const chainName = getChainName(chainId);
 
     const normalizedOracle = oracle.toLowerCase() as `0x${string}`;
@@ -543,15 +517,12 @@ ponder.on(
 
     const tokenIdStrings = tokenIds.map((id: bigint) => id.toString());
 
-    const existing = await context.db.disputeVotes.findUnique({ id: voteId });
+    const existing = await context.db.find(disputeVotes, { id: voteId });
     if (existing) {
-      await context.db.disputeVotes.update({
-        id: voteId,
-        data: {
-          isCrossChain: true,
-          sourceChainEid: Number(srcChainEid),
-          tokenIds: JSON.stringify(tokenIdStrings),
-        },
+      await context.db.update(disputeVotes, { id: voteId }).set({
+        isCrossChain: true,
+        sourceChainEid: Number(srcChainEid),
+        tokenIds: JSON.stringify(tokenIdStrings),
       });
     }
 
@@ -566,10 +537,10 @@ ponder.on(
  * Emitted when a claim request is received from home chain via LayerZero.
  */
 ponder.on(
-  "DisputeResolverRemote:CrossChainClaimReceived",
+  "DisputeResolverRemote:CrossChainClaimReceived" as any,
   async ({ event, context }: any) => {
     const { claimer, oracle, srcChainEid, tokenIds } = event.args;
-    const chainId = context.network.chainId;
+    const chainId = context.chain.id;
     const chainName = getChainName(chainId);
 
     console.log(

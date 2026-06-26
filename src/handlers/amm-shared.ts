@@ -1,3 +1,4 @@
+import { polls, markets } from "ponder:schema";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
 import { updatePollTvl } from "../services/pollTvl";
 import { PollStatus } from "../utils/constants";
@@ -39,18 +40,15 @@ export async function updateMarketReserves(
       ? (reserveNo * 1_000_000_000n) / totalReserves
       : 500_000_000n;
 
-  const poll = await context.db.polls.findUnique({ id: pollAddress });
+  const poll = await context.db.find(polls, { id: pollAddress });
   const resolved = isPollResolved(poll?.status);
 
-  await context.db.markets.update({
-    id: marketAddress,
-    data: {
-      reserveYes,
-      reserveNo,
-      totalHold: reserveYes + reserveNo,
-      ...(resolved ? {} : { yesChance }),
-      currentTvl: collateralTvl,
-    },
+  await context.db.update(markets, { id: marketAddress }).set({
+    reserveYes,
+    reserveNo,
+    totalHold: reserveYes + reserveNo,
+    ...(resolved ? {} : { yesChance }),
+    currentTvl: collateralTvl,
   });
 
   await updatePollTvl(context, pollAddress);

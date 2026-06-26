@@ -1,4 +1,5 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
+import { polls, users, oracleFeeEvents } from "ponder:schema";
 import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser } from "../services/db";
@@ -56,27 +57,25 @@ ponder.on("PredictionOracle:PollCreated", async ({ event, context }: any) => {
 	}
 
 	try {
-		await context.db.polls.create({
+		await context.db.insert(polls).values({
 			id: pollAddress,
-			data: {
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				creator: creator.toLowerCase(),
-				arbiter,
-				question: question.slice(0, 4096),
-				rules,
-				sources,
-				deadlineEpoch: Number(deadlineEpoch),
-				finalizationEpoch,
-				checkEpoch,
-				category,
-				status,
-				resolutionReason,
-				arbitrationStarted: false,
-				createdAtBlock: event.block.number,
-				createdAt: timestamp,
-				createdTxHash: event.transaction.hash,
-			},
+			chainId: chain.chainId,
+			chainName: chain.chainName,
+			creator: creator.toLowerCase(),
+			arbiter,
+			question: question.slice(0, 4096),
+			rules,
+			sources,
+			deadlineEpoch: Number(deadlineEpoch),
+			finalizationEpoch,
+			checkEpoch,
+			category,
+			status,
+			resolutionReason,
+			arbitrationStarted: false,
+			createdAtBlock: event.block.number,
+			createdAt: timestamp,
+			createdTxHash: event.transaction.hash,
 		});
 		console.log(`[${chain.chainName}] ✅ Poll SAVED to DB: ${pollAddress} (category: ${category})`);
 	} catch (err) {
@@ -86,11 +85,8 @@ ponder.on("PredictionOracle:PollCreated", async ({ event, context }: any) => {
 
 	try {
 		const user = await getOrCreateUser(context, creator, chain);
-		await context.db.users.update({
-			id: creator.toLowerCase(),
-			data: {
-				pollsCreated: user.pollsCreated + 1,
-			},
+		await context.db.update(users, { id: creator.toLowerCase() }).set({
+			pollsCreated: user.pollsCreated + 1,
 		});
 
 		await updateAggregateStats(context, chain, timestamp, {
@@ -110,19 +106,16 @@ ponder.on("PredictionOracle:PollRefreshed", async ({ event, context }: any) => {
 		`[${chain.chainName}] PollRefreshed: ${pollAddress} checkEpoch ${oldCheckEpoch} -> ${newCheckEpoch} (wasFree: ${wasFree})`,
 	);
 
-	const poll = await context.db.polls.findUnique({ id: pollAddress });
+	const poll = await context.db.find(polls, { id: pollAddress });
 	if (poll) {
-		await context.db.polls.update({
-			id: pollAddress,
-			data: {
-				status: 0,
-				resolvedAt: null,
-				resolutionReason: "",
-				setter: null,
-				checkEpoch: Number(newCheckEpoch),
-				lastRefreshWasFree: Boolean(wasFree),
-				lastRefreshOldCheckEpoch: Number(oldCheckEpoch),
-			},
+		await context.db.update(polls, { id: pollAddress }).set({
+			status: 0,
+			resolvedAt: null,
+			resolutionReason: "",
+			setter: null,
+			checkEpoch: Number(newCheckEpoch),
+			lastRefreshWasFree: Boolean(wasFree),
+			lastRefreshOldCheckEpoch: Number(oldCheckEpoch),
 		});
 		console.log(`[${chain.chainName}] ✅ Poll reset to Pending: ${pollAddress}`);
 	}
@@ -133,18 +126,16 @@ ponder.on("PredictionOracle:OperatorGasFeeUpdated", async ({ event, context }: a
 		const { newFee } = event.args;
 		const chain = getChainInfo(context);
 
-		await context.db.oracleFeeEvents.create({
+		await context.db.insert(oracleFeeEvents).values({
 			id: makeId(chain.chainId, event.transaction.hash, event.log.logIndex),
-			data: {
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				oracleAddress: event.log.address,
-				eventName: "OperatorGasFeeUpdated",
-				newFee,
-				txHash: event.transaction.hash,
-				blockNumber: event.block.number,
-				timestamp: event.block.timestamp,
-			},
+			chainId: chain.chainId,
+			chainName: chain.chainName,
+			oracleAddress: event.log.address,
+			eventName: "OperatorGasFeeUpdated",
+			newFee,
+			txHash: event.transaction.hash,
+			blockNumber: event.block.number,
+			timestamp: event.block.timestamp,
 		});
 	} catch (err) {
 		console.error(
@@ -160,18 +151,16 @@ ponder.on("PredictionOracle:ProtocolFeeUpdated", async ({ event, context }: any)
 		const { newFee } = event.args;
 		const chain = getChainInfo(context);
 
-		await context.db.oracleFeeEvents.create({
+		await context.db.insert(oracleFeeEvents).values({
 			id: makeId(chain.chainId, event.transaction.hash, event.log.logIndex),
-			data: {
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				oracleAddress: event.log.address,
-				eventName: "ProtocolFeeUpdated",
-				newFee,
-				txHash: event.transaction.hash,
-				blockNumber: event.block.number,
-				timestamp: event.block.timestamp,
-			},
+			chainId: chain.chainId,
+			chainName: chain.chainName,
+			oracleAddress: event.log.address,
+			eventName: "ProtocolFeeUpdated",
+			newFee,
+			txHash: event.transaction.hash,
+			blockNumber: event.block.number,
+			timestamp: event.block.timestamp,
 		});
 	} catch (err) {
 		console.error(
@@ -187,19 +176,17 @@ ponder.on("PredictionOracle:ProtocolFeesWithdrawn", async ({ event, context }: a
 		const { to, amount } = event.args;
 		const chain = getChainInfo(context);
 
-		await context.db.oracleFeeEvents.create({
+		await context.db.insert(oracleFeeEvents).values({
 			id: makeId(chain.chainId, event.transaction.hash, event.log.logIndex),
-			data: {
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				oracleAddress: event.log.address,
-				eventName: "ProtocolFeesWithdrawn",
-				to: to.toLowerCase() as `0x${string}`,
-				amount,
-				txHash: event.transaction.hash,
-				blockNumber: event.block.number,
-				timestamp: event.block.timestamp,
-			},
+			chainId: chain.chainId,
+			chainName: chain.chainName,
+			oracleAddress: event.log.address,
+			eventName: "ProtocolFeesWithdrawn",
+			to: to.toLowerCase() as `0x${string}`,
+			amount,
+			txHash: event.transaction.hash,
+			blockNumber: event.block.number,
+			timestamp: event.block.timestamp,
 		});
 	} catch (err) {
 		console.error(

@@ -1,3 +1,6 @@
+import { graphql } from "ponder";
+import { db } from "ponder:api";
+import schema from "ponder:schema";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
@@ -75,5 +78,8 @@ app.use("*", async (c, next) => {
 	if (durationMs > bucket.maxDurationMs) bucket.maxDurationMs = durationMs;
 	if (status >= 400) bucket.errors++;
 });
+
+app.use("/graphql", graphql({ db, schema }));
+app.use("/", graphql({ db, schema }));
 
 export default app;

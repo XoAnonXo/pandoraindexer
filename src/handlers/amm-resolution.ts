@@ -1,4 +1,5 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
+import { markets, polls, userMarketPositions, winnings, positionHistory, users } from "ponder:schema";
 import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser } from "../services/db";
@@ -30,8 +31,8 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 	const chain = getChainInfo(context);
 	const winningId = makeId(chain.chainId, event.transaction.hash, event.log.logIndex);
 
-	const market = await context.db.markets.findUnique({ id: marketAddress });
-	const poll = market?.pollAddress ? await context.db.polls.findUnique({ id: market.pollAddress }) : null;
+	const market = await context.db.find(markets, { id: marketAddress });
+	const poll = market?.pollAddress ? await context.db.find(polls, { id: market.pollAddress }) : null;
 
 	const pollAddress = (await context.client.readContract({
 		address: marketAddress,
@@ -81,7 +82,7 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 	// Read user's cost basis BEFORE marking redeemed (which zeroes amounts)
 	const normalizedUser = user.toLowerCase() as `0x${string}`;
 	const positionId = makeId(chain.chainId, marketAddress, normalizedUser);
-	const position = await context.db.userMarketPositions.findUnique({ id: positionId });
+	const position = await context.db.find(userMarketPositions, { id: positionId });
 
 	// Determine which side the user was on
 	let winningSide: string;
@@ -95,26 +96,24 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 		winningSide = "both";
 	}
 
-	await context.db.winnings.create({
+	await context.db.insert(winnings).values({
 		id: winningId,
-		data: {
-			chainId: chain.chainId,
-			chainName: chain.chainName,
-			user: normalizedUser,
-			marketAddress,
-			collateralAmount,
-			feeAmount: totalProtocolFee,
-			yesTokenAmount: yesAmount,
-			noTokenAmount: noAmount,
-			yesCostBasis: position?.yesAmount ?? 0n,
-			noCostBasis: position?.noAmount ?? 0n,
-			side: winningSide,
-			pollStatus: resolvedPollStatus,
-			marketQuestion: poll?.question,
-			marketType: "amm",
-			txHash: event.transaction.hash,
-			timestamp,
-		},
+		chainId: chain.chainId,
+		chainName: chain.chainName,
+		user: normalizedUser,
+		marketAddress,
+		collateralAmount,
+		feeAmount: totalProtocolFee,
+		yesTokenAmount: yesAmount,
+		noTokenAmount: noAmount,
+		yesCostBasis: position?.yesAmount ?? 0n,
+		noCostBasis: position?.noAmount ?? 0n,
+		side: winningSide,
+		pollStatus: resolvedPollStatus,
+		marketQuestion: poll?.question,
+		marketType: "amm",
+		txHash: event.transaction.hash,
+		timestamp,
 	});
 
 	// Write positionHistory — single source for History tab
@@ -125,36 +124,33 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 	const historyResult = resolvedPollStatus === PollStatus.UNKNOWN ? "refunded" : "won";
 	const computedPnl = collateralAmount - yesCost - noCost;
 
-	await context.db.positionHistory.upsert({
+	await context.db.insert(positionHistory).values({
 		id: positionId,
-		create: {
-			chainId: chain.chainId,
-			user: normalizedUser,
-			marketAddress,
-			pollAddress: market?.pollAddress ?? undefined,
-			marketQuestion: poll?.question,
-			marketType: "amm",
-			side: winningSide,
-			result: historyResult,
-			pollStatus: resolvedPollStatus ?? 0,
-			yesCostBasis: yesCost,
-			noCostBasis: noCost,
-			yesTokens: yesTokensHeld,
-			noTokens: noTokensHeld,
-			collateralReceived: collateralAmount,
-			feeAmount: totalProtocolFee,
-			pnl: computedPnl,
-			resolvedAt: timestamp,
-			txHash: event.transaction.hash,
-		},
-		update: {
-			collateralReceived: collateralAmount,
-			feeAmount: totalProtocolFee,
-			pnl: computedPnl,
-			result: historyResult,
-			resolvedAt: timestamp,
-			txHash: event.transaction.hash,
-		},
+		chainId: chain.chainId,
+		user: normalizedUser,
+		marketAddress,
+		pollAddress: market?.pollAddress ?? undefined,
+		marketQuestion: poll?.question,
+		marketType: "amm",
+		side: winningSide,
+		result: historyResult,
+		pollStatus: resolvedPollStatus ?? 0,
+		yesCostBasis: yesCost,
+		noCostBasis: noCost,
+		yesTokens: yesTokensHeld,
+		noTokens: noTokensHeld,
+		collateralReceived: collateralAmount,
+		feeAmount: totalProtocolFee,
+		pnl: computedPnl,
+		resolvedAt: timestamp,
+		txHash: event.transaction.hash,
+	}).onConflictDoUpdate({
+		collateralReceived: collateralAmount,
+		feeAmount: totalProtocolFee,
+		pnl: computedPnl,
+		result: historyResult,
+		resolvedAt: timestamp,
+		txHash: event.transaction.hash,
 	});
 
 	await markPositionRedeemed(context, chain, marketAddress, normalizedUser);
@@ -175,15 +171,12 @@ ponder.on("PredictionAMM:WinningsRedeemed", async ({ event, context }: any) => {
 	const newTotalWinnings = (userData.totalWinnings ?? 0n) + collateralAmount;
 	const newRealizedPnL = (userData.totalWithdrawn ?? 0n) + newTotalWinnings - (userData.totalDeposited ?? 0n);
 
-	await context.db.users.update({
-		id: user.toLowerCase(),
-		data: {
-			totalWinnings: newTotalWinnings,
-			totalWins: userData.totalWins + 1,
-			currentStreak: newStreak,
-			bestStreak,
-			realizedPnL: newRealizedPnL,
-		},
+	await context.db.update(users, { id: user.toLowerCase() }).set({
+		totalWinnings: newTotalWinnings,
+		totalWins: userData.totalWins + 1,
+		currentStreak: newStreak,
+		bestStreak,
+		realizedPnL: newRealizedPnL,
 	});
 
 	await updateAggregateStats(context, chain, timestamp, {
@@ -207,23 +200,20 @@ ponder.on("PredictionAMM:Sync", async ({ event, context }: any) => {
 	const { rYes, rNo } = event.args;
 	const marketAddress = event.log.address;
 
-	const market = await context.db.markets.findUnique({ id: marketAddress });
+	const market = await context.db.find(markets, { id: marketAddress });
 	if (market) {
 		const reserveYes = BigInt(rYes);
 		const reserveNo = BigInt(rNo);
 		const totalReserves = reserveYes + reserveNo;
 		const yesChance = totalReserves > 0n ? (reserveNo * 1_000_000_000n) / totalReserves : 500_000_000n;
 
-		const poll = await context.db.polls.findUnique({ id: market.pollAddress });
+		const poll = await context.db.find(polls, { id: market.pollAddress });
 		const resolved = isPollResolved(poll?.status);
 
-		await context.db.markets.update({
-			id: marketAddress,
-			data: {
-				reserveYes,
-				reserveNo,
-				...(resolved ? {} : { yesChance }),
-			},
+		await context.db.update(markets, { id: marketAddress }).set({
+			reserveYes,
+			reserveNo,
+			...(resolved ? {} : { yesChance }),
 		});
 	}
 });

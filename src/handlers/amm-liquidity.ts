@@ -1,4 +1,5 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
+import { liquidityEvents, trades, userLiquidityPositions, users, markets } from "ponder:schema";
 import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import {
@@ -42,24 +43,22 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
     BigInt(event.block.number)
   );
 
-  await context.db.liquidityEvents.create({
+  await context.db.insert(liquidityEvents).values({
     id: eventId,
-    data: {
-      chainId: chain.chainId,
-      chainName: chain.chainName,
-      provider: provider.toLowerCase() as `0x${string}`,
-      marketAddress,
-      pollAddress,
-      eventType: "add",
-      collateralAmount,
-      lpTokens,
-      yesTokenAmount: amounts.yesToAdd ?? 0n,
-      noTokenAmount: amounts.noToAdd ?? 0n,
-      yesTokensReturned: amounts.yesToReturn ?? 0n,
-      noTokensReturned: amounts.noToReturn ?? 0n,
-      txHash: event.transaction.hash,
-      timestamp,
-    },
+    chainId: chain.chainId,
+    chainName: chain.chainName,
+    provider: provider.toLowerCase() as `0x${string}`,
+    marketAddress,
+    pollAddress,
+    eventType: "add",
+    collateralAmount,
+    lpTokens,
+    yesTokenAmount: amounts.yesToAdd ?? 0n,
+    noTokenAmount: amounts.noToAdd ?? 0n,
+    yesTokensReturned: amounts.yesToReturn ?? 0n,
+    noTokensReturned: amounts.noToReturn ?? 0n,
+    txHash: event.transaction.hash,
+    timestamp,
   });
 
   const normalizedProvider = provider.toLowerCase() as `0x${string}`;
@@ -76,23 +75,21 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
       context, chain, marketAddress, pollAddress,
       normalizedProvider, TradeSide.YES, yesCost, yesToReturn, timestamp
     );
-    await context.db.trades.create({
+    await context.db.insert(trades).values({
       id: makeId(chain.chainId, event.transaction.hash, event.log.logIndex, "imbalance-yes"),
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        trader: normalizedProvider,
-        marketAddress,
-        pollAddress,
-        tradeType: "liquidity_imbalance",
-        side: TradeSide.YES,
-        collateralAmount: yesCost,
-        tokenAmount: yesToReturn,
-        feeAmount: 0n,
-        txHash: event.transaction.hash,
-        blockNumber: event.block.number,
-        timestamp,
-      },
+      chainId: chain.chainId,
+      chainName: chain.chainName,
+      trader: normalizedProvider,
+      marketAddress,
+      pollAddress,
+      tradeType: "liquidity_imbalance",
+      side: TradeSide.YES,
+      collateralAmount: yesCost,
+      tokenAmount: yesToReturn,
+      feeAmount: 0n,
+      txHash: event.transaction.hash,
+      blockNumber: event.block.number,
+      timestamp,
     });
   }
   if (noToReturn > 0n) {
@@ -100,58 +97,53 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
       context, chain, marketAddress, pollAddress,
       normalizedProvider, TradeSide.NO, noCost, noToReturn, timestamp
     );
-    await context.db.trades.create({
+    await context.db.insert(trades).values({
       id: makeId(chain.chainId, event.transaction.hash, event.log.logIndex, "imbalance-no"),
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        trader: normalizedProvider,
-        marketAddress,
-        pollAddress,
-        tradeType: "liquidity_imbalance",
-        side: TradeSide.NO,
-        collateralAmount: noCost,
-        tokenAmount: noToReturn,
-        feeAmount: 0n,
-        txHash: event.transaction.hash,
-        blockNumber: event.block.number,
-        timestamp,
-      },
+      chainId: chain.chainId,
+      chainName: chain.chainName,
+      trader: normalizedProvider,
+      marketAddress,
+      pollAddress,
+      tradeType: "liquidity_imbalance",
+      side: TradeSide.NO,
+      collateralAmount: noCost,
+      tokenAmount: noToReturn,
+      feeAmount: 0n,
+      txHash: event.transaction.hash,
+      blockNumber: event.block.number,
+      timestamp,
     });
   }
 
   const lpId = makeId(chain.chainId, marketAddress, normalizedProvider);
-  const existingLp = await context.db.userLiquidityPositions.findUnique({ id: lpId });
+  const existingLp = await context.db.find(userLiquidityPositions, { id: lpId });
   const weightedChance = currentYesChance * collateralAmount;
 
-  await context.db.userLiquidityPositions.upsert({
+  await context.db.insert(userLiquidityPositions).values({
     id: lpId,
-    create: {
-      chainId: chain.chainId,
-      marketAddress,
-      pollAddress,
-      user: normalizedProvider,
-      lpTokens,
-      totalCollateralDeposited: collateralAmount,
-      totalCollateralWithdrawn: 0n,
-      yesTokensReceived: yesToReturn,
-      noTokensReceived: noToReturn,
-      initialYesChance: currentYesChance,
-      weightedYesChanceSum: weightedChance,
-      addCount: 1,
-      removeCount: 0,
-      firstAddAt: timestamp,
-      lastUpdatedAt: timestamp,
-    },
-    update: {
-      lpTokens: (existingLp?.lpTokens ?? 0n) + lpTokens,
-      totalCollateralDeposited: (existingLp?.totalCollateralDeposited ?? 0n) + collateralAmount,
-      yesTokensReceived: (existingLp?.yesTokensReceived ?? 0n) + yesToReturn,
-      noTokensReceived: (existingLp?.noTokensReceived ?? 0n) + noToReturn,
-      weightedYesChanceSum: (existingLp?.weightedYesChanceSum ?? 0n) + weightedChance,
-      addCount: (existingLp?.addCount ?? 0) + 1,
-      lastUpdatedAt: timestamp,
-    },
+    chainId: chain.chainId,
+    marketAddress,
+    pollAddress,
+    user: normalizedProvider,
+    lpTokens,
+    totalCollateralDeposited: collateralAmount,
+    totalCollateralWithdrawn: 0n,
+    yesTokensReceived: yesToReturn,
+    noTokensReceived: noToReturn,
+    initialYesChance: currentYesChance,
+    weightedYesChanceSum: weightedChance,
+    addCount: 1,
+    removeCount: 0,
+    firstAddAt: timestamp,
+    lastUpdatedAt: timestamp,
+  }).onConflictDoUpdate({
+    lpTokens: (existingLp?.lpTokens ?? 0n) + lpTokens,
+    totalCollateralDeposited: (existingLp?.totalCollateralDeposited ?? 0n) + collateralAmount,
+    yesTokensReceived: (existingLp?.yesTokensReceived ?? 0n) + yesToReturn,
+    noTokensReceived: (existingLp?.noTokensReceived ?? 0n) + noToReturn,
+    weightedYesChanceSum: (existingLp?.weightedYesChanceSum ?? 0n) + weightedChance,
+    addCount: (existingLp?.addCount ?? 0) + 1,
+    lastUpdatedAt: timestamp,
   });
 
   const user = await getOrCreateUser(context, provider, chain);
@@ -171,34 +163,28 @@ ponder.on("PredictionAMM:LiquidityAdded", async ({ event, context }: any) => {
     timestamp
   );
 
-  await context.db.users.update({
-    id: provider.toLowerCase(),
-    data: {
-      totalDeposited: user.totalDeposited + collateralAmount,
-      totalVolume:
-        imbalanceVolume > 0n
-          ? user.totalVolume + imbalanceVolume
-          : user.totalVolume,
-      lastTradeAt: timestamp,
-    },
+  await context.db.update(users, { id: provider.toLowerCase() }).set({
+    totalDeposited: user.totalDeposited + collateralAmount,
+    totalVolume:
+      imbalanceVolume > 0n
+        ? user.totalVolume + imbalanceVolume
+        : user.totalVolume,
+    lastTradeAt: timestamp,
   });
 
   const isFirstLiquidity = (market.initialLiquidity ?? 0n) === 0n;
 
-  await context.db.markets.update({
-    id: marketAddress,
-    data: {
-      totalVolume:
-        imbalanceVolume > 0n
-          ? market.totalVolume + imbalanceVolume
-          : market.totalVolume,
-      initialLiquidity: isFirstLiquidity
-        ? collateralAmount
-        : market.initialLiquidity,
-      uniqueTraders: isNewTrader
-        ? market.uniqueTraders + 1
-        : market.uniqueTraders,
-    },
+  await context.db.update(markets, { id: marketAddress }).set({
+    totalVolume:
+      imbalanceVolume > 0n
+        ? market.totalVolume + imbalanceVolume
+        : market.totalVolume,
+    initialLiquidity: isFirstLiquidity
+      ? collateralAmount
+      : market.initialLiquidity,
+    uniqueTraders: isNewTrader
+      ? market.uniqueTraders + 1
+      : market.uniqueTraders,
   });
 
   await updateAggregateStats(context, chain, timestamp, {
@@ -233,22 +219,20 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
   );
   const pollAddress = market.pollAddress;
 
-  await context.db.liquidityEvents.create({
+  await context.db.insert(liquidityEvents).values({
     id: eventId,
-    data: {
-      chainId: chain.chainId,
-      chainName: chain.chainName,
-      provider: provider.toLowerCase() as `0x${string}`,
-      marketAddress,
-      pollAddress,
-      eventType: "remove",
-      collateralAmount: collateralToReturn,
-      lpTokens,
-      yesTokenAmount: yesAmount,
-      noTokenAmount: noAmount,
-      txHash: event.transaction.hash,
-      timestamp,
-    },
+    chainId: chain.chainId,
+    chainName: chain.chainName,
+    provider: provider.toLowerCase() as `0x${string}`,
+    marketAddress,
+    pollAddress,
+    eventType: "remove",
+    collateralAmount: collateralToReturn,
+    lpTokens,
+    yesTokenAmount: yesAmount,
+    noTokenAmount: noAmount,
+    txHash: event.transaction.hash,
+    timestamp,
   });
 
   const normalizedProvider = provider.toLowerCase() as `0x${string}`;
@@ -273,16 +257,13 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
   }
 
   const lpId = makeId(chain.chainId, marketAddress, normalizedProvider);
-  const existingLp = await context.db.userLiquidityPositions.findUnique({ id: lpId });
+  const existingLp = await context.db.find(userLiquidityPositions, { id: lpId });
   if (existingLp) {
-    await context.db.userLiquidityPositions.update({
-      id: lpId,
-      data: {
-        lpTokens: existingLp.lpTokens > lpTokens ? existingLp.lpTokens - lpTokens : 0n,
-        totalCollateralWithdrawn: existingLp.totalCollateralWithdrawn + collateralToReturn,
-        removeCount: existingLp.removeCount + 1,
-        lastUpdatedAt: timestamp,
-      },
+    await context.db.update(userLiquidityPositions, { id: lpId }).set({
+      lpTokens: existingLp.lpTokens > lpTokens ? existingLp.lpTokens - lpTokens : 0n,
+      totalCollateralWithdrawn: existingLp.totalCollateralWithdrawn + collateralToReturn,
+      removeCount: existingLp.removeCount + 1,
+      lastUpdatedAt: timestamp,
     });
   }
 
@@ -307,22 +288,16 @@ ponder.on("PredictionAMM:LiquidityRemoved", async ({ event, context }: any) => {
     timestamp
   );
 
-  await context.db.users.update({
-    id: provider.toLowerCase(),
-    data: {
-      totalWithdrawn: newTotalWithdrawn,
-      realizedPnL: newRealizedPnL,
-      lastTradeAt: timestamp,
-    },
+  await context.db.update(users, { id: provider.toLowerCase() }).set({
+    totalWithdrawn: newTotalWithdrawn,
+    realizedPnL: newRealizedPnL,
+    lastTradeAt: timestamp,
   });
 
-  await context.db.markets.update({
-    id: marketAddress,
-    data: {
-      uniqueTraders: isNewTrader
-        ? market.uniqueTraders + 1
-        : market.uniqueTraders,
-    },
+  await context.db.update(markets, { id: marketAddress }).set({
+    uniqueTraders: isNewTrader
+      ? market.uniqueTraders + 1
+      : market.uniqueTraders,
   });
 
   await updateMarketReserves(

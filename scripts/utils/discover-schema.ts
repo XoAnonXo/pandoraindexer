@@ -1,6 +1,17 @@
 import type { Pool, PoolClient } from "pg";
 
 /**
+ * Returns the Ponder schema name to use for direct SQL queries.
+ *
+ * With Ponder 0.16+ and --views-schema pandora_views, scripts can
+ * use the fixed "pandora_views" schema. Falls back to PONDER_SCHEMA
+ * env var if set, or dynamic discovery for backward compatibility.
+ */
+export function getPonderSchema(): string {
+	return process.env.PONDER_SCHEMA || "pandora_views";
+}
+
+/**
  * Auto-discovers the current Ponder schema name by querying the database.
  *
  * Ponder creates schemas with the pattern:
@@ -10,11 +21,14 @@ import type { Pool, PoolClient } from "pg";
  * then finds the matching schema that contains the "markets" table.
  *
  * Falls back to PONDER_SCHEMA env var if set (for local dev or overrides).
+ *
+ * @deprecated Use getPonderSchema() with the pandora_views fixed schema instead.
  */
 export async function discoverPonderSchema(pool: Pool, logPrefix = "[Schema]"): Promise<string> {
-	if (process.env.PONDER_SCHEMA) {
-		console.log(`${logPrefix} Using explicit PONDER_SCHEMA: ${process.env.PONDER_SCHEMA}`);
-		return process.env.PONDER_SCHEMA;
+	const fixed = getPonderSchema();
+	if (fixed) {
+		console.log(`${logPrefix} Using schema: ${fixed}`);
+		return fixed;
 	}
 
 	const serviceName = process.env.RAILWAY_SERVICE_NAME || "";

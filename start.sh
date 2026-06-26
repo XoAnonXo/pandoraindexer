@@ -13,4 +13,6 @@ echo "✅ Cron started with PID: $CRON_PID"
 
 # Start main Ponder process
 echo "📊 Starting Ponder indexer..."
-exec npm run start
+exec npx ponder start \
+  --schema "$RAILWAY_DEPLOYMENT_ID" \
+  --views-schema pandora_views

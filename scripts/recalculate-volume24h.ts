@@ -58,7 +58,6 @@ async function recalculateVolume24h() {
     console.log(`[Recalculate] Found ${totalMarkets} total markets`);
 
     // Single CTE: aggregate 24h trades, LEFT JOIN markets, update only changed rows.
-    // All joins are bytea=bytea inside PostgreSQL — no type mismatch.
     const updateResult = await client.query(
       `WITH agg AS (
          SELECT "marketAddress",

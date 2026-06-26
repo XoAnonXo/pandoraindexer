@@ -1,3 +1,6 @@
+import { eq } from "ponder";
+import { markets, polls } from "ponder:schema";
+
 /**
  * Updates a poll's TVL fields based on all its markets' currentTvl.
  * 
@@ -15,20 +18,17 @@ export async function updatePollTvl(
 ): Promise<void> {
   try {
     // Fetch all markets for this poll
-    const result = await context.db.markets.findMany({
-      where: { pollAddress: pollAddress.toLowerCase() as `0x${string}` }
-    });
+    const marketRows = await context.db.sql.select().from(markets).where(
+      eq(markets.pollAddress, pollAddress.toLowerCase() as `0x${string}`)
+    );
 
-    const markets = result?.items || [];
-
-    if (markets.length === 0) {
+    if (marketRows.length === 0) {
       // No markets yet - set TVL to 0
-      await context.db.polls.update({
+      await context.db.update(polls, {
         id: pollAddress.toLowerCase() as `0x${string}`,
-        data: {
-          maxMarketTvl: 0n,
-          totalMarketsTvl: 0n,
-        }
+      }).set({
+        maxMarketTvl: 0n,
+        totalMarketsTvl: 0n,
       });
       return;
     }
@@ -37,7 +37,7 @@ export async function updatePollTvl(
     let maxTvl = 0n;
     let totalTvl = 0n;
 
-    for (const market of markets) {
+    for (const market of marketRows) {
       const tvl = market.currentTvl ?? 0n;
       if (tvl > maxTvl) {
         maxTvl = tvl;
@@ -46,12 +46,11 @@ export async function updatePollTvl(
     }
 
     // Update poll with aggregated TVL
-    await context.db.polls.update({
+    await context.db.update(polls, {
       id: pollAddress.toLowerCase() as `0x${string}`,
-      data: {
-        maxMarketTvl: maxTvl,
-        totalMarketsTvl: totalTvl,
-      }
+    }).set({
+      maxMarketTvl: maxTvl,
+      totalMarketsTvl: totalTvl,
     });
   } catch (err) {
     console.error(`[pollTvl] Failed to update TVL for poll ${pollAddress}:`, err);

@@ -10,12 +10,9 @@
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
-    "noEmit": true,
-    "paths": {
-      "@/*": ["./.ponder/*"]
-    }
+    "noEmit": true
   },
-  "include": ["src/**/*.ts", "ponder.config.ts", "ponder.schema.ts", "abis/**/*.ts"],
+  "include": ["ponder-env.d.ts", "src/**/*.ts", "ponder.config.ts", "ponder.schema.ts", "abis/**/*.ts"],
   "exclude": ["node_modules", ".ponder"]
 }
 

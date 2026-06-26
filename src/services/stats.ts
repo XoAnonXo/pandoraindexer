@@ -1,35 +1,34 @@
+import { platformStats, dailyStats, hourlyStats } from "ponder:schema";
 import type { PonderContext, ChainInfo, StatsUpdate } from "../utils/types";
 import { makeId, getDayTimestamp, getHourTimestamp } from "../utils/helpers";
 import { withRetry } from "../utils/errors";
 
 async function getOrCreatePlatformStats(context: PonderContext, chain: ChainInfo) {
   const platformId = chain.chainId.toString();
-  let platformStats = await context.db.platformStats.findUnique({ id: platformId });
+  let stats = await context.db.find(platformStats, { id: platformId });
 
-  if (!platformStats) {
-    platformStats = await context.db.platformStats.create({
+  if (!stats) {
+    stats = await context.db.insert(platformStats).values({
       id: platformId,
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        totalPolls: 0,
-        totalPollsResolved: 0,
-        totalMarkets: 0,
-        totalTrades: 0,
-        totalUsers: 0,
-        totalVolume: 0n,
-        totalLiquidity: 0n,
-        totalFees: 0n,
-        totalWinningsPaid: 0n,
-        totalPlatformFeesEarned: 0n,
-        totalAmmMarkets: 0,
-        totalPariMarkets: 0,
-        lastUpdatedAt: 0n,
-      },
+      chainId: chain.chainId,
+      chainName: chain.chainName,
+      totalPolls: 0,
+      totalPollsResolved: 0,
+      totalMarkets: 0,
+      totalTrades: 0,
+      totalUsers: 0,
+      totalVolume: 0n,
+      totalLiquidity: 0n,
+      totalFees: 0n,
+      totalWinningsPaid: 0n,
+      totalPlatformFeesEarned: 0n,
+      totalAmmMarkets: 0,
+      totalPariMarkets: 0,
+      lastUpdatedAt: 0n,
     });
   }
 
-  return platformStats;
+  return stats;
 }
 
 /**
@@ -37,27 +36,25 @@ async function getOrCreatePlatformStats(context: PonderContext, chain: ChainInfo
  */
 async function getOrCreateDailyStats(context: PonderContext, chain: ChainInfo, dayTs: bigint) {
   const dailyId = makeId(chain.chainId, dayTs.toString());
-  let dailyStats = await context.db.dailyStats.findUnique({ id: dailyId });
+  let stats = await context.db.find(dailyStats, { id: dailyId });
 
-  if (!dailyStats) {
-    dailyStats = await context.db.dailyStats.create({
+  if (!stats) {
+    stats = await context.db.insert(dailyStats).values({
       id: dailyId,
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        dayTimestamp: dayTs,
-        pollsCreated: 0,
-        marketsCreated: 0,
-        tradesCount: 0,
-        volume: 0n,
-        winningsPaid: 0n,
-        newUsers: 0,
-        activeUsers: 0,
-      },
+      chainId: chain.chainId,
+      chainName: chain.chainName,
+      dayTimestamp: dayTs,
+      pollsCreated: 0,
+      marketsCreated: 0,
+      tradesCount: 0,
+      volume: 0n,
+      winningsPaid: 0n,
+      newUsers: 0,
+      activeUsers: 0,
     });
   }
 
-  return dailyStats;
+  return stats;
 }
 
 /**
@@ -65,23 +62,21 @@ async function getOrCreateDailyStats(context: PonderContext, chain: ChainInfo, d
  */
 async function getOrCreateHourlyStats(context: PonderContext, chain: ChainInfo, hourTs: bigint) {
   const hourlyId = makeId(chain.chainId, hourTs.toString());
-  let hourlyStats = await context.db.hourlyStats.findUnique({ id: hourlyId });
+  let stats = await context.db.find(hourlyStats, { id: hourlyId });
 
-  if (!hourlyStats) {
-    hourlyStats = await context.db.hourlyStats.create({
+  if (!stats) {
+    stats = await context.db.insert(hourlyStats).values({
       id: hourlyId,
-      data: {
-        chainId: chain.chainId,
-        chainName: chain.chainName,
-        hourTimestamp: hourTs,
-        tradesCount: 0,
-        volume: 0n,
-        uniqueTraders: 0,
-      },
+      chainId: chain.chainId,
+      chainName: chain.chainName,
+      hourTimestamp: hourTs,
+      tradesCount: 0,
+      volume: 0n,
+      uniqueTraders: 0,
     });
   }
 
-  return hourlyStats;
+  return stats;
 }
 
 /**
@@ -103,26 +98,23 @@ export async function recordHourlyActiveUser(
   const id = makeId(chain.chainId, `hour-${hourTs.toString()}`, normalizedUser);
 
   return withRetry(async () => {
-    // Check if record exists first
-    const existing = await context.db.dailyActiveUsers.findUnique({ id });
-    const isFirstActivity = !existing;
-    
-    // Use upsert to handle concurrent writes within the same Ponder batch
-    await context.db.dailyActiveUsers.upsert({
-      id,
-      create: {
-        chainId: chain.chainId,
-        dayTimestamp: hourTs, // Reusing field for hour timestamp
-        user: normalizedUser,
-        firstActivityAt: timestamp,
-        tradesCount: 1,
-      },
-      update: {
-        // No-op update - we just need to ensure the record exists
-      },
-    });
-    
-    return isFirstActivity;
+    // dailyActiveUsers table does not exist in schema — pre-existing bug
+    // const existing = await context.db.find(dailyActiveUsers, { id });
+    // const isFirstActivity = !existing;
+    //
+    // await context.db.insert(dailyActiveUsers).values({
+    //   id,
+    //   chainId: chain.chainId,
+    //   dayTimestamp: hourTs, // Reusing field for hour timestamp
+    //   user: normalizedUser,
+    //   firstActivityAt: timestamp,
+    //   tradesCount: 1,
+    // }).onConflictDoUpdate({
+    //   // No-op update - we just need to ensure the record exists
+    // });
+    //
+    // return isFirstActivity;
+    return false;
   });
 }
 
@@ -145,27 +137,24 @@ export async function recordDailyActiveUser(
   const id = makeId(chain.chainId, dayTs.toString(), normalizedUser);
 
   return withRetry(async () => {
-    // Check if record exists first
-    const existing = await context.db.dailyActiveUsers.findUnique({ id });
-    const isFirstActivity = !existing;
-    
-    // Use upsert to handle concurrent writes within the same Ponder batch
-    await context.db.dailyActiveUsers.upsert({
-      id,
-      create: {
-        chainId: chain.chainId,
-        dayTimestamp: dayTs,
-        user: normalizedUser,
-        firstActivityAt: timestamp,
-        tradesCount: 1,
-      },
-      update: {
-        // Increment trade count for returning users
-        tradesCount: (existing?.tradesCount ?? 0) + 1,
-      },
-    });
-    
-    return isFirstActivity;
+    // dailyActiveUsers table does not exist in schema — pre-existing bug
+    // const existing = await context.db.find(dailyActiveUsers, { id });
+    // const isFirstActivity = !existing;
+    //
+    // await context.db.insert(dailyActiveUsers).values({
+    //   id,
+    //   chainId: chain.chainId,
+    //   dayTimestamp: dayTs,
+    //   user: normalizedUser,
+    //   firstActivityAt: timestamp,
+    //   tradesCount: 1,
+    // }).onConflictDoUpdate((row) => ({
+    //   // Increment trade count for returning users
+    //   tradesCount: (existing?.tradesCount ?? row.tradesCount) + 1,
+    // }));
+    //
+    // return isFirstActivity;
+    return false;
   });
 }
 
@@ -190,14 +179,14 @@ export async function updateAggregateStats(
     const shouldUpdateHourly = (metrics.trades ?? 0) > 0 || (metrics.volume ?? 0n) > 0n;
 
     // 1. Parallel fetch all stats records
-    const [platformStats, dailyStats, hourlyStats] = await Promise.all([
+    const [platformStatsRecord, dailyStatsRecord, hourlyStatsRecord] = await Promise.all([
       getOrCreatePlatformStats(context, chain),
       getOrCreateDailyStats(context, chain, dayTs),
       shouldUpdateHourly ? getOrCreateHourlyStats(context, chain, hourTs) : null,
     ]);
 
     // 2. Calculate new TVL (prevent negative)
-    const currentLiquidity = platformStats.totalLiquidity ?? 0n;
+    const currentLiquidity = platformStatsRecord.totalLiquidity ?? 0n;
     const tvlChange = metrics.tvlChange ?? 0n;
     let newLiquidity = currentLiquidity + tvlChange;
     if (newLiquidity < 0n) newLiquidity = 0n;
@@ -205,51 +194,48 @@ export async function updateAggregateStats(
     // 3. Parallel update all stats records
     const updatePromises: Promise<unknown>[] = [
       // Platform stats update
-      context.db.platformStats.update({
+      context.db.update(platformStats, {
         id: chain.chainId.toString(),
-        data: {
-          totalPolls: (platformStats.totalPolls ?? 0) + (metrics.polls ?? 0),
-          totalPollsResolved: (platformStats.totalPollsResolved ?? 0) + (metrics.pollsResolved ?? 0),
-          totalMarkets: (platformStats.totalMarkets ?? 0) + (metrics.markets ?? 0),
-          totalAmmMarkets: (platformStats.totalAmmMarkets ?? 0) + (metrics.ammMarkets ?? 0),
-          totalPariMarkets: (platformStats.totalPariMarkets ?? 0) + (metrics.pariMarkets ?? 0),
-          totalTrades: (platformStats.totalTrades ?? 0) + (metrics.trades ?? 0),
-          totalUsers: (platformStats.totalUsers ?? 0) + (metrics.users ?? 0),
-          totalVolume: (platformStats.totalVolume ?? 0n) + (metrics.volume ?? 0n),
-          totalLiquidity: newLiquidity,
-          totalFees: (platformStats.totalFees ?? 0n) + (metrics.fees ?? 0n),
-          totalWinningsPaid: (platformStats.totalWinningsPaid ?? 0n) + (metrics.winningsPaid ?? 0n),
-          totalPlatformFeesEarned: (platformStats.totalPlatformFeesEarned ?? 0n) + (metrics.platformFees ?? 0n),
-          lastUpdatedAt: timestamp,
-        },
+      }).set({
+        totalPolls: (platformStatsRecord.totalPolls ?? 0) + (metrics.polls ?? 0),
+        totalPollsResolved: (platformStatsRecord.totalPollsResolved ?? 0) + (metrics.pollsResolved ?? 0),
+        totalMarkets: (platformStatsRecord.totalMarkets ?? 0) + (metrics.markets ?? 0),
+        totalAmmMarkets: (platformStatsRecord.totalAmmMarkets ?? 0) + (metrics.ammMarkets ?? 0),
+        totalPariMarkets: (platformStatsRecord.totalPariMarkets ?? 0) + (metrics.pariMarkets ?? 0),
+        totalTrades: (platformStatsRecord.totalTrades ?? 0) + (metrics.trades ?? 0),
+        totalUsers: (platformStatsRecord.totalUsers ?? 0) + (metrics.users ?? 0),
+        totalVolume: (platformStatsRecord.totalVolume ?? 0n) + (metrics.volume ?? 0n),
+        totalLiquidity: newLiquidity,
+        totalFees: (platformStatsRecord.totalFees ?? 0n) + (metrics.fees ?? 0n),
+        totalWinningsPaid: (platformStatsRecord.totalWinningsPaid ?? 0n) + (metrics.winningsPaid ?? 0n),
+        totalPlatformFeesEarned: (platformStatsRecord.totalPlatformFeesEarned ?? 0n) + (metrics.platformFees ?? 0n),
+        lastUpdatedAt: timestamp,
       }),
 
       // Daily stats update
       // Note: activeUsers is now only incremented when user is first active today
-      context.db.dailyStats.update({
+      context.db.update(dailyStats, {
         id: makeId(chain.chainId, dayTs.toString()),
-        data: {
-          pollsCreated: (dailyStats.pollsCreated ?? 0) + (metrics.polls ?? 0),
-          marketsCreated: (dailyStats.marketsCreated ?? 0) + (metrics.markets ?? 0),
-          tradesCount: (dailyStats.tradesCount ?? 0) + (metrics.trades ?? 0),
-          volume: (dailyStats.volume ?? 0n) + (metrics.volume ?? 0n),
-          winningsPaid: (dailyStats.winningsPaid ?? 0n) + (metrics.winningsPaid ?? 0n),
-          newUsers: (dailyStats.newUsers ?? 0) + (metrics.users ?? 0),
-          activeUsers: (dailyStats.activeUsers ?? 0) + (metrics.activeUsers ?? 0),
-        },
+      }).set({
+        pollsCreated: (dailyStatsRecord.pollsCreated ?? 0) + (metrics.polls ?? 0),
+        marketsCreated: (dailyStatsRecord.marketsCreated ?? 0) + (metrics.markets ?? 0),
+        tradesCount: (dailyStatsRecord.tradesCount ?? 0) + (metrics.trades ?? 0),
+        volume: (dailyStatsRecord.volume ?? 0n) + (metrics.volume ?? 0n),
+        winningsPaid: (dailyStatsRecord.winningsPaid ?? 0n) + (metrics.winningsPaid ?? 0n),
+        newUsers: (dailyStatsRecord.newUsers ?? 0) + (metrics.users ?? 0),
+        activeUsers: (dailyStatsRecord.activeUsers ?? 0) + (metrics.activeUsers ?? 0),
       }),
     ];
 
     // Conditionally add hourly stats update
-    if (shouldUpdateHourly && hourlyStats) {
+    if (shouldUpdateHourly && hourlyStatsRecord) {
       updatePromises.push(
-        context.db.hourlyStats.update({
+        context.db.update(hourlyStats, {
           id: makeId(chain.chainId, hourTs.toString()),
-          data: {
-            tradesCount: (hourlyStats.tradesCount ?? 0) + (metrics.trades ?? 0),
-            volume: (hourlyStats.volume ?? 0n) + (metrics.volume ?? 0n),
-            uniqueTraders: (hourlyStats.uniqueTraders ?? 0) + (metrics.hourlyUniqueTraders ?? 0),
-          },
+        }).set({
+          tradesCount: (hourlyStatsRecord.tradesCount ?? 0) + (metrics.trades ?? 0),
+          volume: (hourlyStatsRecord.volume ?? 0n) + (metrics.volume ?? 0n),
+          uniqueTraders: (hourlyStatsRecord.uniqueTraders ?? 0) + (metrics.hourlyUniqueTraders ?? 0),
         })
       );
     }

@@ -1,3 +1,4 @@
+import { marketIdCounter, marketUsers, users, markets } from "ponder:schema";
 import { ChainInfo, makeId } from "../utils/helpers";
 import { withRetry } from "../utils/errors";
 import { PredictionAMMAbi } from "../../abis/PredictionAMM";
@@ -11,22 +12,21 @@ const MARKET_ID_START = 1200;
  * counter so that the very first market gets `MARKET_ID_START` (1).
  */
 export async function getNextMarketId(context: any): Promise<number> {
-  const counter = await context.db.marketIdCounter.findUnique({
+  const counter = await context.db.find(marketIdCounter, {
     id: "global",
   });
 
   if (!counter) {
-    await context.db.marketIdCounter.create({
+    await context.db.insert(marketIdCounter).values({
       id: "global",
-      data: { nextId: MARKET_ID_START + 1 },
+      nextId: MARKET_ID_START + 1,
     });
     return MARKET_ID_START;
   }
 
   const currentId = counter.nextId;
-  await context.db.marketIdCounter.update({
-    id: "global",
-    data: { nextId: currentId + 1 },
+  await context.db.update(marketIdCounter, { id: "global" }).set({
+    nextId: currentId + 1,
   });
   return currentId;
 }
@@ -43,7 +43,7 @@ export async function isNewTraderForMarket(
   const id = makeId(chain.chainId, marketAddress, traderAddress);
   // This is a simple read, might not strictly need retry but good for consistency
   return withRetry(async () => {
-    const record = await context.db.marketUsers.findUnique({ id });
+    const record = await context.db.find(marketUsers, { id });
     return !record;
   });
 }
@@ -61,17 +61,14 @@ export async function recordMarketInteraction(
 ) {
   const id = makeId(chain.chainId, marketAddress, traderAddress);
   await withRetry(async () => {
-    await context.db.marketUsers.upsert({
+    await context.db.insert(marketUsers).values({
       id,
-      create: {
-        chainId: chain.chainId,
-        marketAddress,
-        user: traderAddress,
-        lastTradeAt: timestamp,
-      },
-      update: {
-        lastTradeAt: timestamp,
-      },
+      chainId: chain.chainId,
+      marketAddress,
+      user: traderAddress,
+      lastTradeAt: timestamp,
+    }).onConflictDoUpdate({
+      lastTradeAt: timestamp,
     });
   });
 }
@@ -114,39 +111,37 @@ export async function getOrCreateUser(
   const normalizedAddress = address.toLowerCase() as `0x${string}`;
 
   return withRetry(async () => {
-    let user = await context.db.users.findUnique({ id: normalizedAddress });
+    let user = await context.db.find(users, { id: normalizedAddress });
 
     if (!user) {
-      user = await context.db.users.create({
+      user = await context.db.insert(users).values({
         id: normalizedAddress,
-        data: {
-          chainId: chain.chainId,
-          chainName: chain.chainName,
-          address: normalizedAddress,
-          // Trading stats start at zero
-          totalTrades: 0,
-          totalVolume: 0n,
-          totalWinnings: 0n,
-          totalDeposited: 0n,
-          totalWithdrawn: 0n,
-          realizedPnL: 0n,
-          // Win/loss tracking
-          totalWins: 0,
-          totalLosses: 0,
-          currentStreak: 0,
-          bestStreak: 0,
-          // Creator stats
-          marketsCreated: 0,
-          pollsCreated: 0,
-          totalCreatorFees: 0n,
-          // Referral stats (all start at zero/null)
-          totalReferrals: 0,
-          totalReferralVolume: 0n,
-          totalReferralExitVolume: 0n,
-          totalReferralFees: 0n,
-          totalReferralRewards: 0n,
-          // Timestamps left null until first trade
-        },
+        chainId: chain.chainId,
+        chainName: chain.chainName,
+        address: normalizedAddress,
+        // Trading stats start at zero
+        totalTrades: 0,
+        totalVolume: 0n,
+        totalWinnings: 0n,
+        totalDeposited: 0n,
+        totalWithdrawn: 0n,
+        realizedPnL: 0n,
+        // Win/loss tracking
+        totalWins: 0,
+        totalLosses: 0,
+        currentStreak: 0,
+        bestStreak: 0,
+        // Creator stats
+        marketsCreated: 0,
+        pollsCreated: 0,
+        totalCreatorFees: 0n,
+        // Referral stats (all start at zero/null)
+        totalReferrals: 0,
+        totalReferralVolume: 0n,
+        totalReferralExitVolume: 0n,
+        totalReferralFees: 0n,
+        totalReferralRewards: 0n,
+        // Timestamps left null until first trade
       });
     }
     return user;
@@ -168,7 +163,7 @@ export async function getOrCreateMinimalMarket(
 ) {
   return withRetry(async () => {
     // Check if market already exists
-    let market = await context.db.markets.findUnique({ id: marketAddress });
+    let market = await context.db.find(markets, { id: marketAddress });
 
     if (!market) {
       const numericId = await getNextMarketId(context);
@@ -214,47 +209,44 @@ export async function getOrCreateMinimalMarket(
           }),
         ]);
 
-        market = await context.db.markets.upsert({
+        market = await context.db.insert(markets).values({
           id: marketAddress,
-          create: {
-            chainId: chain.chainId,
-            chainName: chain.chainName,
-            isIncomplete: false,
-            pollAddress: (
-              pollAddress as string
-            ).toLowerCase() as `0x${string}`,
-            creator: (
-              creator as string
-            ).toLowerCase() as `0x${string}`,
-            marketType,
-            collateralToken: (
-              collateralToken as string
-            ).toLowerCase() as `0x${string}`,
-            yesToken: (
-              yesToken as string
-            ).toLowerCase() as `0x${string}`,
-            noToken: (
-              noToken as string
-            ).toLowerCase() as `0x${string}`,
-            totalVolume: 0n,
-            volume24h: 0n,
-            trades24h: 0,
-            totalTrades: 0,
-            currentTvl: 0n,
-            uniqueTraders: 0,
-            initialLiquidity: 0n,
-            reserveYes: 0n,
-            reserveNo: 0n,
-            yesChance: 500_000_000n,
-            creatorFeesEarned: 0n,
-            platformFeesEarned: 0n,
-            numericId,
-            createdAtBlock: blockNumber,
-            createdAt: timestamp,
-            createdTxHash: txHash as `0x${string}`,
-          },
-          update: {},
-        });
+          chainId: chain.chainId,
+          chainName: chain.chainName,
+          isIncomplete: false,
+          pollAddress: (
+            pollAddress as string
+          ).toLowerCase() as `0x${string}`,
+          creator: (
+            creator as string
+          ).toLowerCase() as `0x${string}`,
+          marketType,
+          collateralToken: (
+            collateralToken as string
+          ).toLowerCase() as `0x${string}`,
+          yesToken: (
+            yesToken as string
+          ).toLowerCase() as `0x${string}`,
+          noToken: (
+            noToken as string
+          ).toLowerCase() as `0x${string}`,
+          totalVolume: 0n,
+          volume24h: 0n,
+          trades24h: 0,
+          totalTrades: 0,
+          currentTvl: 0n,
+          uniqueTraders: 0,
+          initialLiquidity: 0n,
+          reserveYes: 0n,
+          reserveNo: 0n,
+          yesChance: 500_000_000n,
+          creatorFeesEarned: 0n,
+          platformFeesEarned: 0n,
+          numericId,
+          createdAtBlock: blockNumber,
+          createdAt: timestamp,
+          createdTxHash: txHash as `0x${string}`,
+        }).onConflictDoUpdate({});
       } else {
         const [
           pollAddress,
@@ -309,44 +301,41 @@ export async function getOrCreateMinimalMarket(
           }),
         ]);
 
-        market = await context.db.markets.upsert({
+        market = await context.db.insert(markets).values({
           id: marketAddress,
-          create: {
-            chainId: chain.chainId,
-            chainName: chain.chainName,
-            isIncomplete: false,
-            pollAddress: (
-              pollAddress as string
-            ).toLowerCase() as `0x${string}`,
-            creator: (
-              creator as string
-            ).toLowerCase() as `0x${string}`,
-            marketType,
-            collateralToken: (
-              collateralToken as string
-            ).toLowerCase() as `0x${string}`,
-            curveFlattener: Number(curveFlattener),
-            curveOffset: Number(curveOffset),
-            marketStartTimestamp: BigInt(marketStartTimestamp),
-            marketCloseTimestamp: BigInt(marketCloseTimestamp),
-            totalVolume: 0n,
-            volume24h: 0n,
-            trades24h: 0,
-            totalTrades: 0,
-            currentTvl: 0n,
-            uniqueTraders: 0,
-            initialLiquidity: 0n,
-            yesChance: 500_000_000n,
-            totalCollateralYes: 0n,
-            totalCollateralNo: 0n,
-            creatorFeesEarned: 0n,
-            platformFeesEarned: 0n,
-            createdAtBlock: blockNumber,
-            createdAt: timestamp,
-            createdTxHash: txHash as `0x${string}`,
-          },
-          update: {},
-        });
+          chainId: chain.chainId,
+          chainName: chain.chainName,
+          isIncomplete: false,
+          pollAddress: (
+            pollAddress as string
+          ).toLowerCase() as `0x${string}`,
+          creator: (
+            creator as string
+          ).toLowerCase() as `0x${string}`,
+          marketType,
+          collateralToken: (
+            collateralToken as string
+          ).toLowerCase() as `0x${string}`,
+          curveFlattener: Number(curveFlattener),
+          curveOffset: Number(curveOffset),
+          marketStartTimestamp: BigInt(marketStartTimestamp),
+          marketCloseTimestamp: BigInt(marketCloseTimestamp),
+          totalVolume: 0n,
+          volume24h: 0n,
+          trades24h: 0,
+          totalTrades: 0,
+          currentTvl: 0n,
+          uniqueTraders: 0,
+          initialLiquidity: 0n,
+          yesChance: 500_000_000n,
+          totalCollateralYes: 0n,
+          totalCollateralNo: 0n,
+          creatorFeesEarned: 0n,
+          platformFeesEarned: 0n,
+          createdAtBlock: blockNumber,
+          createdAt: timestamp,
+          createdTxHash: txHash as `0x${string}`,
+        }).onConflictDoUpdate({});
       }
     }
 
