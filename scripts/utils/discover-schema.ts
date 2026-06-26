@@ -1,10 +1,24 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool } from "pg";
 
 /**
  * Returns the fixed views schema name.
  */
 export function getPonderSchema(): string {
 	return process.env.PONDER_SCHEMA || "pandora_views";
+}
+
+/**
+ * Computes the current deployment schema name from env vars.
+ * Mirrors the logic in start.sh:
+ *   SERVICE="${RAILWAY_SERVICE_NAME:-pandoraindexer}"
+ *   DEPLOY_SHORT=$(echo "${RAILWAY_DEPLOYMENT_ID:-local}" | cut -c1-8)
+ *   SCHEMA_NAME="${SERVICE}_${DEPLOY_SHORT}"
+ */
+export function getDeploymentSchema(): string | null {
+	const service = process.env.RAILWAY_SERVICE_NAME;
+	const deployId = process.env.RAILWAY_DEPLOYMENT_ID;
+	if (!service || !deployId) return null;
+	return `${service}_${deployId.substring(0, 8)}`;
 }
 
 /**
@@ -17,45 +31,23 @@ export async function discoverPonderSchema(pool: Pool, logPrefix = "[Schema]"): 
 }
 
 /**
- * Finds the real Ponder deployment schema (e.g. "blue-pandoraindexer_a1b2c3d4")
- * by looking for the _ponder_meta table. Needed for search_path so that
- * triggers (live_query_tables) resolve correctly when UPDATing through views.
- */
-export async function discoverDeploymentSchema(pool: Pool, logPrefix = "[Schema]"): Promise<string | null> {
-	const client: PoolClient = await pool.connect();
-	try {
-		const result = await client.query(
-			`SELECT schemaname FROM pg_tables
-			 WHERE tablename = '_ponder_meta'
-			   AND schemaname NOT IN ('public', 'pandora_views', 'ponder_sync')
-			 ORDER BY schemaname DESC
-			 LIMIT 1`,
-		);
-
-		if (result.rows.length === 0) {
-			console.log(`${logPrefix} No deployment schema found`);
-			return null;
-		}
-
-		const schema = result.rows[0].schemaname as string;
-		console.log(`${logPrefix} Deployment schema: ${schema}`);
-		return schema;
-	} finally {
-		client.release();
-	}
-}
-
-/**
- * Builds a SET search_path statement that includes the deployment schema
- * (for trigger resolution) and the views schema (for table access).
+ * Builds a search_path that includes:
+ * 1. The deployment schema (for trigger/internal table resolution)
+ * 2. The views schema (for table access)
+ * 3. public
  */
 export async function buildSearchPath(pool: Pool, logPrefix = "[Schema]"): Promise<string> {
 	const viewsSchema = getPonderSchema();
-	const deploySchema = await discoverDeploymentSchema(pool, logPrefix);
+	const deploySchema = getDeploymentSchema();
 
 	const parts = [];
-	if (deploySchema) parts.push(`"${deploySchema}"`);
+	if (deploySchema) {
+		parts.push(`"${deploySchema}"`);
+		console.log(`${logPrefix} Deployment schema: ${deploySchema}`);
+	}
 	parts.push(`"${viewsSchema}"`, "public");
 
-	return parts.join(", ");
+	const sp = parts.join(", ");
+	console.log(`${logPrefix} search_path: ${sp}`);
+	return sp;
 }
