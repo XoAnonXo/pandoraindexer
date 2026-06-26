@@ -39,7 +39,7 @@ async function ensureIndexes(client: import("pg").PoolClient) {
     const realSchema = rows[0].schemaname;
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_trades_market_timestamp
-      ON "${realSchema}".trades ("marketAddress", timestamp)
+      ON "${realSchema}".trades (market_address, timestamp)
     `);
     console.log(`[Recalculate] Index ensured on ${realSchema}.trades in ${Date.now() - start}ms`);
   } else {
@@ -77,12 +77,12 @@ async function recalculateVolume24h() {
     // Single CTE: aggregate 24h trades, LEFT JOIN markets, update only changed rows.
     const updateResult = await client.query(
       `WITH agg AS (
-         SELECT "marketAddress",
+         SELECT market_address,
                 COUNT(*)::int AS trade_count,
-                COALESCE(SUM("collateralAmount"), 0) AS volume
+                COALESCE(SUM(collateral_amount), 0) AS volume
          FROM trades
          WHERE timestamp >= $1
-         GROUP BY "marketAddress"
+         GROUP BY market_address
        )
        UPDATE markets AS m
        SET volume24h = COALESCE(sub.volume, 0),
@@ -92,7 +92,7 @@ async function recalculateVolume24h() {
                 COALESCE(a.trade_count, 0) AS trade_count,
                 COALESCE(a.volume, 0) AS volume
          FROM markets m2
-         LEFT JOIN agg a ON m2.id = a."marketAddress"
+         LEFT JOIN agg a ON m2.id = a.market_address
          WHERE m2.volume24h IS DISTINCT FROM COALESCE(a.volume, 0)
             OR COALESCE(m2.trades24h, 0) IS DISTINCT FROM COALESCE(a.trade_count, 0)
        ) AS sub

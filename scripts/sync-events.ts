@@ -95,22 +95,22 @@ async function syncCompletedEvents(client: any): Promise<{ polls: number; market
 
   for (const [eventId, { addresses, title }] of pollsByEvent) {
     const result = await client.query(
-      `UPDATE polls SET "eventId" = $1 WHERE id = ANY($2::text[]) AND "eventId" IS DISTINCT FROM $1`,
+      `UPDATE polls SET event_id = $1 WHERE id = ANY($2::text[]) AND event_id IS DISTINCT FROM $1`,
       [eventId, addresses]
     );
     syncedPolls += result.rowCount ?? 0;
 
     const mResult = await client.query(
-      `UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2::text[]) AND "eventId" IS DISTINCT FROM $1`,
+      `UPDATE markets SET event_id = $1 WHERE poll_address = ANY($2::text[]) AND event_id IS DISTINCT FROM $1`,
       [eventId, addresses]
     );
     syncedMarkets += mResult.rowCount ?? 0;
 
     if (title) {
       await client.query(
-        `UPDATE polls SET "displayTitle" = COALESCE("question", '') || ' — ' || $1
+        `UPDATE polls SET display_title = COALESCE(question, '') || ' — ' || $1
          WHERE id = ANY($2::text[])
-           AND ("displayTitle" IS NULL OR "displayTitle" = '')`,
+           AND (display_title IS NULL OR display_title = '')`,
         [title, addresses]
       );
     }
@@ -129,7 +129,7 @@ async function syncCompletedEvents(client: any): Promise<{ polls: number; market
 
   for (const [eventId, addresses] of marketsByEvent) {
     const result = await client.query(
-      `UPDATE markets SET "eventId" = $1 WHERE id = ANY($2::text[]) AND "eventId" IS DISTINCT FROM $1`,
+      `UPDATE markets SET event_id = $1 WHERE id = ANY($2::text[]) AND event_id IS DISTINCT FROM $1`,
       [eventId, addresses]
     );
     syncedMarkets += result.rowCount ?? 0;
@@ -165,16 +165,16 @@ async function syncEventsTable(client: any): Promise<number> {
 
     const result = await client.query(
       `INSERT INTO events (
-        id, title, creator, "marketType", arbiter, sources, category,
-        "feeTier", "maxPriceImbalance", "curveFlattener", "curveOffset",
-        "pollAddresses", "marketAddresses", status, "marketCount", "createdAt"
+        id, title, creator, market_type, arbiter, sources, category,
+        fee_tier, max_price_imbalance, curve_flattener, curve_offset,
+        poll_addresses, market_addresses, status, market_count, created_at
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       ON CONFLICT (id) DO UPDATE SET
         title = EXCLUDED.title,
-        "pollAddresses" = EXCLUDED."pollAddresses",
-        "marketAddresses" = EXCLUDED."marketAddresses",
+        poll_addresses = EXCLUDED.poll_addresses,
+        market_addresses = EXCLUDED.market_addresses,
         status = EXCLUDED.status,
-        "marketCount" = EXCLUDED."marketCount"`,
+        market_count = EXCLUDED.market_count`,
       [
         ev.id,
         ev.title || "",

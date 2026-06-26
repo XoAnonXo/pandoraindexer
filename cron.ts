@@ -65,7 +65,7 @@ async function runRecalculation(): Promise<void> {
 		try {
 			await client.query(`
 				CREATE INDEX IF NOT EXISTS idx_trades_market_timestamp
-				ON trades ("marketAddress", timestamp)
+				ON trades (market_address, timestamp)
 			`);
 		} catch {
 			// Views don't support indexes — non-critical, skip silently
@@ -75,12 +75,12 @@ async function runRecalculation(): Promise<void> {
 
 		const updateResult = await client.query(
 			`WITH agg AS (
-				SELECT "marketAddress",
+				SELECT market_address,
 					COUNT(*)::int AS trade_count,
-					COALESCE(SUM("collateralAmount"), 0) AS volume
+					COALESCE(SUM(collateral_amount), 0) AS volume
 				FROM trades
 				WHERE timestamp >= $1
-				GROUP BY "marketAddress"
+				GROUP BY market_address
 			)
 			UPDATE markets AS m
 			SET volume24h = COALESCE(sub.volume, 0),
@@ -90,7 +90,7 @@ async function runRecalculation(): Promise<void> {
 					COALESCE(a.trade_count, 0) AS trade_count,
 					COALESCE(a.volume, 0) AS volume
 				FROM markets m2
-				LEFT JOIN agg a ON m2.id = a."marketAddress"
+				LEFT JOIN agg a ON m2.id = a.market_address
 				WHERE m2.volume24h IS DISTINCT FROM COALESCE(a.volume, 0)
 					OR COALESCE(m2.trades24h, 0) IS DISTINCT FROM COALESCE(a.trade_count, 0)
 			) AS sub
@@ -169,22 +169,22 @@ async function syncCompletedEvents(client: any): Promise<{ polls: number; market
 
 	for (const [eventId, { addresses, title }] of pollsByEvent) {
 		const result = await client.query(
-			`UPDATE polls SET "eventId" = $1 WHERE id = ANY($2::text[]) AND "eventId" IS DISTINCT FROM $1`,
+			`UPDATE polls SET event_id = $1 WHERE id = ANY($2::text[]) AND event_id IS DISTINCT FROM $1`,
 			[eventId, addresses]
 		);
 		syncedPolls += result.rowCount ?? 0;
 
 		const mResult = await client.query(
-			`UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2::text[]) AND "eventId" IS DISTINCT FROM $1`,
+			`UPDATE markets SET event_id = $1 WHERE poll_address = ANY($2::text[]) AND event_id IS DISTINCT FROM $1`,
 			[eventId, addresses]
 		);
 		syncedMarkets += mResult.rowCount ?? 0;
 
 		if (title) {
 			await client.query(
-				`UPDATE polls SET "displayTitle" = COALESCE("question", '') || ' — ' || $1
+				`UPDATE polls SET display_title = COALESCE(question, '') || ' — ' || $1
 				 WHERE id = ANY($2::text[])
-				   AND ("displayTitle" IS NULL OR "displayTitle" = '')`,
+				   AND (display_title IS NULL OR display_title = '')`,
 				[title, addresses]
 			);
 		}
@@ -202,7 +202,7 @@ async function syncCompletedEvents(client: any): Promise<{ polls: number; market
 
 	for (const [eventId, addresses] of marketsByEvent) {
 		const result = await client.query(
-			`UPDATE markets SET "eventId" = $1 WHERE id = ANY($2::text[]) AND "eventId" IS DISTINCT FROM $1`,
+			`UPDATE markets SET event_id = $1 WHERE id = ANY($2::text[]) AND event_id IS DISTINCT FROM $1`,
 			[eventId, addresses]
 		);
 		syncedMarkets += result.rowCount ?? 0;
@@ -232,16 +232,16 @@ async function syncEventsTable(client: any): Promise<number> {
 
 		const result = await client.query(
 			`INSERT INTO events (
-				id, title, creator, "marketType", arbiter, sources, category,
-				"feeTier", "maxPriceImbalance", "curveFlattener", "curveOffset",
-				"pollAddresses", "marketAddresses", status, "marketCount", "createdAt"
+				id, title, creator, market_type, arbiter, sources, category,
+				fee_tier, max_price_imbalance, curve_flattener, curve_offset,
+				poll_addresses, market_addresses, status, market_count, created_at
 			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 			ON CONFLICT (id) DO UPDATE SET
 				title = EXCLUDED.title,
-				"pollAddresses" = EXCLUDED."pollAddresses",
-				"marketAddresses" = EXCLUDED."marketAddresses",
+				poll_addresses = EXCLUDED.poll_addresses,
+				market_addresses = EXCLUDED.market_addresses,
 				status = EXCLUDED.status,
-				"marketCount" = EXCLUDED."marketCount"`,
+				market_count = EXCLUDED.market_count`,
 			[
 				ev.id,
 				ev.title || "",
