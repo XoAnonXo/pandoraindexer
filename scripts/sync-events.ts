@@ -16,12 +16,13 @@
  */
 
 import { Pool } from "pg";
-import { discoverPonderSchema } from "./utils/discover-schema.js";
+import { buildSearchPath } from "./utils/discover-schema.js";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
-function hexToBuffer(hex: string): Buffer {
-  return Buffer.from(hex.replace(/^0x/, ""), "hex");
+function normalizeHex(hex: string): string {
+  const h = hex.toLowerCase();
+  return h.startsWith("0x") ? h : `0x${h}`;
 }
 
 if (!DATABASE_URL) {
@@ -82,55 +83,54 @@ async function syncCompletedEvents(client: any): Promise<{ polls: number; market
   let syncedMarkets = 0;
 
   // Group polls by eventId to batch updates
-  const pollsByEvent = new Map<string, { buffers: Buffer[]; title: string }>();
+  const pollsByEvent = new Map<string, { addresses: string[]; title: string }>();
   for (const [pollHex, { eventId, title }] of pollToEvent) {
     const entry = pollsByEvent.get(eventId);
     if (entry) {
-      entry.buffers.push(hexToBuffer(pollHex));
+      entry.addresses.push(normalizeHex(pollHex));
     } else {
-      pollsByEvent.set(eventId, { buffers: [hexToBuffer(pollHex)], title });
+      pollsByEvent.set(eventId, { addresses: [normalizeHex(pollHex)], title });
     }
   }
 
-  for (const [eventId, { buffers, title }] of pollsByEvent) {
+  for (const [eventId, { addresses, title }] of pollsByEvent) {
     const result = await client.query(
-      `UPDATE polls SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
-      [eventId, buffers]
+      `UPDATE polls SET event_id = $1 WHERE id = ANY($2::text[]) AND event_id IS DISTINCT FROM $1`,
+      [eventId, addresses]
     );
     syncedPolls += result.rowCount ?? 0;
 
-    // Also sync markets by pollAddress
     const mResult = await client.query(
-      `UPDATE markets SET "eventId" = $1 WHERE "pollAddress" = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
-      [eventId, buffers]
+      `UPDATE markets SET event_id = $1 WHERE poll_address = ANY($2::text[]) AND event_id IS DISTINCT FROM $1`,
+      [eventId, addresses]
     );
     syncedMarkets += mResult.rowCount ?? 0;
 
     if (title) {
       await client.query(
-        `UPDATE polls SET "displayTitle" = COALESCE("question", '') || ' — ' || $1
-         WHERE id = ANY($2::bytea[])
-           AND ("displayTitle" IS NULL OR "displayTitle" = '')`,
-        [title, buffers]
+        `UPDATE polls SET display_title = COALESCE(question, '') || ' — ' || $1
+         WHERE id = ANY($2::text[])
+           AND (display_title IS NULL OR display_title = '')`,
+        [title, addresses]
       );
     }
   }
 
   // Sync markets by direct market_addresses
-  const marketsByEvent = new Map<string, Buffer[]>();
+  const marketsByEvent = new Map<string, string[]>();
   for (const [marketHex, eventId] of marketToEvent) {
     const entry = marketsByEvent.get(eventId);
     if (entry) {
-      entry.push(hexToBuffer(marketHex));
+      entry.push(normalizeHex(marketHex));
     } else {
-      marketsByEvent.set(eventId, [hexToBuffer(marketHex)]);
+      marketsByEvent.set(eventId, [normalizeHex(marketHex)]);
     }
   }
 
-  for (const [eventId, buffers] of marketsByEvent) {
+  for (const [eventId, addresses] of marketsByEvent) {
     const result = await client.query(
-      `UPDATE markets SET "eventId" = $1 WHERE id = ANY($2::bytea[]) AND "eventId" IS DISTINCT FROM $1`,
-      [eventId, buffers]
+      `UPDATE markets SET event_id = $1 WHERE id = ANY($2::text[]) AND event_id IS DISTINCT FROM $1`,
+      [eventId, addresses]
     );
     syncedMarkets += result.rowCount ?? 0;
   }
@@ -165,16 +165,16 @@ async function syncEventsTable(client: any): Promise<number> {
 
     const result = await client.query(
       `INSERT INTO events (
-        id, title, creator, "marketType", arbiter, sources, category,
-        "feeTier", "maxPriceImbalance", "curveFlattener", "curveOffset",
-        "pollAddresses", "marketAddresses", status, "marketCount", "createdAt"
+        id, title, creator, market_type, arbiter, sources, category,
+        fee_tier, max_price_imbalance, curve_flattener, curve_offset,
+        poll_addresses, market_addresses, status, market_count, created_at
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       ON CONFLICT (id) DO UPDATE SET
         title = EXCLUDED.title,
-        "pollAddresses" = EXCLUDED."pollAddresses",
-        "marketAddresses" = EXCLUDED."marketAddresses",
+        poll_addresses = EXCLUDED.poll_addresses,
+        market_addresses = EXCLUDED.market_addresses,
         status = EXCLUDED.status,
-        "marketCount" = EXCLUDED."marketCount"`,
+        market_count = EXCLUDED.market_count`,
       [
         ev.id,
         ev.title || "",
@@ -202,13 +202,14 @@ async function syncEventsTable(client: any): Promise<number> {
 }
 
 async function syncEvents() {
-  const schemaName = await discoverPonderSchema(pool, "[SyncEvents]");
+  const sp = await buildSearchPath(pool, "[SyncEvents]");
 
   const client = await pool.connect();
   const startTime = Date.now();
 
   try {
-    await client.query(`SET search_path TO "${schemaName}", public`);
+    await client.query(`SET search_path TO ${sp}`);
+    await client.query(`CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)`);
 
     // Phase 1: Re-apply eventId to Ponder polls/markets after reindex
     const { polls: syncedPolls, markets: syncedMarkets } = await syncCompletedEvents(client);

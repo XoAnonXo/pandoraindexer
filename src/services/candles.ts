@@ -1,3 +1,4 @@
+import { priceTicks, candles1m, candles5m, candles1h, candles1d } from "ponder:schema";
 import type { PonderContext } from "../utils/types";
 import { PRICE_SCALE } from "../utils/constants";
 const MAX_UINT96 = (1n << 96n) - 1n;
@@ -11,6 +12,13 @@ export const INTERVAL_TO_SECONDS: Record<CandleInterval, number> = {
   "1h": 3600,
   "1d": 86400,
 };
+
+const CANDLE_TABLES = {
+  "1m": candles1m,
+  "5m": candles5m,
+  "1h": candles1h,
+  "1d": candles1d,
+} as const;
 
 function toBucketStart(timestampSec: bigint, intervalSec: number): bigint {
   const interval = BigInt(intervalSec);
@@ -98,32 +106,23 @@ async function upsertCandleBucket(params: {
   const bucketStart = toBucketStart(timestamp, intervalSec);
   const bucketId = makeBucketId(marketAddress, bucketStart);
 
-  const table =
-    interval === "1m"
-      ? context.db.candles1m
-      : interval === "5m"
-        ? context.db.candles5m
-        : interval === "1h"
-          ? context.db.candles1h
-          : context.db.candles1d;
+  const table = CANDLE_TABLES[interval];
 
-  const existing = await table.findUnique({ id: bucketId });
+  const existing = await context.db.find(table, { id: bucketId });
   if (!existing) {
-    await table.create({
+    await context.db.insert(table).values({
       id: bucketId,
-      data: {
-        marketAddress,
-        bucketStart,
-        open: priceScaled,
-        high: priceScaled,
-        low: priceScaled,
-        close: priceScaled,
-        // Contract-like behavior: candle volume is saturating uint96.
-        volume: clampUint96(volume),
-        trades: 1,
-        firstSeq: seq,
-        lastSeq: seq,
-      },
+      marketAddress,
+      bucketStart,
+      open: priceScaled,
+      high: priceScaled,
+      low: priceScaled,
+      close: priceScaled,
+      // Contract-like behavior: candle volume is saturating uint96.
+      volume: clampUint96(volume),
+      trades: 1,
+      firstSeq: seq,
+      lastSeq: seq,
     });
     return;
   }
@@ -133,19 +132,16 @@ async function upsertCandleBucket(params: {
   const high = existing.high > priceScaled ? existing.high : priceScaled;
   const low = existing.low < priceScaled ? existing.low : priceScaled;
 
-  await table.update({
-    id: bucketId,
-    data: {
-      open,
-      close,
-      high,
-      low,
-      // Contract-like behavior: candle volume is saturating uint96.
-      volume: clampUint96(existing.volume + volume),
-      trades: existing.trades + 1,
-      firstSeq: seq < existing.firstSeq ? seq : existing.firstSeq,
-      lastSeq: seq > existing.lastSeq ? seq : existing.lastSeq,
-    },
+  await context.db.update(table, { id: bucketId }).set({
+    open,
+    close,
+    high,
+    low,
+    // Contract-like behavior: candle volume is saturating uint96.
+    volume: clampUint96(existing.volume + volume),
+    trades: existing.trades + 1,
+    firstSeq: seq < existing.firstSeq ? seq : existing.firstSeq,
+    lastSeq: seq > existing.lastSeq ? seq : existing.lastSeq,
   });
 }
 
@@ -176,19 +172,17 @@ export async function recordPriceTickAndCandles(params: {
 
   const seq = tradeSeq(blockNumber, logIndex);
 
-  await context.db.priceTicks.create({
+  await context.db.insert(priceTicks).values({
     id: makeTickId(marketAddress, txHash, logIndex),
-    data: {
-      marketAddress,
-      timestamp,
-      seq,
-      yesPrice,
-      volume,
-      side,
-      tradeType,
-      txHash,
-      blockNumber,
-    },
+    marketAddress,
+    timestamp,
+    seq,
+    yesPrice,
+    volume,
+    side,
+    tradeType,
+    txHash,
+    blockNumber,
   });
 
 
@@ -273,5 +267,4 @@ export async function recordAmmPriceTickAndCandles(params: {
     txHash,
   });
 }
-
 

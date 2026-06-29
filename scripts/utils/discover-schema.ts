@@ -1,49 +1,53 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool } from "pg";
 
 /**
- * Auto-discovers the current Ponder schema name by querying the database.
- *
- * Ponder creates schemas with the pattern:
- *   {blue|green}-pandoraindexer_{8 hex chars}
- *
- * This function determines blue/green from RAILWAY_SERVICE_NAME,
- * then finds the matching schema that contains the "markets" table.
- *
- * Falls back to PONDER_SCHEMA env var if set (for local dev or overrides).
+ * Returns the fixed views schema name.
+ */
+export function getPonderSchema(): string {
+	return process.env.PONDER_SCHEMA || "pandora_views";
+}
+
+/**
+ * Computes the current deployment schema name from env vars.
+ * Mirrors the logic in start.sh:
+ *   SERVICE="${RAILWAY_SERVICE_NAME:-pandoraindexer}"
+ *   DEPLOY_SHORT=$(echo "${RAILWAY_DEPLOYMENT_ID:-local}" | cut -c1-8)
+ *   SCHEMA_NAME="${SERVICE}_${DEPLOY_SHORT}"
+ */
+export function getDeploymentSchema(): string | null {
+	const service = process.env.RAILWAY_SERVICE_NAME;
+	const deployId = process.env.RAILWAY_DEPLOYMENT_ID;
+	if (!service || !deployId) return null;
+	return `${service}_${deployId.substring(0, 8)}`;
+}
+
+/**
+ * Discovers the views schema. Always returns "pandora_views".
  */
 export async function discoverPonderSchema(pool: Pool, logPrefix = "[Schema]"): Promise<string> {
-	if (process.env.PONDER_SCHEMA) {
-		console.log(`${logPrefix} Using explicit PONDER_SCHEMA: ${process.env.PONDER_SCHEMA}`);
-		return process.env.PONDER_SCHEMA;
+	const schema = getPonderSchema();
+	console.log(`${logPrefix} Using schema: ${schema}`);
+	return schema;
+}
+
+/**
+ * Builds a search_path that includes:
+ * 1. The deployment schema (for trigger/internal table resolution)
+ * 2. The views schema (for table access)
+ * 3. public
+ */
+export async function buildSearchPath(pool: Pool, logPrefix = "[Schema]"): Promise<string> {
+	const viewsSchema = getPonderSchema();
+	const deploySchema = getDeploymentSchema();
+
+	const parts = [];
+	if (deploySchema) {
+		parts.push(`"${deploySchema}"`);
+		console.log(`${logPrefix} Deployment schema: ${deploySchema}`);
 	}
+	parts.push(`"${viewsSchema}"`, "public");
 
-	const serviceName = process.env.RAILWAY_SERVICE_NAME || "";
-	const prefix = serviceName.startsWith("green-") ? "green-evm-pandoraindexer_" : "blue-evm-pandoraindexer_";
-
-	console.log(`${logPrefix} Discovering schema with prefix: ${prefix} (service: ${serviceName})`);
-
-	const client: PoolClient = await pool.connect();
-	try {
-		const result = await client.query(
-			`SELECT schemaname FROM pg_tables
-       WHERE tablename = 'markets'
-         AND schemaname LIKE $1
-       ORDER BY schemaname DESC
-       LIMIT 1`,
-			[`${prefix}%`],
-		);
-
-		if (result.rows.length === 0) {
-			throw new Error(
-				`No Ponder schema found matching "${prefix}*" with a "markets" table. ` +
-					`Ponder may still be syncing or the schema was not yet created.`,
-			);
-		}
-
-		const schema = result.rows[0].schemaname as string;
-		console.log(`${logPrefix} Discovered Ponder schema: ${schema}`);
-		return schema;
-	} finally {
-		client.release();
-	}
+	const sp = parts.join(", ");
+	console.log(`${logPrefix} search_path: ${sp}`);
+	return sp;
 }

@@ -1,1474 +1,718 @@
 /**
- * ╔═══════════════════════════════════════════════════════════════════════════╗
- * ║                     PONDER DATABASE SCHEMA                                 ║
- * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Defines all database tables for the Anymarket prediction markets indexer. ║
- * ║  All tables include chainId/chainName for multi-chain support.             ║
- * ╚═══════════════════════════════════════════════════════════════════════════╝
+ * PONDER DATABASE SCHEMA
  *
- * TABLE OVERVIEW:
- * ───────────────
+ * Defines all database tables for the Anymarket prediction markets indexer.
+ * All tables include chainId/chainName for multi-chain support.
  *
- * ┌─────────────────────────────────────────────────────────────────────────┐
- * │ CORE ENTITY TABLES                                                      │
- * ├──────────────────┬──────────────────────────────────────────────────────┤
- * │ polls            │ Prediction questions from Oracle contract            │
- * │ markets          │ AMM and PariMutuel trading markets                   │
- * │ trades           │ Individual buy/sell/swap/bet transactions            │
- * │ users            │ Aggregated user statistics (per chain)               │
- * │ winnings         │ Winning redemption records after resolution          │
- * │ liquidityEvents  │ LP add/remove liquidity actions                      │
- * └──────────────────┴──────────────────────────────────────────────────────┘
+ * Ponder 0.16+ uses onchainTable (Drizzle-based).
+ * hex columns are stored as TEXT (not BYTEA).
+ * Columns are nullable by default; use .notNull() for required fields.
  *
- * ┌─────────────────────────────────────────────────────────────────────────┐
- * │ ANALYTICS TABLES                                                        │
- * ├──────────────────┬──────────────────────────────────────────────────────┤
- * │ platformStats    │ Global platform metrics (one record per chain)       │
- * │ dailyStats       │ Daily aggregated metrics (one record per day/chain)  │
- * │ hourlyStats      │ Hourly aggregated metrics (one record per hour/chain)│
- * └──────────────────┴──────────────────────────────────────────────────────┘
- *
- * ID CONVENTIONS:
- * ───────────────
- * - polls, markets: Contract address (hex)
- * - trades, winnings, liquidityEvents: chainId-txHash-logIndex
- * - users: chainId-address
- * - platformStats: chainId (as string)
- * - dailyStats: chainId-dayTimestamp
- * - hourlyStats: chainId-hourTimestamp
- *
- * DECIMAL CONVENTIONS:
- * ────────────────────
- * - All monetary values (USDC) use 6 decimals
- * - To display: divide by 1,000,000 (1e6)
- * - Example: 1000000n = $1.00
- *
- * @version 5 - Added pollAddress to liquidityEvents for easier frontend querying (2024-12-02)
- * @version 4 - Added initialLiquidity to markets table for tracking initial deposits (2024-12-02)
  * @see https://ponder.sh/docs/schema
  */
 
-import { createSchema } from "@ponder/core";
+import { onchainTable } from "ponder";
 
-export default createSchema((p) => ({
-  // ===========================================================================
-  // ORACLE FEE EVENTS (analytics)
-  // ===========================================================================
-  /**
-   * Fee-related events from PredictionOracle.
-   * These are useful for analytics (fee parameter changes + fee withdrawals).
-   *
-   * ID FORMAT: chainId-txHash-logIndex
-   */
-  oracleFeeEvents: p.createTable({
-    /** Unique ID: chainId-txHash-logIndex */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** Chain name */
-    chainName: p.string(),
-    /** Oracle contract address */
-    oracleAddress: p.hex(),
-    /**
-     * Event kind:
-     * - "OperatorGasFeeUpdated"
-     * - "ProtocolFeeUpdated"
-     * - "ProtocolFeesWithdrawn"
-     */
-    eventName: p.string(),
-    /** newFee for *FeeUpdated events */
-    newFee: p.bigint().optional(),
-    /** to address for ProtocolFeesWithdrawn */
-    to: p.hex().optional(),
-    /** amount for ProtocolFeesWithdrawn */
-    amount: p.bigint().optional(),
-    /** Tx hash */
-    txHash: p.hex(),
-    /** Block number */
-    blockNumber: p.bigint(),
-    /** Block timestamp */
-    timestamp: p.bigint(),
-  }),
+// ===========================================================================
+// ORACLE FEE EVENTS
+// ===========================================================================
 
-  // ===========================================================================
-  // EVENTS TABLE (off-chain, synced from pandora-api)
-  // ===========================================================================
-  /**
-   * Multi-market event groupings.
-   * Populated by sync-events.ts from app_internal.events.
-   * NOT filled by on-chain indexing — purely off-chain metadata.
-   *
-   * ID FORMAT: UUID (from pandora-api)
-   */
-  events: p.createTable({
-    /** Event UUID (primary key) */
-    id: p.string(),
-    /** Event title / header */
-    title: p.string(),
-    /** Creator wallet address */
-    creator: p.string(),
-    /** Shared market type: 'amm' or 'pari' */
-    marketType: p.string(),
-    /** Shared arbiter address */
-    arbiter: p.string(),
-    /** Shared source URLs (JSON array) */
-    sources: p.string(),
-    /** Shared category (0-11) */
-    category: p.int(),
-    /** AMM: fee tier */
-    feeTier: p.int().optional(),
-    /** AMM: max price imbalance per hour */
-    maxPriceImbalance: p.int().optional(),
-    /** PariMutuel: curve flattener */
-    curveFlattener: p.int().optional(),
-    /** PariMutuel: curve offset */
-    curveOffset: p.int().optional(),
-    /** Linked poll addresses (JSON array) */
-    pollAddresses: p.string(),
-    /** Linked market addresses (JSON array) */
-    marketAddresses: p.string(),
-    /** Event status: 'pending', 'partial', 'completed' */
-    status: p.string(),
-    /** Number of markets in this event */
-    marketCount: p.int(),
-    /** Timestamp when created (ISO string) */
-    createdAt: p.string(),
-  }),
-
-  // ===========================================================================
-  // POLLS TABLE
-  // ===========================================================================
-  /**
-   * Prediction polls created via the Oracle contract
-   * Each poll represents a yes/no question that can be resolved
-   */
-  polls: p.createTable({
-    /** Poll contract address (primary key) */
-    id: p.hex(),
-    /** Chain ID where poll exists */
-    chainId: p.int(),
-    /** Chain name for display */
-    chainName: p.string(),
-    /** Creator's wallet address */
-    creator: p.hex(),
-    /** Arbiter address (can override poll status) */
-    arbiter: p.hex().optional(),
-    /** The prediction question */
-    question: p.string(),
-    /** Resolution rules */
-    rules: p.string(),
-    /** Source URLs (JSON array) */
-    sources: p.string(),
-    /** Deadline epoch for betting */
-    deadlineEpoch: p.int(),
-    /** Finalization epoch when poll can be resolved */
-    finalizationEpoch: p.int(),
-    /** Check epoch for operators */
-    checkEpoch: p.int(),
-    /** Whether the last refresh was free */
-    lastRefreshWasFree: p.boolean().optional(),
-    /** Previous check epoch value from the last PollRefreshed event */
-    lastRefreshOldCheckEpoch: p.int().optional(),
-    /** Whether arbitration has been started for this poll */
-    arbitrationStarted: p.boolean(),
-    /** Poll category (0-11) */
-    category: p.int(),
-    /** Poll status: 0=Pending, 1=Yes, 2=No, 3=Unknown */
-    status: p.int(),
-    /** Resolution reason (if resolved) */
-    resolutionReason: p.string().optional(),
-    /** Setter address (operator who set the answer, null if pending) */
-    setter: p.hex().optional(),
-    /** Address that started arbitration (if disputed) */
-    disputedBy: p.hex().optional(),
-    /** Reason for the dispute */
-    disputeReason: p.string().optional(),
-    /** Stake amount for the dispute */
-    disputeStake: p.bigint().optional(),
-    /** Timestamp when arbitration was started */
-    disputedAt: p.bigint().optional(),
-    /** Timestamp when resolved (null if pending) */
-    resolvedAt: p.bigint().optional(),
-
-    /** Original poll status before dispute overturned it (null if never disputed or dispute agreed) */
-    preDisputeStatus: p.int().optional(),
-    /** Original resolution reason before dispute overturned it */
-    preDisputeResolutionReason: p.string().optional(),
-
-    /** Event ID for multi-market grouping (set externally by pandora-api) */
-    eventId: p.string().optional(),
-    /** Full search/display title for event-grouped markets (set by pandora-api / sync script) */
-    displayTitle: p.string().optional(),
-    /** Topic slug for subcategory navigation (set externally by pandora-api / sync script) */
-    topicSlug: p.string().optional(),
-
-    /** Maximum TVL among all markets for this poll (6 decimals) - for filtering/sorting */
-    maxMarketTvl: p.bigint().optional(),
-    /** Total TVL across all markets for this poll (6 decimals) - for analytics */
-    totalMarketsTvl: p.bigint().optional(),
-    /** Block number when created */
-    createdAtBlock: p.bigint(),
-    /** Timestamp when created */
-    createdAt: p.bigint(),
-    /** Transaction hash of creation */
-    createdTxHash: p.hex(),
-  }),
-
-  // ===========================================================================
-  // MARKETS TABLE
-  // ===========================================================================
-  /**
-   * AMM and PariMutuel markets linked to polls
-   */
-  markets: p.createTable({
-    /** Market contract address (primary key) */
-    id: p.hex(),
-    /** Chain ID where market exists */
-    chainId: p.int(),
-    /** Chain name for display */
-    chainName: p.string(),
-    /** Linked poll address */
-    pollAddress: p.hex(),
-    /** Flag to indicate if market was created via Factory event (false) or just minimal trade record (true) */
-    isIncomplete: p.boolean(),
-    /** Market creator address */
-    creator: p.hex(),
-    /** Market type: 'amm' or 'pari' */
-    marketType: p.string(),
-    /** Collateral token address */
-    collateralToken: p.hex(),
-    /** YES token address (AMM only) */
-    yesToken: p.hex().optional(),
-    /** NO token address (AMM only) */
-    noToken: p.hex().optional(),
-    /** Trading fee tier (AMM only) */
-    feeTier: p.int().optional(),
-    /** Max price imbalance per hour (AMM only) */
-    maxPriceImbalancePerHour: p.int().optional(),
-    /** Curve flattener parameter (PariMutuel only) */
-    curveFlattener: p.int().optional(),
-    /** Curve offset parameter (PariMutuel only) */
-    curveOffset: p.int().optional(),
-    /** PariMutuel: Market start timestamp (for time-weighted odds) */
-    marketStartTimestamp: p.bigint().optional(),
-    /** PariMutuel: Market close timestamp (for time-weighted odds) */
-    marketCloseTimestamp: p.bigint().optional(),
-    /** Total trading volume (6 decimals) */
-    totalVolume: p.bigint(),
-    /** Trading volume in last 24 hours (6 decimals) - updated periodically by recalculation script */
-    volume24h: p.bigint(),
-    /** Number of trades in last 24 hours - updated periodically by recalculation script */
-    trades24h: p.int(),
-    /** Number of trades */
-    totalTrades: p.int(),
-    /** Current total value locked */
-    currentTvl: p.bigint(),
-    /** Number of unique traders */
-    uniqueTraders: p.int(),
-    /** Initial collateral deposited at market creation (6 decimals) */
-    initialLiquidity: p.bigint(),
-    /** AMM reserve YES tokens */
-    reserveYes: p.bigint().optional(),
-    /** AMM reserve NO tokens */
-    reserveNo: p.bigint().optional(),
-    /** Total tokens held in AMM pool: reserveYes + reserveNo (6 decimals) */
-    totalHold: p.bigint().optional(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // FEE TRACKING
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Total creator fees earned from this market (6 decimals) - sum of creatorShare from ProtocolFeesWithdrawn */
-    creatorFeesEarned: p.bigint(),
-    /** Total platform fees earned from this market (6 decimals) - sum of platformShare from ProtocolFeesWithdrawn */
-    platformFeesEarned: p.bigint(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // PARI-MUTUEL SPECIFIC FIELDS
-    // ─────────────────────────────────────────────────────────────────────────
-    /** PariMutuel: Total collateral in YES pool (6 decimals) */
-    totalCollateralYes: p.bigint().optional(),
-    /** PariMutuel: Total collateral in NO pool (6 decimals) */
-    totalCollateralNo: p.bigint().optional(),
-    /** PariMutuel: Time-weighted YES shares for odds calculation */
-    totalSharesYes: p.bigint().optional(),
-    /** PariMutuel: Time-weighted NO shares for odds calculation */
-    totalSharesNo: p.bigint().optional(),
-    /**
-     * PariMutuel: Current YES probability (scaled 1e9)
-     * Formula: yesChance = totalCollateralYes / (totalCollateralYes + totalCollateralNo) * 1e9
-     * Example: 500_000_000 = 50%
-     */
-    yesChance: p.bigint().optional(),
-
-    /** Event ID for multi-market grouping (set externally by pandora-api) */
-    eventId: p.string().optional(),
-
-    /** Auto-incrementing display ID (e.g. 1142 -> frontend renders "AMM#1142" or "Pari#1142") */
-    numericId: p.int().optional(),
-
-    /** Block when created */
-    createdAtBlock: p.bigint(),
-    /** Timestamp when created */
-    createdAt: p.bigint(),
-    /** Transaction hash of creation */
-    createdTxHash: p.hex(),
-  }),
-
-  // ===========================================================================
-  // MARKET ID COUNTER (singleton)
-  // ===========================================================================
-  /**
-   * Single-row counter table for generating auto-incrementing market numericIds.
-   * Always has one row with id = "global".
-   */
-  marketIdCounter: p.createTable({
-    /** Always "global" */
-    id: p.string(),
-    /** The next available numeric ID to assign */
-    nextId: p.int(),
-  }),
-
-  // ===========================================================================
-  // TRADES TABLE
-  // ===========================================================================
-  /**
-   * Individual trade records
-   * Includes AMM buys/sells/swaps and PariMutuel bets
-   */
-  trades: p.createTable({
-    /** Unique ID: chainId-txHash-logIndex */
-    id: p.string(),
-    /** Chain ID where trade occurred */
-    chainId: p.int(),
-    /** Chain name for display */
-    chainName: p.string(),
-    /** Trader's wallet address */
-    trader: p.hex(),
-    /** Market address */
-    marketAddress: p.hex(),
-    /** Poll address */
-    pollAddress: p.hex(),
-    /** Trade type: 'buy', 'sell', 'swap', 'bet' */
-    tradeType: p.string(),
-    /** Side: 'yes' or 'no' */
-    side: p.string(),
-    /** Collateral amount (6 decimals) */
-    collateralAmount: p.bigint(),
-    /** Token amount (for AMM trades) */
-    tokenAmount: p.bigint().optional(),
-    /** Fee paid */
-    feeAmount: p.bigint(),
-    /** Execution price per token at time of buy (scaled 1e9, AMM buy only) */
-    buyPrice: p.bigint().optional(),
-    /** Output token amount (for swaps) */
-    tokenAmountOut: p.bigint().optional(),
-    /** Transaction hash */
-    txHash: p.hex(),
-    /** Block number */
-    blockNumber: p.bigint(),
-    /** Timestamp */
-    timestamp: p.bigint(),
-  }),
-
-  // ===========================================================================
-  // PRICE TICKS TABLE
-  // ===========================================================================
-  /**
-   * Execution price points derived from indexed AMM buy/sell trades.
-   * These are the underlying points used to build OHLC candles.
-   *
-   * yesPriceScaled is scaled by 1e9 (same as frontend CANDLE_PRICE_SCALE).
-   */
-  priceTicks: p.createTable({
-    /** Unique ID: marketAddress-txHash-logIndex */
-    id: p.string(),
-    marketAddress: p.hex(),
-    /** Timestamp (unix seconds) */
-    timestamp: p.bigint(),
-    /** Ordering helper: seq = blockNumber * 1_000_000 + logIndex */
-    seq: p.bigint(),
-    /** YES execution price scaled 1e9 */
-    yesPrice: p.bigint(),
-    /** Collateral volume for this trade (6 decimals) */
-    volume: p.bigint(),
-    /** Side of the trade ("yes"|"no") */
-    side: p.string(),
-    /** Trade type ("buy"|"sell") */
-    tradeType: p.string(),
-    /** Tx hash (for debugging) */
-    txHash: p.hex(),
-    /** Block number (for debugging) */
-    blockNumber: p.bigint(),
-  }),
-
-  // ===========================================================================
-  // CANDLES TABLES (per timeframe)
-  // ===========================================================================
-  /**
-   * 1-minute candles derived from priceTicks.
-   */
-  candles1m: p.createTable({
-    /** Unique ID: marketAddress-bucketStart */
-    id: p.string(),
-    marketAddress: p.hex(),
-    bucketStart: p.bigint(),
-    open: p.bigint(),
-    high: p.bigint(),
-    low: p.bigint(),
-    close: p.bigint(),
-    volume: p.bigint(),
-    trades: p.int(),
-    firstSeq: p.bigint(),
-    lastSeq: p.bigint(),
-  }),
-
-  /**
-   * 5-minute candles derived from priceTicks.
-   */
-  candles5m: p.createTable({
-    /** Unique ID: marketAddress-bucketStart */
-    id: p.string(),
-    marketAddress: p.hex(),
-    bucketStart: p.bigint(),
-    open: p.bigint(),
-    high: p.bigint(),
-    low: p.bigint(),
-    close: p.bigint(),
-    volume: p.bigint(),
-    trades: p.int(),
-    firstSeq: p.bigint(),
-    lastSeq: p.bigint(),
-  }),
-
-  /**
-   * 1-hour candles derived from priceTicks.
-   */
-  candles1h: p.createTable({
-    /** Unique ID: marketAddress-bucketStart */
-    id: p.string(),
-    marketAddress: p.hex(),
-    bucketStart: p.bigint(),
-    open: p.bigint(),
-    high: p.bigint(),
-    low: p.bigint(),
-    close: p.bigint(),
-    volume: p.bigint(),
-    trades: p.int(),
-    firstSeq: p.bigint(),
-    lastSeq: p.bigint(),
-  }),
-
-  /**
-   * 1-day candles derived from priceTicks.
-   */
-  candles1d: p.createTable({
-    /** Unique ID: marketAddress-bucketStart */
-    id: p.string(),
-    marketAddress: p.hex(),
-    bucketStart: p.bigint(),
-    open: p.bigint(),
-    high: p.bigint(),
-    low: p.bigint(),
-    close: p.bigint(),
-    volume: p.bigint(),
-    trades: p.int(),
-    firstSeq: p.bigint(),
-    lastSeq: p.bigint(),
-  }),
-
-  // ===========================================================================
-  // USERS TABLE
-  // ===========================================================================
-  /**
-   * Aggregated statistics per user per chain
-   *
-   * ID FORMAT: chainId-userAddress (e.g., "146-0x1234...")
-   *
-   * A user record is created on their first interaction with the platform.
-   * All monetary values are in USDC (6 decimals).
-   *
-   * PROFIT/LOSS CALCULATION:
-   * ────────────────────────
-   * realizedPnL = (totalWithdrawn + totalWinnings) - totalDeposited
-   *
-   * This only tracks REALIZED profits:
-   * - totalDeposited: Money put into markets (buys/bets)
-   * - totalWithdrawn: Money taken out from sells (net of fees)
-   * - totalWinnings: Claimed winnings after market resolution
-   *
-   * Unrealized gains (held positions) are NOT tracked here.
-   */
-  users: p.createTable({
-    // ─────────────────────────────────────────────────────────────────────────
-    // IDENTITY FIELDS
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Composite ID: chainId-userAddress (e.g., "146-0x1234...") */
-    id: p.string(),
-    /** Chain ID where this user record applies */
-    chainId: p.int(),
-    /** Human-readable chain name for UI display */
-    chainName: p.string(),
-    /** User's wallet address (lowercase, normalized) */
-    address: p.hex(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // TRADING ACTIVITY
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Total number of trades executed (buys, sells, swaps, bets) */
-    totalTrades: p.int(),
-    /** Total trading volume in USDC (6 decimals) - sum of all trade amounts */
-    totalVolume: p.bigint(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // PROFIT/LOSS TRACKING
-    // ─────────────────────────────────────────────────────────────────────────
-    /**
-     * Total USDC deposited into markets via BuyTokens/PositionPurchased
-     * Represents capital at risk (6 decimals)
-     */
-    totalDeposited: p.bigint(),
-    /**
-     * Total USDC withdrawn via SellTokens (net of fees)
-     * Represents realized exit from trading positions (6 decimals)
-     */
-    totalWithdrawn: p.bigint(),
-    /**
-     * Total USDC won from resolved markets via WinningsRedeemed
-     * Only updated after market resolution + 24h finalization (6 decimals)
-     */
-    totalWinnings: p.bigint(),
-    /**
-     * Realized profit/loss formula:
-     * realizedPnL = (totalWithdrawn + totalWinnings) - totalDeposited
-     *
-     * Positive = net profit, Negative = net loss
-     * Only tracks realized returns (money actually received)
-     * Does NOT include unrealized gains from held positions
-     */
-    realizedPnL: p.bigint(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // WIN/LOSS TRACKING
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Number of markets where user was on the winning side */
-    totalWins: p.int(),
-    /** Number of markets where user was on the losing side */
-    totalLosses: p.int(),
-    /**
-     * Current consecutive streak:
-     * Positive = consecutive wins, Negative = consecutive losses
-     * Resets when streak breaks
-     */
-    currentStreak: p.int(),
-    /** Highest winning streak ever achieved (always >= 0) */
-    bestStreak: p.int(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // CREATOR STATS
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Number of AMM/PariMutuel markets created by this user */
-    marketsCreated: p.int(),
-    /** Number of prediction polls created by this user */
-    pollsCreated: p.int(),
-    /**
-     * Total fees earned from markets created by this user (6 decimals)
-     * Updated when ProtocolFeesWithdrawn event fires on user's markets
-     */
-    totalCreatorFees: p.bigint(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // REFERRAL FIELDS
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Address of who referred this user (null if organic/direct signup) */
-    referrerAddress: p.hex().optional(),
-    /** This user's registered referral code hash (null if no code registered) */
-    referralCodeHash: p.hex().optional(),
-    /** Total number of users this user has referred */
-    totalReferrals: p.int(),
-    /** Total volume generated by referred users (6 decimals) */
-    totalReferralVolume: p.bigint(),
-    /** Exit volume generated by referred users (AMM sell + winnings claim, 6 decimals) */
-    totalReferralExitVolume: p.bigint(),
-    /** Total fees generated by referred users (6 decimals) */
-    totalReferralFees: p.bigint(),
-    /** Total rewards earned from referrals (6 decimals) */
-    totalReferralRewards: p.bigint(),
-    /** Unix timestamp when this user was referred (null if organic) */
-    referredAt: p.bigint().optional(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // TIMESTAMPS
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Unix timestamp of user's first trade (null if never traded) */
-    firstTradeAt: p.bigint().optional(),
-    /** Unix timestamp of user's most recent trade (null if never traded) */
-    lastTradeAt: p.bigint().optional(),
-  }),
-
-  // ===========================================================================
-  // MARKET USERS TABLE
-  // ===========================================================================
-  /**
-   * Tracks unique users per market to optimize "unique traders" counting.
-   * Replaces expensive scans of the trades table.
-   */
-  marketUsers: p.createTable({
-    /** Composite ID: chainId-marketAddress-userAddress */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** Market address */
-    marketAddress: p.hex(),
-    /** User address */
-    user: p.hex(),
-    /** Timestamp of last trade on this market */
-    lastTradeAt: p.bigint(),
-  }),
-
-  // ===========================================================================
-  // WINNINGS TABLE
-  // ===========================================================================
-  /**
-   * Individual winning redemption records
-   */
-  winnings: p.createTable({
-    /** Unique ID: chainId-txHash-logIndex */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** Chain name for display */
-    chainName: p.string(),
-    /** User who redeemed */
-    user: p.hex(),
-    /** Market address */
-    marketAddress: p.hex(),
-    /** Collateral amount won (6 decimals) */
-    collateralAmount: p.bigint(),
-    /** Fee deducted */
-    feeAmount: p.bigint(),
-    /** YES tokens burned (AMM only) */
-    yesTokenAmount: p.bigint().optional(),
-    /** NO tokens burned (AMM only) */
-    noTokenAmount: p.bigint().optional(),
-    /** Total USDC spent on YES side — cost basis (6 decimals) */
-    yesCostBasis: p.bigint().optional(),
-    /** Total USDC spent on NO side — cost basis (6 decimals) */
-    noCostBasis: p.bigint().optional(),
-    /** User's winning side: "yes", "no", or "both" (refund/LP) */
-    side: p.string().optional(),
-    /** Poll status at claim time: 1=Yes, 2=No, 3=Unknown(refund) */
-    pollStatus: p.int().optional(),
-    /** Market question (denormalized for display) */
-    marketQuestion: p.string().optional(),
-    /** Market type: 'amm' or 'pari' */
-    marketType: p.string(),
-    /** Outcome: 1=Yes, 2=No, 3=Unknown */
-    outcome: p.int().optional(),
-    /** Transaction hash */
-    txHash: p.hex(),
-    /** Timestamp */
-    timestamp: p.bigint(),
-  }),
-
-  // ===========================================================================
-  // POSITION HISTORY TABLE
-  // ===========================================================================
-  /**
-   * Unified history of all closed positions (wins, losses, refunds).
-   * Single source of truth for the History tab on the frontend.
-   *
-   * ID FORMAT: "chainId-marketAddress-user"
-   */
-  positionHistory: p.createTable({
-    /** Composite key: chainId-marketAddress-user */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** User wallet address */
-    user: p.hex(),
-    /** Market contract address */
-    marketAddress: p.hex(),
-    /** Poll contract address */
-    pollAddress: p.hex().optional(),
-    /** Market question (denormalized for display) */
-    marketQuestion: p.string().optional(),
-    /** Market type: "amm" or "pari" */
-    marketType: p.string(),
-    /** User's position side: "yes", "no", or "both" */
-    side: p.string(),
-    /** Position outcome: "won", "lost", or "refunded" */
-    result: p.string(),
-    /** Poll status at resolution: 1=Yes, 2=No, 3=Unknown */
-    pollStatus: p.int(),
-    /** Total USDC spent on YES side — cost basis (6 decimals) */
-    yesCostBasis: p.bigint(),
-    /** Total USDC spent on NO side — cost basis (6 decimals) */
-    noCostBasis: p.bigint(),
-    /** YES outcome tokens held at resolution (6 decimals) */
-    yesTokens: p.bigint(),
-    /** NO outcome tokens held at resolution (6 decimals) */
-    noTokens: p.bigint(),
-    /** USDC received at claim (0 for losses, 6 decimals) */
-    collateralReceived: p.bigint(),
-    /** Protocol fee deducted (6 decimals) */
-    feeAmount: p.bigint(),
-    /** Pre-computed PNL: collateralReceived - yesCostBasis - noCostBasis (6 decimals) */
-    pnl: p.bigint(),
-    /** Timestamp: poll resolution (losses) or claim tx (wins/refunds) */
-    resolvedAt: p.bigint(),
-    /** Claim transaction hash (null for losses) */
-    txHash: p.hex().optional(),
-  }),
-
-  // ===========================================================================
-  // LIQUIDITY EVENTS TABLE
-  // ===========================================================================
-  /**
-   * Liquidity add/remove events (AMM only)
-   */
-  liquidityEvents: p.createTable({
-    /** Unique ID: chainId-txHash-logIndex */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** Chain name for display */
-    chainName: p.string(),
-    /** Liquidity provider address */
-    provider: p.hex(),
-    /** Market address */
-    marketAddress: p.hex(),
-    /** Poll address (denormalized for easier querying) */
-    pollAddress: p.hex(),
-    /** Event type: 'add' or 'remove' */
-    eventType: p.string(),
-    /** Collateral amount (6 decimals) */
-    collateralAmount: p.bigint(),
-    /** LP tokens minted/burned */
-    lpTokens: p.bigint(),
-    /** YES tokens added/removed */
-    yesTokenAmount: p.bigint().optional(),
-    /** NO tokens added/removed */
-    noTokenAmount: p.bigint().optional(),
-    /** YES tokens returned to user (from imbalance) */
-    yesTokensReturned: p.bigint().optional(),
-    /** NO tokens returned to user (from imbalance) */
-    noTokensReturned: p.bigint().optional(),
-    /** Transaction hash */
-    txHash: p.hex(),
-    /** Timestamp */
-    timestamp: p.bigint(),
-  }),
-
-  // ===========================================================================
-  // PLATFORM STATS TABLE (Per Chain)
-  // ===========================================================================
-  /**
-   * Global platform statistics aggregated per blockchain.
-   *
-   * ID FORMAT: chainId as string (e.g., "1" for Ethereum)
-   *
-   * One record exists per supported chain. This provides dashboard-level
-   * metrics for the entire platform on each chain.
-   *
-   * VOLUME vs LIQUIDITY (TVL):
-   * ──────────────────────────
-   * - totalVolume: Sum of all trading activity (buys, sells, bets)
-   * - totalLiquidity: Current USDC locked across all markets (TVL)
-   *
-   * Volume is cumulative (always increases), while liquidity fluctuates
-   * as users add/remove funds and redeem winnings.
-   *
-   * CONSISTENCY RULE:
-   * ─────────────────
-   * totalVolume should equal the sum of all market.totalVolume values.
-   * If they differ, there's a bug in the event handlers.
-   */
-  platformStats: p.createTable({
-    // ─────────────────────────────────────────────────────────────────────────
-    // IDENTITY
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Chain ID as string (e.g., "146") - primary key */
-    id: p.string(),
-    /** Chain ID as number for filtering/joins */
-    chainId: p.int(),
-    /** Human-readable chain name for UI */
-    chainName: p.string(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // POLL METRICS
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Total prediction polls created via Oracle */
-    totalPolls: p.int(),
-    /** Total polls that have been resolved (status != 0) */
-    totalPollsResolved: p.int(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // MARKET METRICS
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Total markets created (AMM + PariMutuel) */
-    totalMarkets: p.int(),
-    /** AMM markets specifically */
-    totalAmmMarkets: p.int(),
-    /** PariMutuel markets specifically */
-    totalPariMarkets: p.int(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // TRADING METRICS
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Total trades executed across all markets */
-    totalTrades: p.int(),
-    /** Total unique users who have traded */
-    totalUsers: p.int(),
-    /**
-     * Total trading volume in USDC (6 decimals)
-     * Includes: buys, sells, bets, seed liquidity
-     */
-    totalVolume: p.bigint(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // FINANCIAL METRICS
-    // ─────────────────────────────────────────────────────────────────────────
-    /**
-     * Current TVL: Total USDC locked across all markets (6 decimals)
-     * This should approximate the sum of on-chain USDC balances
-     */
-    totalLiquidity: p.bigint(),
-    /** Total protocol fees collected from trading (6 decimals) */
-    totalFees: p.bigint(),
-    /** Total USDC paid out to winners (6 decimals) */
-    totalWinningsPaid: p.bigint(),
-    /** Total platform share from fee withdrawals across all markets (6 decimals) */
-    totalPlatformFeesEarned: p.bigint(),
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // METADATA
-    // ─────────────────────────────────────────────────────────────────────────
-    /** Unix timestamp of last update to this record */
-    lastUpdatedAt: p.bigint(),
-    /**
-     * Schema version marker - increment to force full re-index
-     * Not currently used but reserved for future migrations
-     */
-    resyncVersion: p.int().optional(),
-  }),
-
-  // ===========================================================================
-  // DAILY STATS TABLE (Per Chain)
-  // ===========================================================================
-  /**
-   * Daily aggregated statistics per chain
-   * ID format: chainId-dayTimestamp
-   */
-  dailyStats: p.createTable({
-    /** Composite ID: chainId-dayTimestamp */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** Chain name for display */
-    chainName: p.string(),
-    /** Day timestamp (midnight UTC) */
-    dayTimestamp: p.bigint(),
-    /** Polls created that day */
-    pollsCreated: p.int(),
-    /** Markets created that day */
-    marketsCreated: p.int(),
-    /** Trades executed that day */
-    tradesCount: p.int(),
-    /** Trading volume that day (6 decimals) */
-    volume: p.bigint(),
-    /** Winnings paid that day (6 decimals) */
-    winningsPaid: p.bigint(),
-    /** New users that day */
-    newUsers: p.int(),
-    /** Active users that day */
-    activeUsers: p.int(),
-  }),
-
-  // ===========================================================================
-  // HOURLY STATS TABLE (Per Chain)
-  // ===========================================================================
-  /**
-   * Hourly aggregated statistics per chain
-   * ID format: chainId-hourTimestamp
-   */
-  hourlyStats: p.createTable({
-    /** Composite ID: chainId-hourTimestamp */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** Chain name for display */
-    chainName: p.string(),
-    /** Hour timestamp */
-    hourTimestamp: p.bigint(),
-    /** Trades executed that hour */
-    tradesCount: p.int(),
-    /** Trading volume that hour (6 decimals) */
-    volume: p.bigint(),
-    /** Unique traders that hour */
-    uniqueTraders: p.int(),
-  }),
-
-  // ===========================================================================
-  // REFERRAL CODES TABLE
-  // ===========================================================================
-  /**
-   * Referral codes registered by users via ReferralRegistry contract.
-   * Each code is a bytes32 hash that maps to a human-readable string.
-   *
-   * ID FORMAT: bytes32 code hash (hex string)
-   */
-  referralCodes: p.createTable({
-    /** Primary key: the bytes32 code hash */
-    id: p.hex(),
-    /** Owner address who registered this code */
-    ownerAddress: p.hex(),
-    /** Human-readable code (decoded from bytes32) */
-    code: p.string(),
-    /** Total number of users referred using this code */
-    totalReferrals: p.int(),
-    /** Total trading volume generated by referred users (6 decimals) */
-    totalVolumeGenerated: p.bigint(),
-    /** Total fees generated by referred users (6 decimals) */
-    totalFeesGenerated: p.bigint(),
-    /** Unix timestamp when code was registered */
-    createdAt: p.bigint(),
-    /** Block number when code was registered */
-    createdAtBlock: p.bigint(),
-  }),
-
-  // ===========================================================================
-  // REFERRALS TABLE
-  // ===========================================================================
-  /**
-   * Individual referral relationships between referrers and referees.
-   * Created when a user signs up using a referral code.
-   *
-   * ID FORMAT: "{referrerAddress}-{refereeAddress}"
-   */
-  referrals: p.createTable({
-    /** Primary key: referrer-referee pair */
-    id: p.string(),
-    /** Address of the referrer (the one who shared the code) */
-    referrerAddress: p.hex(),
-    /** Address of the referee (the one who used the code) */
-    refereeAddress: p.hex(),
-    /** The referral code hash used for this referral (null in new system) */
-    referralCodeHash: p.hex().optional(),
-    /**
-     * Status of this referral:
-     * - 'pending': User signed up but hasn't traded yet
-     * - 'active': User has made at least one trade
-     * - 'inactive': User hasn't traded in a long time (optional future use)
-     */
-    status: p.string(),
-    /** Total trading volume generated BY THE REFEREE (6 decimals) */
-    totalVolumeGenerated: p.bigint(),
-    /** Exit volume generated BY THE REFEREE (AMM sell + winnings claim, 6 decimals) */
-    totalExitVolumeGenerated: p.bigint(),
-    /** Total fees generated BY THE REFEREE (6 decimals) */
-    totalFeesGenerated: p.bigint(),
-    /** Total number of trades made by the referee */
-    totalTradesCount: p.int(),
-    /** Total rewards earned BY THE REFERRER from this referee (6 decimals) */
-    totalRewardsEarned: p.bigint(),
-    /** Unix timestamp when the referral was registered */
-    referredAt: p.bigint(),
-    /** Block number when the referral was registered */
-    referredAtBlock: p.bigint(),
-    /** Unix timestamp of referee's first trade (null if no trades yet) */
-    firstTradeAt: p.bigint().optional(),
-    /** Unix timestamp of referee's last trade (null if no trades yet) */
-    lastTradeAt: p.bigint().optional(),
-  }),
-
-  // ===========================================================================
-  // REFERRAL STATS TABLE (Global)
-  // ===========================================================================
-  /**
-   * Platform-wide referral statistics.
-   * Single record with ID "global".
-   */
-  referralStats: p.createTable({
-    /** Primary key: "global" */
-    id: p.string(),
-    /** Total number of referral codes registered */
-    totalCodes: p.int(),
-    /** Total number of referral relationships */
-    totalReferrals: p.int(),
-    /** Total trading volume generated through referrals (6 decimals) */
-    totalVolumeGenerated: p.bigint(),
-    /** Total fees generated through referrals (6 decimals) */
-    totalFeesGenerated: p.bigint(),
-    /** Total rewards distributed to referrers (6 decimals) */
-    totalRewardsDistributed: p.bigint(),
-    /** Unix timestamp of last update */
-    updatedAt: p.bigint(),
-  }),
-
-  // ===========================================================================
-  // CAMPAIGNS TABLE
-  // ===========================================================================
-  /**
-   * Reward campaigns created via CampaignFactory contract.
-   * Campaigns distribute rewards to referrers based on various criteria.
-   *
-   * ID FORMAT: campaignId (uint256 as string)
-   *
-   * REWARD TYPES:
-   * - 0: Fixed reward per referral
-   * - 1: Percentage of volume
-   * - 2: Tiered rewards
-   * - 3: Custom (encoded in rewardConfig)
-   *
-   * ASSET KINDS:
-   * - 0: Native token (S)
-   * - 1: ERC20 token
-   * - 2: ERC721 NFT
-   * - 3: ERC1155
-   *
-   * STATUS:
-   * - 0: Active
-   * - 1: Paused
-   * - 2: Ended
-   * - 3: Cancelled
-   */
-  campaigns: p.createTable({
-    /** Campaign contract address (lowercase hex) */
-    id: p.string(),
-    chainId: p.int(),
-    chainName: p.string(),
-    /** Operator address (signs claim messages) */
-    operator: p.hex(),
-    /** Reward token address */
-    rewardToken: p.hex(),
-    /** Campaign type identifier from contract */
-    campaignType: p.bigint(),
-    /** Active by default, no on-chain status change mechanism */
-    status: p.int(),
-    createdAtBlock: p.bigint(),
-    createdAt: p.bigint(),
-    createdTxHash: p.hex(),
-  }),
-
-  // ===========================================================================
-  // CAMPAIGN CLAIMS TABLE
-  // ===========================================================================
-  // CAMPAIGN STATS TABLE (Global)
-  // ===========================================================================
-  campaignStats: p.createTable({
-    /** Primary key: "global" */
-    id: p.string(),
-    totalCampaigns: p.int(),
-    activeCampaigns: p.int(),
-    updatedAt: p.bigint(),
-  }),
-
-  // ===========================================================================
-  // DISPUTES TABLE
-  // ===========================================================================
-  /**
-   * Dispute resolution tracking for prediction markets.
-   * Tracks disputes opened against oracle/poll decisions.
-   *
-   * ID FORMAT: chainId-oracleAddress
-   */
-  disputes: p.createTable({
-    /** Composite key: chainId-oracleAddress */
-    id: p.string(),
-    /** Chain ID where dispute exists */
-    chainId: p.int(),
-    /** Oracle/poll address */
-    oracle: p.hex(),
-    /** Disputer address */
-    disputer: p.hex(),
-    /** Whether collateral was taken */
-    isCollateralTaken: p.boolean(),
-    /** Current dispute state: 0=NotActive, 1=Active, 2=Resolved, 3=Failed */
-    state: p.int(),
-    /** Draft status proposed by disputer: 0=Pending, 1=Yes, 2=No, 3=Unknown */
-    draftStatus: p.int(),
-    /** Final resolved status (if resolved): 0=Pending, 1=Yes, 2=No, 3=Unknown */
-    finalStatus: p.int(),
-    /** Disputer's deposit amount (raw bigint) */
-    disputerDeposit: p.bigint(),
-    /** Timestamp when dispute ends */
-    endAt: p.bigint(),
-    /** Market collateral token */
-    marketToken: p.hex(),
-    /** Market token symbol */
-    marketTokenSymbol: p.string(),
-    /** Market token decimals */
-    marketTokenDecimals: p.int(),
-    /** Reason for dispute */
-    reason: p.string(),
-    /** Total number of vote transactions */
-    voteCount: p.int(),
-    /** Vote power - Yes (raw bigint) */
-    votesYes: p.bigint(),
-    /** Vote power - No (raw bigint) */
-    votesNo: p.bigint(),
-    /** Vote power - Unknown (raw bigint) */
-    votesUnknown: p.bigint(),
-    /** Created timestamp */
-    createdAt: p.bigint(),
-    /** Created block */
-    createdAtBlock: p.bigint(),
-    /** Resolved timestamp (optional) */
-    resolvedAt: p.bigint().optional(),
-    /** Resolver address (optional) */
-    resolvedBy: p.hex().optional(),
-  }),
-
-  // ===========================================================================
-  // DISPUTE VOTES TABLE
-  // ===========================================================================
-  /**
-   * Individual votes on disputes.
-   * Tracks NFT-holder votes with voting power.
-   *
-   * ID FORMAT: chainId-oracleAddress-voterAddress-txHash
-   */
-  disputeVotes: p.createTable({
-    /** Composite key: chainId-oracleAddress-voterAddress-txHash */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** Oracle address */
-    oracle: p.hex(),
-    /** Voter address */
-    voter: p.hex(),
-    /** Vote option: 1=Yes, 2=No, 3=Unknown */
-    votedFor: p.int(),
-    /** Voting power used */
-    power: p.bigint(),
-    /** Timestamp when voted */
-    votedAt: p.bigint(),
-    /** Block number */
-    votedAtBlock: p.bigint(),
-    /** Transaction hash */
-    txHash: p.hex(),
-    /** Is cross-chain vote (from remote chain)? */
-    isCrossChain: p.boolean(),
-    /** Source chain EID (if cross-chain) */
-    sourceChainEid: p.int().optional(),
-    /** NFT token IDs used for voting (JSON array string) */
-    tokenIds: p.string().optional(),
-  }),
-
-  // ===========================================================================
-  // DISPUTE REWARD CLAIMS TABLE
-  // ===========================================================================
-  /**
-   * Reward claims from successful dispute voting.
-   * Tracks when voters claim their rewards.
-   *
-   * ID FORMAT: chainId-oracleAddress-tokenId-txHash
-   */
-  disputeRewardClaims: p.createTable({
-    /** Composite key: chainId-oracleAddress-tokenId-txHash */
-    id: p.string(),
-    /** Chain ID where claim was made */
-    chainId: p.int(),
-    /** Oracle address */
-    oracle: p.hex(),
-    /** Token ID used for voting */
-    tokenId: p.bigint(),
-    /** Claimer address */
-    claimer: p.hex(),
-    /** Reward token address */
-    rewardToken: p.hex(),
-    /** Reward amount (raw bigint) */
-    rewardAmount: p.bigint(),
-    /** Vote option this NFT voted for: 1=Yes, 2=No, 3=Unknown */
-    votedFor: p.int(),
-    /** Claimed timestamp */
-    claimedAt: p.bigint(),
-    /** Block number */
-    claimedAtBlock: p.bigint(),
-    /** Transaction hash */
-    txHash: p.hex(),
-  }),
-  // GRADUATED CREATORS TABLE (Launchpad)
-  // ===========================================================================
-  /**
-   * Tracks creators whose Launchpad tokens have graduated ($50k TVL).
-   * When a token graduates, creator becomes a "localizer" with their own
-   * referral system for all their prediction markets.
-   *
-   * ID FORMAT: creator address (hex)
-   */
-  graduatedCreators: p.createTable({
-    /** Creator's wallet address (primary key) */
-    id: p.hex(),
-    /** Graduated Launchpad token address */
-    tokenAddress: p.hex(),
-    /** BondingCurve contract address */
-    bondingCurveAddress: p.hex(),
-    /** Block number when graduated */
-    graduatedAtBlock: p.bigint(),
-    /** Unix timestamp when graduated */
-    graduatedAt: p.bigint(),
-    /** Transaction hash of graduation */
-    graduatedTxHash: p.hex(),
-    /**
-     * ReferralFactory address for localizer (optional).
-     * Only set if creator manually creates their own referral program.
-     * 95% of creators will NOT have this - they just graduate and leave.
-     */
-    referralFactoryAddress: p.hex().optional(),
-    /**
-     * Graduation status:
-     * - 'graduated': Token graduated to DEX, markets switched to localizer system
-     * - 'finalized': Pandora referral rewards calculated and finalized
-     * - 'has_campaign': Creator manually set up their own ReferralCampaign (rare, ~5%)
-     *
-     * NOTE: Most creators (95%) will stay in 'graduated' or 'finalized' status forever.
-     * They don't need to "set up" anything - graduation is automatic.
-     */
-    status: p.string(),
-  }),
-
-  // ===========================================================================
-  // MARKET SYSTEMS TABLE
-  // ===========================================================================
-  /**
-   * Maps each prediction market to its referral system (pandora or localizer).
-   *
-   * When a creator's token graduates, all their markets (past and future)
-   * switch from 'pandora' to 'localizer' system.
-   *
-   * ID FORMAT: market address (hex)
-   */
-  marketSystems: p.createTable({
-    /** Market contract address (primary key) */
-    id: p.hex(),
-    /** Market creator address */
-    creator: p.hex(),
-    /**
-     * Referral system for this market:
-     * - 'pandora': Volume tracked in Pandora's global referral system
-     * - 'localizer': Volume tracked in creator's own referral system
-     */
-    system: p.string(),
-    /** Unix timestamp when switched to localizer (null if still pandora) */
-    switchedAt: p.bigint().optional(),
-  }),
-
-  // ===========================================================================
-  // TOKEN SYSTEMS TABLE
-  // ===========================================================================
-  /**
-   * Maps each Launchpad token (BondingCurve) to its referral system.
-   *
-   * Similar to marketSystems but for Launchpad token trades.
-   * When a token graduates, it switches from 'pandora' to 'localizer'.
-   *
-   * ID FORMAT: bondingCurve address (hex)
-   */
-  tokenSystems: p.createTable({
-    /** BondingCurve contract address (primary key) */
-    id: p.hex(),
-    /** Token creator address */
-    creator: p.hex(),
-    /**
-     * Referral system for this token:
-     * - 'pandora': Buy/Sell trades tracked in Pandora's referral system
-     * - 'localizer': Buy/Sell trades tracked in creator's referral system
-     */
-    system: p.string(),
-    /** Unix timestamp when switched to localizer (null if still pandora) */
-    switchedAt: p.bigint().optional(),
-  }),
-
-  // ===========================================================================
-  // LAUNCHPAD TOKENS TABLE
-  // ===========================================================================
-  /**
-   * Tracks all tokens created via Launchpad (pump.fun fork).
-   * Used for tracking graduation status and progress bar on frontend.
-   *
-   * ID FORMAT: token ERC20 address (hex)
-   */
-  launchpadTokens: p.createTable({
-    /** Token ERC20 contract address (primary key) */
-    id: p.hex(),
-    /** Token creator address */
-    creator: p.hex(),
-    /** BondingCurve contract address for this token */
-    bondingCurveAddress: p.hex(),
-    /** Token name */
-    name: p.string(),
-    /** Token symbol */
-    symbol: p.string(),
-    /** Token URI (metadata link) */
-    uri: p.string().optional(),
-    /** Token image URI */
-    imageUri: p.string().optional(),
-    /** Token description */
-    description: p.string().optional(),
-    /** Current TVL in native tokens (wei, 18 decimals) - for progress bar */
-    currentTvlNative: p.bigint(),
-    /** Whether token has graduated to DEX */
-    isGraduated: p.boolean(),
-    /** Unix timestamp when created */
-    createdAt: p.bigint(),
-    /** Block number when created */
-    createdAtBlock: p.bigint(),
-    /** Unix timestamp when graduated (null if not yet) */
-    graduatedAt: p.bigint().optional(),
-    /** Block number when graduated (null if not yet) */
-    graduatedAtBlock: p.bigint().optional(),
-  }),
-
-  // ===========================================================================
-  // LAUNCHPAD TRADES TABLE
-  // ===========================================================================
-  /**
-   * Tracks Buy/Sell operations on Launchpad tokens (BondingCurve).
-   * Used for finalization process when creator graduates.
-   *
-   * ID FORMAT: txHash-logIndex
-   */
-  launchpadTrades: p.createTable({
-    /** Unique ID: txHash-logIndex */
-    id: p.string(),
-    /** BondingCurve contract address */
-    bondingCurveAddress: p.hex(),
-    /** Trader's wallet address */
-    trader: p.hex(),
-    /** Trade type: 'buy' or 'sell' */
-    tradeType: p.string(),
-    /** Native token amount (wei, 18 decimals) */
-    nativeAmount: p.bigint(),
-    /** Token amount received/sold (wei, 18 decimals) */
-    tokenAmount: p.bigint(),
-    /** Fee paid (0.3% of nativeAmount) */
-    fee: p.bigint(),
-    /** Unix timestamp */
-    timestamp: p.bigint(),
-    /** Block number */
-    blockNumber: p.bigint(),
-    /**
-     * Whether this trade was processed for referral rewards.
-     * Used during finalization when creator graduates.
-     */
-    processedForReferral: p.boolean(),
-  }),
-
-  // ===========================================================================
-  // CLAIM EVENTS TABLE (for backend sync)
-  // ===========================================================================
-  /**
-   * Records of claim events from ReferralCampaign contracts.
-   * Used by backend sync job to update app_internal.claim_signatures.
-   *
-   * This table is Ponder-managed and will be rolled back on chain reorgs,
-   * ensuring data consistency. Backend only syncs finalized blocks.
-   *
-   * ID FORMAT: txHash-logIndex
-   */
-  // ===========================================================================
-  // USER MARKET POSITIONS TABLE
-  // ===========================================================================
-  /**
-   * Aggregated per-user per-market position tracking.
-   * Maintained incrementally on each buy/sell/swap/redeem.
-   * Allows frontend to show position details without aggregating trades.
-   *
-   * ID FORMAT: chainId-marketAddress-userAddress
-   *
-   * BUY PRICE:
-   * avgBuyPriceYes/No = yesAmount / yesTokens (or noAmount / noTokens)
-   * Both amount and tokens are reduced proportionally on sell,
-   * so the ratio stays correct as a weighted average buy price.
-   */
-  userMarketPositions: p.createTable({
-    /** Composite ID: chainId-marketAddress-userAddress */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** Market contract address */
-    marketAddress: p.hex(),
-    /** Poll address (denormalized for querying by poll) */
-    pollAddress: p.hex(),
-    /** User wallet address */
-    user: p.hex(),
-    /** Total USDC spent on YES side (6 decimals) */
-    yesAmount: p.bigint(),
-    /** Total USDC spent on NO side (6 decimals) */
-    noAmount: p.bigint(),
-    /** YES outcome tokens held (6 decimals) */
-    yesTokens: p.bigint(),
-    /** NO outcome tokens held (6 decimals) */
-    noTokens: p.bigint(),
-    /** Whether user has redeemed winnings */
-    hasRedeemed: p.boolean(),
-    /** Whether loss has been recorded for user stats */
-    lossRecorded: p.boolean(),
-    /** Timestamp of first position */
-    firstPositionAt: p.bigint(),
-    /** Timestamp of last update */
-    lastUpdatedAt: p.bigint(),
-  }),
-
-  userLiquidityPositions: p.createTable({
-    /** Composite ID: chainId-marketAddress-userAddress */
-    id: p.string(),
-    /** Chain ID */
-    chainId: p.int(),
-    /** Market contract address */
-    marketAddress: p.hex(),
-    /** Poll address (denormalized for querying by poll) */
-    pollAddress: p.hex(),
-    /** User wallet address */
-    user: p.hex(),
-    /** Net LP tokens held (adds - removes) */
-    lpTokens: p.bigint(),
-    /** Sum of collateral from all adds (6 decimals) */
-    totalCollateralDeposited: p.bigint(),
-    /** Sum of collateral from all removes (6 decimals) */
-    totalCollateralWithdrawn: p.bigint(),
-    /** Cumulative dust YES tokens received on adds */
-    yesTokensReceived: p.bigint(),
-    /** Cumulative dust NO tokens received on adds */
-    noTokensReceived: p.bigint(),
-    /** yesChance at first add (initial pool price, scaled 1e9) */
-    initialYesChance: p.bigint(),
-    /** Sum of (yesChance * collateralAmount) for weighted avg entry price */
-    weightedYesChanceSum: p.bigint(),
-    /** Number of add liquidity events */
-    addCount: p.int(),
-    /** Number of remove liquidity events */
-    removeCount: p.int(),
-    /** Timestamp of first add */
-    firstAddAt: p.bigint(),
-    /** Timestamp of last update */
-    lastUpdatedAt: p.bigint(),
-  }),
-
-  claimEvents: p.createTable({
-    /** Unique ID: txHash-logIndex */
-    id: p.string(),
-    /** Campaign contract address */
-    campaignAddress: p.hex(),
-    /** User who claimed */
-    userAddress: p.hex(),
-    /** Amount claimed (in reward token decimals) */
-    amount: p.bigint(),
-    /** Signature used for claim (65 bytes, indexed for fast lookup) */
-    signature: p.hex(),
-    /** Block number (for finalization check) */
-    blockNumber: p.bigint(),
-    /** Block timestamp */
-    timestamp: p.bigint(),
-    /** Transaction hash */
-    txHash: p.hex(),
-  }),
-
+export const oracleFeeEvents = onchainTable("oracleFeeEvents", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	oracleAddress: t.hex().notNull(),
+	eventName: t.text().notNull(),
+	newFee: t.bigint(),
+	to: t.hex(),
+	amount: t.bigint(),
+	txHash: t.hex().notNull(),
+	blockNumber: t.bigint().notNull(),
+	timestamp: t.bigint().notNull(),
 }));
 
 // ===========================================================================
-// NOTE: userNonces and claimSignatures tables are managed by pandora-api
-// in a separate schema (app_internal) to prevent data loss on Ponder re-index.
-// See: pandora-api/src/lib/migrations.ts
+// EVENTS TABLE (off-chain, synced from pandora-api)
 // ===========================================================================
+
+export const events = onchainTable("events", (t) => ({
+	id: t.text().primaryKey(),
+	title: t.text().notNull(),
+	creator: t.text().notNull(),
+	marketType: t.text().notNull(),
+	arbiter: t.text().notNull(),
+	sources: t.text().notNull(),
+	category: t.integer().notNull(),
+	feeTier: t.integer(),
+	maxPriceImbalance: t.integer(),
+	curveFlattener: t.integer(),
+	curveOffset: t.integer(),
+	pollAddresses: t.text().notNull(),
+	marketAddresses: t.text().notNull(),
+	status: t.text().notNull(),
+	marketCount: t.integer().notNull(),
+	createdAt: t.text().notNull(),
+}));
+
+// ===========================================================================
+// POLLS TABLE
+// ===========================================================================
+
+export const polls = onchainTable("polls", (t) => ({
+	id: t.hex().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	creator: t.hex().notNull(),
+	arbiter: t.hex(),
+	question: t.text().notNull(),
+	rules: t.text().notNull(),
+	sources: t.text().notNull(),
+	deadlineEpoch: t.integer().notNull(),
+	finalizationEpoch: t.integer().notNull(),
+	checkEpoch: t.integer().notNull(),
+	lastRefreshWasFree: t.boolean(),
+	lastRefreshOldCheckEpoch: t.integer(),
+	arbitrationStarted: t.boolean().notNull(),
+	category: t.integer().notNull(),
+	status: t.integer().notNull(),
+	resolutionReason: t.text(),
+	setter: t.hex(),
+	disputedBy: t.hex(),
+	disputeReason: t.text(),
+	disputeStake: t.bigint(),
+	disputedAt: t.bigint(),
+	resolvedAt: t.bigint(),
+	preDisputeStatus: t.integer(),
+	preDisputeResolutionReason: t.text(),
+	eventId: t.text(),
+	displayTitle: t.text(),
+	topicSlug: t.text(),
+	maxMarketTvl: t.bigint(),
+	totalMarketsTvl: t.bigint(),
+	createdAtBlock: t.bigint().notNull(),
+	createdAt: t.bigint().notNull(),
+	createdTxHash: t.hex().notNull(),
+}));
+
+// ===========================================================================
+// MARKETS TABLE
+// ===========================================================================
+
+export const markets = onchainTable("markets", (t) => ({
+	id: t.hex().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	pollAddress: t.hex().notNull(),
+	isIncomplete: t.boolean().notNull(),
+	creator: t.hex().notNull(),
+	marketType: t.text().notNull(),
+	collateralToken: t.hex().notNull(),
+	yesToken: t.hex(),
+	noToken: t.hex(),
+	feeTier: t.integer(),
+	maxPriceImbalancePerHour: t.integer(),
+	curveFlattener: t.integer(),
+	curveOffset: t.integer(),
+	marketStartTimestamp: t.bigint(),
+	marketCloseTimestamp: t.bigint(),
+	totalVolume: t.bigint().notNull(),
+	volume24h: t.bigint().notNull(),
+	trades24h: t.integer().notNull(),
+	totalTrades: t.integer().notNull(),
+	currentTvl: t.bigint().notNull(),
+	uniqueTraders: t.integer().notNull(),
+	initialLiquidity: t.bigint().notNull(),
+	reserveYes: t.bigint(),
+	reserveNo: t.bigint(),
+	totalHold: t.bigint(),
+	creatorFeesEarned: t.bigint().notNull(),
+	platformFeesEarned: t.bigint().notNull(),
+	totalCollateralYes: t.bigint(),
+	totalCollateralNo: t.bigint(),
+	totalSharesYes: t.bigint(),
+	totalSharesNo: t.bigint(),
+	yesChance: t.bigint(),
+	eventId: t.text(),
+	numericId: t.integer(),
+	createdAtBlock: t.bigint().notNull(),
+	createdAt: t.bigint().notNull(),
+	createdTxHash: t.hex().notNull(),
+}));
+
+// ===========================================================================
+// MARKET ID COUNTER (singleton)
+// ===========================================================================
+
+export const marketIdCounter = onchainTable("marketIdCounter", (t) => ({
+	id: t.text().primaryKey(),
+	nextId: t.integer().notNull(),
+}));
+
+// ===========================================================================
+// TRADES TABLE
+// ===========================================================================
+
+export const trades = onchainTable("trades", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	trader: t.hex().notNull(),
+	marketAddress: t.hex().notNull(),
+	pollAddress: t.hex().notNull(),
+	tradeType: t.text().notNull(),
+	side: t.text().notNull(),
+	collateralAmount: t.bigint().notNull(),
+	tokenAmount: t.bigint(),
+	feeAmount: t.bigint().notNull(),
+	buyPrice: t.bigint(),
+	tokenAmountOut: t.bigint(),
+	txHash: t.hex().notNull(),
+	blockNumber: t.bigint().notNull(),
+	timestamp: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// PRICE TICKS TABLE
+// ===========================================================================
+
+export const priceTicks = onchainTable("priceTicks", (t) => ({
+	id: t.text().primaryKey(),
+	marketAddress: t.hex().notNull(),
+	timestamp: t.bigint().notNull(),
+	seq: t.bigint().notNull(),
+	yesPrice: t.bigint().notNull(),
+	volume: t.bigint().notNull(),
+	side: t.text().notNull(),
+	tradeType: t.text().notNull(),
+	txHash: t.hex().notNull(),
+	blockNumber: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// CANDLES TABLES
+// ===========================================================================
+
+export const candles1m = onchainTable("candles1m", (t) => ({
+	id: t.text().primaryKey(),
+	marketAddress: t.hex().notNull(),
+	bucketStart: t.bigint().notNull(),
+	open: t.bigint().notNull(),
+	high: t.bigint().notNull(),
+	low: t.bigint().notNull(),
+	close: t.bigint().notNull(),
+	volume: t.bigint().notNull(),
+	trades: t.integer().notNull(),
+	firstSeq: t.bigint().notNull(),
+	lastSeq: t.bigint().notNull(),
+}));
+
+export const candles5m = onchainTable("candles5m", (t) => ({
+	id: t.text().primaryKey(),
+	marketAddress: t.hex().notNull(),
+	bucketStart: t.bigint().notNull(),
+	open: t.bigint().notNull(),
+	high: t.bigint().notNull(),
+	low: t.bigint().notNull(),
+	close: t.bigint().notNull(),
+	volume: t.bigint().notNull(),
+	trades: t.integer().notNull(),
+	firstSeq: t.bigint().notNull(),
+	lastSeq: t.bigint().notNull(),
+}));
+
+export const candles1h = onchainTable("candles1h", (t) => ({
+	id: t.text().primaryKey(),
+	marketAddress: t.hex().notNull(),
+	bucketStart: t.bigint().notNull(),
+	open: t.bigint().notNull(),
+	high: t.bigint().notNull(),
+	low: t.bigint().notNull(),
+	close: t.bigint().notNull(),
+	volume: t.bigint().notNull(),
+	trades: t.integer().notNull(),
+	firstSeq: t.bigint().notNull(),
+	lastSeq: t.bigint().notNull(),
+}));
+
+export const candles1d = onchainTable("candles1d", (t) => ({
+	id: t.text().primaryKey(),
+	marketAddress: t.hex().notNull(),
+	bucketStart: t.bigint().notNull(),
+	open: t.bigint().notNull(),
+	high: t.bigint().notNull(),
+	low: t.bigint().notNull(),
+	close: t.bigint().notNull(),
+	volume: t.bigint().notNull(),
+	trades: t.integer().notNull(),
+	firstSeq: t.bigint().notNull(),
+	lastSeq: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// USERS TABLE
+// ===========================================================================
+
+export const users = onchainTable("users", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	address: t.hex().notNull(),
+	totalTrades: t.integer().notNull(),
+	totalVolume: t.bigint().notNull(),
+	totalDeposited: t.bigint().notNull(),
+	totalWithdrawn: t.bigint().notNull(),
+	totalWinnings: t.bigint().notNull(),
+	realizedPnL: t.bigint().notNull(),
+	totalWins: t.integer().notNull(),
+	totalLosses: t.integer().notNull(),
+	currentStreak: t.integer().notNull(),
+	bestStreak: t.integer().notNull(),
+	marketsCreated: t.integer().notNull(),
+	pollsCreated: t.integer().notNull(),
+	totalCreatorFees: t.bigint().notNull(),
+	referrerAddress: t.hex(),
+	referralCodeHash: t.hex(),
+	totalReferrals: t.integer().notNull(),
+	totalReferralVolume: t.bigint().notNull(),
+	totalReferralExitVolume: t.bigint().notNull(),
+	totalReferralFees: t.bigint().notNull(),
+	totalReferralRewards: t.bigint().notNull(),
+	referredAt: t.bigint(),
+	firstTradeAt: t.bigint(),
+	lastTradeAt: t.bigint(),
+}));
+
+// ===========================================================================
+// MARKET USERS TABLE
+// ===========================================================================
+
+export const marketUsers = onchainTable("marketUsers", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	marketAddress: t.hex().notNull(),
+	user: t.hex().notNull(),
+	lastTradeAt: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// WINNINGS TABLE
+// ===========================================================================
+
+export const winnings = onchainTable("winnings", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	user: t.hex().notNull(),
+	marketAddress: t.hex().notNull(),
+	collateralAmount: t.bigint().notNull(),
+	feeAmount: t.bigint().notNull(),
+	yesTokenAmount: t.bigint(),
+	noTokenAmount: t.bigint(),
+	yesCostBasis: t.bigint(),
+	noCostBasis: t.bigint(),
+	side: t.text(),
+	pollStatus: t.integer(),
+	marketQuestion: t.text(),
+	marketType: t.text().notNull(),
+	outcome: t.integer(),
+	txHash: t.hex().notNull(),
+	timestamp: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// POSITION HISTORY TABLE
+// ===========================================================================
+
+export const positionHistory = onchainTable("positionHistory", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	user: t.hex().notNull(),
+	marketAddress: t.hex().notNull(),
+	pollAddress: t.hex(),
+	marketQuestion: t.text(),
+	marketType: t.text().notNull(),
+	side: t.text().notNull(),
+	result: t.text().notNull(),
+	pollStatus: t.integer().notNull(),
+	yesCostBasis: t.bigint().notNull(),
+	noCostBasis: t.bigint().notNull(),
+	yesTokens: t.bigint().notNull(),
+	noTokens: t.bigint().notNull(),
+	collateralReceived: t.bigint().notNull(),
+	feeAmount: t.bigint().notNull(),
+	pnl: t.bigint().notNull(),
+	resolvedAt: t.bigint().notNull(),
+	txHash: t.hex(),
+}));
+
+// ===========================================================================
+// LIQUIDITY EVENTS TABLE
+// ===========================================================================
+
+export const liquidityEvents = onchainTable("liquidityEvents", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	provider: t.hex().notNull(),
+	marketAddress: t.hex().notNull(),
+	pollAddress: t.hex().notNull(),
+	eventType: t.text().notNull(),
+	collateralAmount: t.bigint().notNull(),
+	lpTokens: t.bigint().notNull(),
+	yesTokenAmount: t.bigint(),
+	noTokenAmount: t.bigint(),
+	yesTokensReturned: t.bigint(),
+	noTokensReturned: t.bigint(),
+	txHash: t.hex().notNull(),
+	timestamp: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// PLATFORM STATS TABLE
+// ===========================================================================
+
+export const platformStats = onchainTable("platformStats", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	totalPolls: t.integer().notNull(),
+	totalPollsResolved: t.integer().notNull(),
+	totalMarkets: t.integer().notNull(),
+	totalAmmMarkets: t.integer().notNull(),
+	totalPariMarkets: t.integer().notNull(),
+	totalTrades: t.integer().notNull(),
+	totalUsers: t.integer().notNull(),
+	totalVolume: t.bigint().notNull(),
+	totalLiquidity: t.bigint().notNull(),
+	totalFees: t.bigint().notNull(),
+	totalWinningsPaid: t.bigint().notNull(),
+	totalPlatformFeesEarned: t.bigint().notNull(),
+	lastUpdatedAt: t.bigint().notNull(),
+	resyncVersion: t.integer(),
+}));
+
+// ===========================================================================
+// DAILY STATS TABLE
+// ===========================================================================
+
+export const dailyStats = onchainTable("dailyStats", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	dayTimestamp: t.bigint().notNull(),
+	pollsCreated: t.integer().notNull(),
+	marketsCreated: t.integer().notNull(),
+	tradesCount: t.integer().notNull(),
+	volume: t.bigint().notNull(),
+	winningsPaid: t.bigint().notNull(),
+	newUsers: t.integer().notNull(),
+	activeUsers: t.integer().notNull(),
+}));
+
+// ===========================================================================
+// HOURLY STATS TABLE
+// ===========================================================================
+
+export const hourlyStats = onchainTable("hourlyStats", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	hourTimestamp: t.bigint().notNull(),
+	tradesCount: t.integer().notNull(),
+	volume: t.bigint().notNull(),
+	uniqueTraders: t.integer().notNull(),
+}));
+
+// ===========================================================================
+// REFERRAL CODES TABLE
+// ===========================================================================
+
+export const referralCodes = onchainTable("referralCodes", (t) => ({
+	id: t.hex().primaryKey(),
+	ownerAddress: t.hex().notNull(),
+	code: t.text().notNull(),
+	totalReferrals: t.integer().notNull(),
+	totalVolumeGenerated: t.bigint().notNull(),
+	totalFeesGenerated: t.bigint().notNull(),
+	createdAt: t.bigint().notNull(),
+	createdAtBlock: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// REFERRALS TABLE
+// ===========================================================================
+
+export const referrals = onchainTable("referrals", (t) => ({
+	id: t.text().primaryKey(),
+	referrerAddress: t.hex().notNull(),
+	refereeAddress: t.hex().notNull(),
+	referralCodeHash: t.hex(),
+	status: t.text().notNull(),
+	totalVolumeGenerated: t.bigint().notNull(),
+	totalExitVolumeGenerated: t.bigint().notNull(),
+	totalFeesGenerated: t.bigint().notNull(),
+	totalTradesCount: t.integer().notNull(),
+	totalRewardsEarned: t.bigint().notNull(),
+	referredAt: t.bigint().notNull(),
+	referredAtBlock: t.bigint().notNull(),
+	firstTradeAt: t.bigint(),
+	lastTradeAt: t.bigint(),
+}));
+
+// ===========================================================================
+// REFERRAL STATS TABLE
+// ===========================================================================
+
+export const referralStats = onchainTable("referralStats", (t) => ({
+	id: t.text().primaryKey(),
+	totalCodes: t.integer().notNull(),
+	totalReferrals: t.integer().notNull(),
+	totalVolumeGenerated: t.bigint().notNull(),
+	totalFeesGenerated: t.bigint().notNull(),
+	totalRewardsDistributed: t.bigint().notNull(),
+	updatedAt: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// CAMPAIGNS TABLE
+// ===========================================================================
+
+export const campaigns = onchainTable("campaigns", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	chainName: t.text().notNull(),
+	operator: t.hex().notNull(),
+	rewardToken: t.hex().notNull(),
+	campaignType: t.bigint().notNull(),
+	status: t.integer().notNull(),
+	createdAtBlock: t.bigint().notNull(),
+	createdAt: t.bigint().notNull(),
+	createdTxHash: t.hex().notNull(),
+}));
+
+// ===========================================================================
+// CAMPAIGN STATS TABLE
+// ===========================================================================
+
+export const campaignStats = onchainTable("campaignStats", (t) => ({
+	id: t.text().primaryKey(),
+	totalCampaigns: t.integer().notNull(),
+	activeCampaigns: t.integer().notNull(),
+	updatedAt: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// DISPUTES TABLE
+// ===========================================================================
+
+export const disputes = onchainTable("disputes", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	oracle: t.hex().notNull(),
+	disputer: t.hex().notNull(),
+	isCollateralTaken: t.boolean().notNull(),
+	state: t.integer().notNull(),
+	draftStatus: t.integer().notNull(),
+	finalStatus: t.integer().notNull(),
+	disputerDeposit: t.bigint().notNull(),
+	endAt: t.bigint().notNull(),
+	marketToken: t.hex().notNull(),
+	marketTokenSymbol: t.text().notNull(),
+	marketTokenDecimals: t.integer().notNull(),
+	reason: t.text().notNull(),
+	voteCount: t.integer().notNull(),
+	votesYes: t.bigint().notNull(),
+	votesNo: t.bigint().notNull(),
+	votesUnknown: t.bigint().notNull(),
+	createdAt: t.bigint().notNull(),
+	createdAtBlock: t.bigint().notNull(),
+	resolvedAt: t.bigint(),
+	resolvedBy: t.hex(),
+}));
+
+// ===========================================================================
+// DISPUTE VOTES TABLE
+// ===========================================================================
+
+export const disputeVotes = onchainTable("disputeVotes", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	oracle: t.hex().notNull(),
+	voter: t.hex().notNull(),
+	votedFor: t.integer().notNull(),
+	power: t.bigint().notNull(),
+	votedAt: t.bigint().notNull(),
+	votedAtBlock: t.bigint().notNull(),
+	txHash: t.hex().notNull(),
+	isCrossChain: t.boolean().notNull(),
+	sourceChainEid: t.integer(),
+	tokenIds: t.text(),
+}));
+
+// ===========================================================================
+// DISPUTE REWARD CLAIMS TABLE
+// ===========================================================================
+
+export const disputeRewardClaims = onchainTable("disputeRewardClaims", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	oracle: t.hex().notNull(),
+	tokenId: t.bigint().notNull(),
+	claimer: t.hex().notNull(),
+	rewardToken: t.hex().notNull(),
+	rewardAmount: t.bigint().notNull(),
+	votedFor: t.integer().notNull(),
+	claimedAt: t.bigint().notNull(),
+	claimedAtBlock: t.bigint().notNull(),
+	txHash: t.hex().notNull(),
+}));
+
+// ===========================================================================
+// GRADUATED CREATORS TABLE (Launchpad)
+// ===========================================================================
+
+export const graduatedCreators = onchainTable("graduatedCreators", (t) => ({
+	id: t.hex().primaryKey(),
+	tokenAddress: t.hex().notNull(),
+	bondingCurveAddress: t.hex().notNull(),
+	graduatedAtBlock: t.bigint().notNull(),
+	graduatedAt: t.bigint().notNull(),
+	graduatedTxHash: t.hex().notNull(),
+	referralFactoryAddress: t.hex(),
+	status: t.text().notNull(),
+}));
+
+// ===========================================================================
+// MARKET SYSTEMS TABLE
+// ===========================================================================
+
+export const marketSystems = onchainTable("marketSystems", (t) => ({
+	id: t.hex().primaryKey(),
+	creator: t.hex().notNull(),
+	system: t.text().notNull(),
+	switchedAt: t.bigint(),
+}));
+
+// ===========================================================================
+// TOKEN SYSTEMS TABLE
+// ===========================================================================
+
+export const tokenSystems = onchainTable("tokenSystems", (t) => ({
+	id: t.hex().primaryKey(),
+	creator: t.hex().notNull(),
+	system: t.text().notNull(),
+	switchedAt: t.bigint(),
+}));
+
+// ===========================================================================
+// LAUNCHPAD TOKENS TABLE
+// ===========================================================================
+
+export const launchpadTokens = onchainTable("launchpadTokens", (t) => ({
+	id: t.hex().primaryKey(),
+	creator: t.hex().notNull(),
+	bondingCurveAddress: t.hex().notNull(),
+	name: t.text().notNull(),
+	symbol: t.text().notNull(),
+	uri: t.text(),
+	imageUri: t.text(),
+	description: t.text(),
+	currentTvlNative: t.bigint().notNull(),
+	isGraduated: t.boolean().notNull(),
+	createdAt: t.bigint().notNull(),
+	createdAtBlock: t.bigint().notNull(),
+	graduatedAt: t.bigint(),
+	graduatedAtBlock: t.bigint(),
+}));
+
+// ===========================================================================
+// LAUNCHPAD TRADES TABLE
+// ===========================================================================
+
+export const launchpadTrades = onchainTable("launchpadTrades", (t) => ({
+	id: t.text().primaryKey(),
+	bondingCurveAddress: t.hex().notNull(),
+	trader: t.hex().notNull(),
+	tradeType: t.text().notNull(),
+	nativeAmount: t.bigint().notNull(),
+	tokenAmount: t.bigint().notNull(),
+	fee: t.bigint().notNull(),
+	timestamp: t.bigint().notNull(),
+	blockNumber: t.bigint().notNull(),
+	processedForReferral: t.boolean().notNull(),
+}));
+
+// ===========================================================================
+// USER MARKET POSITIONS TABLE
+// ===========================================================================
+
+export const userMarketPositions = onchainTable("userMarketPositions", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	marketAddress: t.hex().notNull(),
+	pollAddress: t.hex().notNull(),
+	user: t.hex().notNull(),
+	yesAmount: t.bigint().notNull(),
+	noAmount: t.bigint().notNull(),
+	yesTokens: t.bigint().notNull(),
+	noTokens: t.bigint().notNull(),
+	hasRedeemed: t.boolean().notNull(),
+	lossRecorded: t.boolean().notNull(),
+	firstPositionAt: t.bigint().notNull(),
+	lastUpdatedAt: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// USER LIQUIDITY POSITIONS TABLE
+// ===========================================================================
+
+export const userLiquidityPositions = onchainTable("userLiquidityPositions", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	marketAddress: t.hex().notNull(),
+	pollAddress: t.hex().notNull(),
+	user: t.hex().notNull(),
+	lpTokens: t.bigint().notNull(),
+	totalCollateralDeposited: t.bigint().notNull(),
+	totalCollateralWithdrawn: t.bigint().notNull(),
+	yesTokensReceived: t.bigint().notNull(),
+	noTokensReceived: t.bigint().notNull(),
+	initialYesChance: t.bigint().notNull(),
+	weightedYesChanceSum: t.bigint().notNull(),
+	addCount: t.integer().notNull(),
+	removeCount: t.integer().notNull(),
+	firstAddAt: t.bigint().notNull(),
+	lastUpdatedAt: t.bigint().notNull(),
+}));
+
+// ===========================================================================
+// CLAIM EVENTS TABLE
+// ===========================================================================
+
+// ===========================================================================
+// DAILY ACTIVE USERS TABLE
+// ===========================================================================
+
+export const dailyActiveUsers = onchainTable("dailyActiveUsers", (t) => ({
+	id: t.text().primaryKey(),
+	chainId: t.integer().notNull(),
+	dayTimestamp: t.bigint().notNull(),
+	user: t.hex().notNull(),
+	firstActivityAt: t.bigint().notNull(),
+	tradesCount: t.integer().notNull(),
+}));
+
+// ===========================================================================
+// CLAIM EVENTS TABLE
+// ===========================================================================
+
+export const claimEvents = onchainTable("claimEvents", (t) => ({
+	id: t.text().primaryKey(),
+	campaignAddress: t.hex().notNull(),
+	userAddress: t.hex().notNull(),
+	amount: t.bigint().notNull(),
+	signature: t.hex().notNull(),
+	blockNumber: t.bigint().notNull(),
+	timestamp: t.bigint().notNull(),
+	txHash: t.hex().notNull(),
+}));

@@ -1,4 +1,14 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
+import { eq, and } from "ponder";
+import {
+	trades,
+	users,
+	markets,
+	polls,
+	winnings,
+	userMarketPositions,
+	positionHistory,
+} from "ponder:schema";
 import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import {
@@ -53,23 +63,21 @@ ponder.on(
 		);
 		// Creator gets both YES and NO shares, effectively betting on both
 		// We record it as a special "seed" trade
-		await context.db.trades.create({
+		await context.db.insert(trades).values({
 			id: tradeId,
-			data: {
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				trader: market.creator,
-				marketAddress,
-				pollAddress,
-				tradeType: "seed",
-				side: "both",
-				collateralAmount: totalLiquidity,
-				tokenAmount: 0n,
-				feeAmount: 0n,
-				txHash: event.transaction.hash,
-				blockNumber: event.block.number,
-				timestamp,
-			},
+			chainId: chain.chainId,
+			chainName: chain.chainName,
+			trader: market.creator,
+			marketAddress,
+			pollAddress,
+			tradeType: "seed",
+			side: "both",
+			collateralAmount: totalLiquidity,
+			tokenAmount: 0n,
+			feeAmount: 0n,
+			txHash: event.transaction.hash,
+			blockNumber: event.block.number,
+			timestamp,
 		});
 
 		const creatorAddr = market.creator.toLowerCase() as `0x${string}`;
@@ -83,12 +91,9 @@ ponder.on(
 		);
 
 		const user = await getOrCreateUser(context, market.creator, chain);
-		await context.db.users.update({
-			id: market.creator.toLowerCase(),
-			data: {
-				totalDeposited: user.totalDeposited + totalLiquidity,
-				lastTradeAt: timestamp,
-			},
+		await context.db.update(users, { id: market.creator.toLowerCase() }).set({
+			totalDeposited: user.totalDeposited + totalLiquidity,
+			lastTradeAt: timestamp,
 		});
 
 		const yesChance = computeYesChanceFromCollateral({
@@ -96,19 +101,16 @@ ponder.on(
 			totalCollateralNo: noAmount,
 		});
 
-		await context.db.markets.update({
-			id: marketAddress,
-			data: {
-				currentTvl: market.currentTvl + totalLiquidity,
-				totalVolume: market.totalVolume + totalLiquidity,
-				initialLiquidity: totalLiquidity,
+		await context.db.update(markets, { id: marketAddress }).set({
+			currentTvl: market.currentTvl + totalLiquidity,
+			totalVolume: market.totalVolume + totalLiquidity,
+			initialLiquidity: totalLiquidity,
 
-				totalCollateralYes: yesAmount,
-				totalCollateralNo: noAmount,
-				totalSharesYes: yesAmount,
-				totalSharesNo: noAmount,
-				yesChance: yesChance,
-			},
+			totalCollateralYes: yesAmount,
+			totalCollateralNo: noAmount,
+			totalSharesYes: yesAmount,
+			totalSharesNo: noAmount,
+			yesChance: yesChance,
 		});
 
 		// Sync poll TVL after market TVL update
@@ -177,23 +179,21 @@ ponder.on(
 		);
 		const pollAddress = market.pollAddress;
 
-		await context.db.trades.create({
+		await context.db.insert(trades).values({
 			id: tradeId,
-			data: {
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				trader: buyer.toLowerCase() as `0x${string}`,
-				marketAddress,
-				pollAddress,
-				tradeType: "bet",
-				side: isYes ? "yes" : "no",
-				collateralAmount: collateralIn,
-				tokenAmount: sharesOut,
-				feeAmount: 0n,
-				txHash: event.transaction.hash,
-				blockNumber: event.block.number,
-				timestamp,
-			},
+			chainId: chain.chainId,
+			chainName: chain.chainName,
+			trader: buyer.toLowerCase() as `0x${string}`,
+			marketAddress,
+			pollAddress,
+			tradeType: "bet",
+			side: isYes ? "yes" : "no",
+			collateralAmount: collateralIn,
+			tokenAmount: sharesOut,
+			feeAmount: 0n,
+			txHash: event.transaction.hash,
+			blockNumber: event.block.number,
+			timestamp,
 		});
 
 		await recordPosition(
@@ -219,15 +219,12 @@ ponder.on(
 			timestamp
 		);
 
-		await context.db.users.update({
-			id: buyer.toLowerCase(),
-			data: {
-				totalTrades: user.totalTrades + 1,
-				totalVolume: user.totalVolume + collateralIn,
-				totalDeposited: user.totalDeposited + collateralIn,
-				firstTradeAt: user.firstTradeAt ?? timestamp,
-				lastTradeAt: timestamp,
-			},
+		await context.db.update(users, { id: buyer.toLowerCase() }).set({
+			totalTrades: user.totalTrades + 1,
+			totalVolume: user.totalVolume + collateralIn,
+			totalDeposited: user.totalDeposited + collateralIn,
+			firstTradeAt: user.firstTradeAt ?? timestamp,
+			lastTradeAt: timestamp,
 		});
 
 		// Calculate updated pool values
@@ -256,23 +253,20 @@ ponder.on(
 			totalCollateralNo: newNoCollateral,
 		});
 
-		await context.db.markets.update({
-			id: marketAddress,
-			data: {
-				totalVolume: market.totalVolume + collateralIn,
-				totalTrades: market.totalTrades + 1,
-				currentTvl: market.currentTvl + collateralIn,
-				uniqueTraders: isNewTrader
-					? market.uniqueTraders + 1
-					: market.uniqueTraders,
-				// Update PariMutuel pool state
-				totalCollateralYes: newYesCollateral,
-				totalCollateralNo: newNoCollateral,
-				// Update shares tracking
-				totalSharesYes: newYesShares,
-				totalSharesNo: newNoShares,
-				yesChance: newYesChance,
-			},
+		await context.db.update(markets, { id: marketAddress }).set({
+			totalVolume: market.totalVolume + collateralIn,
+			totalTrades: market.totalTrades + 1,
+			currentTvl: market.currentTvl + collateralIn,
+			uniqueTraders: isNewTrader
+				? market.uniqueTraders + 1
+				: market.uniqueTraders,
+			// Update PariMutuel pool state
+			totalCollateralYes: newYesCollateral,
+			totalCollateralNo: newNoCollateral,
+			// Update shares tracking
+			totalSharesYes: newYesShares,
+			totalSharesNo: newNoShares,
+			yesChance: newYesChance,
 		});
 
 		// Sync poll TVL after market TVL update
@@ -328,17 +322,17 @@ ponder.on(
 			event.log.logIndex
 		);
 
-		const market = await context.db.markets.findUnique({
+		const market = await context.db.find(markets, {
 			id: marketAddress,
 		});
 		const poll = market?.pollAddress
-			? await context.db.polls.findUnique({ id: market.pollAddress })
+			? await context.db.find(polls, { id: market.pollAddress })
 			: null;
 
 		// Read user's cost basis BEFORE marking redeemed (which zeroes amounts)
 		const normalizedUser = user.toLowerCase() as `0x${string}`;
 		const positionId = makeId(chain.chainId, marketAddress, normalizedUser);
-		const position = await context.db.userMarketPositions.findUnique({ id: positionId });
+		const position = await context.db.find(userMarketPositions, { id: positionId });
 
 		// For pari-mutuel: outcome 0=Unknown(refund), 1=Yes, 2=No, 3=Unknown
 		const outcomeNum = Number(outcome);
@@ -351,25 +345,23 @@ ponder.on(
 			winningSide = "no";
 		}
 
-		await context.db.winnings.create({
+		await context.db.insert(winnings).values({
 			id: winningId,
-			data: {
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				user: normalizedUser,
-				marketAddress,
-				collateralAmount,
-				feeAmount: fee,
-				yesCostBasis: position?.yesAmount ?? 0n,
-				noCostBasis: position?.noAmount ?? 0n,
-				side: winningSide,
-				pollStatus: outcomeNum === 0 ? 3 : outcomeNum,
-				marketQuestion: poll?.question,
-				marketType: "pari",
-				outcome: outcomeNum,
-				txHash: event.transaction.hash,
-				timestamp,
-			},
+			chainId: chain.chainId,
+			chainName: chain.chainName,
+			user: normalizedUser,
+			marketAddress,
+			collateralAmount,
+			feeAmount: fee,
+			yesCostBasis: position?.yesAmount ?? 0n,
+			noCostBasis: position?.noAmount ?? 0n,
+			side: winningSide,
+			pollStatus: outcomeNum === 0 ? 3 : outcomeNum,
+			marketQuestion: poll?.question,
+			marketType: "pari",
+			outcome: outcomeNum,
+			txHash: event.transaction.hash,
+			timestamp,
 		});
 
 		// Write positionHistory — single source for History tab
@@ -381,36 +373,33 @@ ponder.on(
 		const resolvedPollStatus = outcomeNum === 0 ? 3 : outcomeNum;
 		const computedPnl = collateralAmount - yesCost - noCost;
 
-		await context.db.positionHistory.upsert({
+		await context.db.insert(positionHistory).values({
 			id: positionId,
-			create: {
-				chainId: chain.chainId,
-				user: normalizedUser,
-				marketAddress,
-				pollAddress: market?.pollAddress ?? undefined,
-				marketQuestion: poll?.question,
-				marketType: "pari",
-				side: winningSide,
-				result: historyResult,
-				pollStatus: resolvedPollStatus,
-				yesCostBasis: yesCost,
-				noCostBasis: noCost,
-				yesTokens: yesTokensHeld,
-				noTokens: noTokensHeld,
-				collateralReceived: collateralAmount,
-				feeAmount: fee,
-				pnl: computedPnl,
-				resolvedAt: timestamp,
-				txHash: event.transaction.hash,
-			},
-			update: {
-				collateralReceived: collateralAmount,
-				feeAmount: fee,
-				pnl: computedPnl,
-				result: historyResult,
-				resolvedAt: timestamp,
-				txHash: event.transaction.hash,
-			},
+			chainId: chain.chainId,
+			user: normalizedUser,
+			marketAddress,
+			pollAddress: market?.pollAddress ?? undefined,
+			marketQuestion: poll?.question,
+			marketType: "pari",
+			side: winningSide,
+			result: historyResult,
+			pollStatus: resolvedPollStatus,
+			yesCostBasis: yesCost,
+			noCostBasis: noCost,
+			yesTokens: yesTokensHeld,
+			noTokens: noTokensHeld,
+			collateralReceived: collateralAmount,
+			feeAmount: fee,
+			pnl: computedPnl,
+			resolvedAt: timestamp,
+			txHash: event.transaction.hash,
+		}).onConflictDoUpdate({
+			collateralReceived: collateralAmount,
+			feeAmount: fee,
+			pnl: computedPnl,
+			result: historyResult,
+			resolvedAt: timestamp,
+			txHash: event.transaction.hash,
 		});
 
 		await markPositionRedeemed(context, chain, marketAddress, normalizedUser);
@@ -420,11 +409,8 @@ ponder.on(
 				market.currentTvl > collateralAmount
 					? market.currentTvl - collateralAmount
 					: 0n;
-			await context.db.markets.update({
-				id: marketAddress,
-				data: {
-					currentTvl: newMarketTvl,
-				},
+			await context.db.update(markets, { id: marketAddress }).set({
+				currentTvl: newMarketTvl,
 			});
 
 			// Sync poll TVL after market TVL update
@@ -441,14 +427,17 @@ ponder.on(
 			newTotalWinnings -
 			(userData.totalDeposited ?? 0n);
 
-		const priorWinnings = await context.db.winnings.findMany({
-			where: {
-				user: user.toLowerCase() as `0x${string}`,
-				marketAddress,
-				chainId: chain.chainId,
-			},
-		});
-		const isFirstWinForMarket = isWin && priorWinnings.items.length <= 1;
+		const priorWinnings = await context.db.sql
+			.select()
+			.from(winnings)
+			.where(
+				and(
+					eq(winnings.user, user.toLowerCase() as `0x${string}`),
+					eq(winnings.marketAddress, marketAddress),
+					eq(winnings.chainId, chain.chainId),
+				),
+			);
+		const isFirstWinForMarket = isWin && priorWinnings.length <= 1;
 
 		const newStreak = isFirstWinForMarket
 			? (userData.currentStreak >= 0 ? userData.currentStreak + 1 : 1)
@@ -460,15 +449,12 @@ ponder.on(
 			newStreak > 0 ? newStreak : 0
 		);
 
-		await context.db.users.update({
-			id: user.toLowerCase(),
-			data: {
-				totalWinnings: newTotalWinnings,
-				totalWins: isFirstWinForMarket ? userData.totalWins + 1 : userData.totalWins,
-				currentStreak: newStreak,
-				bestStreak,
-				realizedPnL: newRealizedPnL,
-			},
+		await context.db.update(users, { id: user.toLowerCase() }).set({
+			totalWinnings: newTotalWinnings,
+			totalWins: isFirstWinForMarket ? userData.totalWins + 1 : userData.totalWins,
+			currentStreak: newStreak,
+			bestStreak,
+			realizedPnL: newRealizedPnL,
 		});
 
 		// Use centralized stats update

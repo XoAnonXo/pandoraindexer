@@ -1,4 +1,5 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
+import { trades, users, markets } from "ponder:schema";
 import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import {
@@ -39,24 +40,22 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
     ? (collateralAmount * 1_000_000_000n) / tokenAmount
     : 0n;
 
-  await context.db.trades.create({
+  await context.db.insert(trades).values({
     id: tradeId,
-    data: {
-      chainId: chain.chainId,
-      chainName: chain.chainName,
-      trader: trader.toLowerCase() as `0x${string}`,
-      marketAddress,
-      pollAddress,
-      tradeType: "buy",
-      side: isYes ? "yes" : "no",
-      collateralAmount,
-      tokenAmount,
-      buyPrice,
-      feeAmount: fee,
-      txHash: event.transaction.hash,
-      blockNumber: event.block.number,
-      timestamp,
-    },
+    chainId: chain.chainId,
+    chainName: chain.chainName,
+    trader: trader.toLowerCase() as `0x${string}`,
+    marketAddress,
+    pollAddress,
+    tradeType: "buy",
+    side: isYes ? "yes" : "no",
+    collateralAmount,
+    tokenAmount,
+    buyPrice,
+    feeAmount: fee,
+    txHash: event.transaction.hash,
+    blockNumber: event.block.number,
+    timestamp,
   });
 
   await recordPosition(
@@ -104,26 +103,20 @@ ponder.on("PredictionAMM:BuyTokens", async ({ event, context }: any) => {
     timestamp
   );
 
-  await context.db.users.update({
-    id: trader.toLowerCase(),
-    data: {
-      totalTrades: user.totalTrades + 1,
-      totalVolume: user.totalVolume + collateralAmount,
-      totalDeposited: user.totalDeposited + collateralAmount,
-      firstTradeAt: user.firstTradeAt ?? timestamp,
-      lastTradeAt: timestamp,
-    },
+  await context.db.update(users, { id: trader.toLowerCase() }).set({
+    totalTrades: user.totalTrades + 1,
+    totalVolume: user.totalVolume + collateralAmount,
+    totalDeposited: user.totalDeposited + collateralAmount,
+    firstTradeAt: user.firstTradeAt ?? timestamp,
+    lastTradeAt: timestamp,
   });
 
-  await context.db.markets.update({
-    id: marketAddress,
-    data: {
-      totalVolume: market.totalVolume + collateralAmount,
-      totalTrades: market.totalTrades + 1,
-      uniqueTraders: isNewTrader
-        ? market.uniqueTraders + 1
-        : market.uniqueTraders,
-    },
+  await context.db.update(markets, { id: marketAddress }).set({
+    totalVolume: market.totalVolume + collateralAmount,
+    totalTrades: market.totalTrades + 1,
+    uniqueTraders: isNewTrader
+      ? market.uniqueTraders + 1
+      : market.uniqueTraders,
   });
 
   await updateAggregateStats(context, chain, timestamp, {
@@ -159,23 +152,21 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
   );
   const pollAddress = market.pollAddress;
 
-  await context.db.trades.create({
+  await context.db.insert(trades).values({
     id: tradeId,
-    data: {
-      chainId: chain.chainId,
-      chainName: chain.chainName,
-      trader: trader.toLowerCase() as `0x${string}`,
-      marketAddress,
-      pollAddress,
-      tradeType: "sell",
-      side: isYes ? "yes" : "no",
-      collateralAmount,
-      tokenAmount,
-      feeAmount: fee,
-      txHash: event.transaction.hash,
-      blockNumber: event.block.number,
-      timestamp,
-    },
+    chainId: chain.chainId,
+    chainName: chain.chainName,
+    trader: trader.toLowerCase() as `0x${string}`,
+    marketAddress,
+    pollAddress,
+    tradeType: "sell",
+    side: isYes ? "yes" : "no",
+    collateralAmount,
+    tokenAmount,
+    feeAmount: fee,
+    txHash: event.transaction.hash,
+    blockNumber: event.block.number,
+    timestamp,
   });
 
   await reducePosition(
@@ -234,26 +225,20 @@ ponder.on("PredictionAMM:SellTokens", async ({ event, context }: any) => {
     (user.totalWinnings ?? 0n) -
     (user.totalDeposited ?? 0n);
 
-  await context.db.users.update({
-    id: trader.toLowerCase(),
-    data: {
-      totalTrades: user.totalTrades + 1,
-      totalVolume: user.totalVolume + collateralAmount,
-      totalWithdrawn: newTotalWithdrawn,
-      realizedPnL: newRealizedPnL,
-      lastTradeAt: timestamp,
-    },
+  await context.db.update(users, { id: trader.toLowerCase() }).set({
+    totalTrades: user.totalTrades + 1,
+    totalVolume: user.totalVolume + collateralAmount,
+    totalWithdrawn: newTotalWithdrawn,
+    realizedPnL: newRealizedPnL,
+    lastTradeAt: timestamp,
   });
 
-  await context.db.markets.update({
-    id: marketAddress,
-    data: {
-      totalVolume: market.totalVolume + collateralAmount,
-      totalTrades: market.totalTrades + 1,
-      uniqueTraders: isNewTrader
-        ? market.uniqueTraders + 1
-        : market.uniqueTraders,
-    },
+  await context.db.update(markets, { id: marketAddress }).set({
+    totalVolume: market.totalVolume + collateralAmount,
+    totalTrades: market.totalTrades + 1,
+    uniqueTraders: isNewTrader
+      ? market.uniqueTraders + 1
+      : market.uniqueTraders,
   });
 
   await updateAggregateStats(context, chain, timestamp, {
@@ -300,24 +285,22 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
   );
   const pollAddress = market.pollAddress;
 
-  await context.db.trades.create({
+  await context.db.insert(trades).values({
     id: tradeId,
-    data: {
-      chainId: chain.chainId,
-      chainName: chain.chainName,
-      trader: trader.toLowerCase() as `0x${string}`,
-      marketAddress,
-      pollAddress,
-      tradeType: "swap",
-      side: yesToNo ? "yes" : "no",
-      collateralAmount: 0n,
-      tokenAmount: amountIn,
-      tokenAmountOut: amountOut,
-      feeAmount: fee,
-      txHash: event.transaction.hash,
-      blockNumber: event.block.number,
-      timestamp,
-    },
+    chainId: chain.chainId,
+    chainName: chain.chainName,
+    trader: trader.toLowerCase() as `0x${string}`,
+    marketAddress,
+    pollAddress,
+    tradeType: "swap",
+    side: yesToNo ? "yes" : "no",
+    collateralAmount: 0n,
+    tokenAmount: amountIn,
+    tokenAmountOut: amountOut,
+    feeAmount: fee,
+    txHash: event.transaction.hash,
+    blockNumber: event.block.number,
+    timestamp,
   });
 
   const normalizedTrader = trader.toLowerCase() as `0x${string}`;
@@ -342,22 +325,16 @@ ponder.on("PredictionAMM:SwapTokens", async ({ event, context }: any) => {
     timestamp
   );
 
-  await context.db.users.update({
-    id: trader.toLowerCase(),
-    data: {
-      totalTrades: user.totalTrades + 1,
-      lastTradeAt: timestamp,
-    },
+  await context.db.update(users, { id: trader.toLowerCase() }).set({
+    totalTrades: user.totalTrades + 1,
+    lastTradeAt: timestamp,
   });
 
-  await context.db.markets.update({
-    id: marketAddress,
-    data: {
-      totalTrades: market.totalTrades + 1,
-      uniqueTraders: isNewTrader
-        ? market.uniqueTraders + 1
-        : market.uniqueTraders,
-    },
+  await context.db.update(markets, { id: marketAddress }).set({
+    totalTrades: market.totalTrades + 1,
+    uniqueTraders: isNewTrader
+      ? market.uniqueTraders + 1
+      : market.uniqueTraders,
   });
 
   const { yesChance: spotYesChance } = await updateMarketReserves(

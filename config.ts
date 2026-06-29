@@ -65,6 +65,9 @@ export interface ChainConfig {
     referralCampaignFactory?: `0x${string}`; // ReferralCampaignFactory
     launchpadFactory?: `0x${string}`; // TokensFactory for Launchpad
   };
+  contractStartBlocks?: {
+    referralFactory?: number;
+  };
   startBlock: number;
   enabled: boolean;
 }
@@ -96,6 +99,9 @@ export const CHAINS: Record<number, ChainConfig> = {
       rewardToken: optAddr("REWARD_TOKEN_ADDRESS_1", "0x25B7Ca1e238bAC63EAA62420BBb86d0afbEba9eB"),
       disputeResolverRemote: optAddr("DISPUTE_RESOLVER_REMOTE_ADDRESS_1", "0x0D7B957C47Da86c2968dc52111D633D42cb7a5F7"),
       launchpadFactory: optAddr("LAUNCHPAD_FACTORY_ADDRESS_1", "0x283d0c80Fd94D3d5281FA2904Dcc97Aa397dAfF0"),
+    },
+    contractStartBlocks: {
+      referralFactory: Number(process.env.REFERRAL_FACTORY_START_BLOCK_1 || 24_499_507),
     },
     startBlock: Number(process.env.START_BLOCK_1 || 24_426_990),
     enabled: true,

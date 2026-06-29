@@ -1,3 +1,4 @@
+import { markets, polls, users } from "ponder:schema";
 import { getOrCreateUser, getOrCreateMinimalMarket } from "./db";
 import { updateAggregateStats } from "./stats";
 import { updatePollTvl } from "./pollTvl";
@@ -10,7 +11,7 @@ interface ProtocolFeesParams {
   marketAddress: `0x${string}`;
   timestamp: bigint;
   blockNumber: bigint;
-  txHash: string;
+  txHash: `0x${string}`;
   logIndex: number;
   platformShare: bigint;
   creatorShare: bigint;
@@ -33,7 +34,7 @@ export async function handleProtocolFeesWithdrawn(params: ProtocolFeesParams) {
   } = params;
 
   const market =
-    (await context.db.markets.findUnique({ id: marketAddress })) ??
+    (await context.db.find(markets, { id: marketAddress })) ??
     (await getOrCreateMinimalMarket(
       context, marketAddress, chain, marketType, timestamp, blockNumber, txHash
     ));
@@ -51,13 +52,13 @@ export async function handleProtocolFeesWithdrawn(params: ProtocolFeesParams) {
     marketUpdate.reserveYes = reserves.reserveYes;
     marketUpdate.reserveNo = reserves.reserveNo;
 
-    const poll = await context.db.polls.findUnique({ id: market.pollAddress });
+    const poll = await context.db.find(polls, { id: market.pollAddress });
     if (!isPollResolved(poll?.status)) {
       marketUpdate.yesChance = reserves.yesChance;
     }
   }
 
-  await context.db.markets.update({ id: marketAddress, data: marketUpdate });
+  await context.db.update(markets, { id: marketAddress }).set(marketUpdate);
   await updatePollTvl(context, market.pollAddress);
 
   if (delta !== 0n) {
@@ -66,11 +67,8 @@ export async function handleProtocolFeesWithdrawn(params: ProtocolFeesParams) {
 
   if (creatorShare > 0n && market.creator) {
     const creatorUser = await getOrCreateUser(context, market.creator, chain);
-    await context.db.users.update({
-      id: creatorUser.id,
-      data: {
-        totalCreatorFees: (creatorUser.totalCreatorFees ?? 0n) + creatorShare,
-      },
+    await context.db.update(users, { id: creatorUser.id }).set({
+      totalCreatorFees: (creatorUser.totalCreatorFees ?? 0n) + creatorShare,
     });
   }
 

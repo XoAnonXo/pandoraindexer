@@ -1,3 +1,5 @@
+import { eq, and } from "ponder";
+import { markets, trades, winnings, polls, userMarketPositions, users } from "ponder:schema";
 import type { PonderContext, ChainInfo } from "../utils/types";
 import { makeId } from "../utils/helpers";
 import { withRetry } from "../utils/errors";
@@ -25,44 +27,39 @@ export async function recordPosition(
   const id = makeId(chain.chainId, marketAddress, normalizedUser);
 
   await withRetry(async () => {
-    const existing = await context.db.userMarketPositions.findUnique({ id });
+    const existing = await context.db.find(userMarketPositions, { id });
 
     if (existing) {
-      await context.db.userMarketPositions.update({
-        id,
-        data: {
-          yesAmount: side === TradeSide.YES
-            ? existing.yesAmount + collateralAmount
-            : existing.yesAmount,
-          noAmount: side === TradeSide.NO
-            ? existing.noAmount + collateralAmount
-            : existing.noAmount,
-          yesTokens: side === TradeSide.YES
-            ? existing.yesTokens + tokenAmount
-            : existing.yesTokens,
-          noTokens: side === TradeSide.NO
-            ? existing.noTokens + tokenAmount
-            : existing.noTokens,
-          lastUpdatedAt: timestamp,
-        },
+      await context.db.update(userMarketPositions, { id }).set({
+        yesAmount: side === TradeSide.YES
+          ? existing.yesAmount + collateralAmount
+          : existing.yesAmount,
+        noAmount: side === TradeSide.NO
+          ? existing.noAmount + collateralAmount
+          : existing.noAmount,
+        yesTokens: side === TradeSide.YES
+          ? existing.yesTokens + tokenAmount
+          : existing.yesTokens,
+        noTokens: side === TradeSide.NO
+          ? existing.noTokens + tokenAmount
+          : existing.noTokens,
+        lastUpdatedAt: timestamp,
       });
     } else {
-      await context.db.userMarketPositions.create({
+      await context.db.insert(userMarketPositions).values({
         id,
-        data: {
-          chainId: chain.chainId,
-          marketAddress,
-          pollAddress,
-          user: normalizedUser,
-          yesAmount: side === TradeSide.YES ? collateralAmount : 0n,
-          noAmount: side === TradeSide.NO ? collateralAmount : 0n,
-          yesTokens: side === TradeSide.YES ? tokenAmount : 0n,
-          noTokens: side === TradeSide.NO ? tokenAmount : 0n,
-          hasRedeemed: false,
-          lossRecorded: false,
-          firstPositionAt: timestamp,
-          lastUpdatedAt: timestamp,
-        },
+        chainId: chain.chainId,
+        marketAddress,
+        pollAddress,
+        user: normalizedUser,
+        yesAmount: side === TradeSide.YES ? collateralAmount : 0n,
+        noAmount: side === TradeSide.NO ? collateralAmount : 0n,
+        yesTokens: side === TradeSide.YES ? tokenAmount : 0n,
+        noTokens: side === TradeSide.NO ? tokenAmount : 0n,
+        hasRedeemed: false,
+        lossRecorded: false,
+        firstPositionAt: timestamp,
+        lastUpdatedAt: timestamp,
       });
     }
   });
@@ -88,7 +85,7 @@ export async function reducePosition(
   const id = makeId(chain.chainId, marketAddress, normalizedUser);
 
   await withRetry(async () => {
-    const existing = await context.db.userMarketPositions.findUnique({ id });
+    const existing = await context.db.find(userMarketPositions, { id });
 
     if (existing) {
       // Calculate proportional reduction for both tokens and collateral
@@ -124,15 +121,12 @@ export async function reducePosition(
           : 0n;
       }
 
-      await context.db.userMarketPositions.update({
-        id,
-        data: {
-          yesTokens: newYesTokens,
-          yesAmount: newYesAmount,
-          noTokens: newNoTokens,
-          noAmount: newNoAmount,
-          lastUpdatedAt: timestamp,
-        },
+      await context.db.update(userMarketPositions, { id }).set({
+        yesTokens: newYesTokens,
+        yesAmount: newYesAmount,
+        noTokens: newNoTokens,
+        noAmount: newNoAmount,
+        lastUpdatedAt: timestamp,
       });
     }
   });
@@ -152,17 +146,14 @@ export async function markPositionRedeemed(
   const id = makeId(chain.chainId, marketAddress, normalizedUser);
 
   await withRetry(async () => {
-    const existing = await context.db.userMarketPositions.findUnique({ id });
+    const existing = await context.db.find(userMarketPositions, { id });
     if (existing && !existing.hasRedeemed) {
-      await context.db.userMarketPositions.update({
-        id,
-        data: {
-          hasRedeemed: true,
-          yesTokens: 0n,
-          noTokens: 0n,
-          yesAmount: 0n,
-          noAmount: 0n,
-        },
+      await context.db.update(userMarketPositions, { id }).set({
+        hasRedeemed: true,
+        yesTokens: 0n,
+        noTokens: 0n,
+        yesAmount: 0n,
+        noAmount: 0n,
       });
     }
   });
@@ -205,34 +196,37 @@ export async function processLossesForPoll(
   const losses: LossResult[] = [];
 
   await withRetry(async () => {
-    const markets = await context.db.markets.findMany({
-      where: { pollAddress, chainId: chain.chainId },
-    });
+    const marketRows = await context.db.sql.select().from(markets).where(
+      and(
+        eq(markets.pollAddress, pollAddress),
+        eq(markets.chainId, chain.chainId),
+      ),
+    );
 
-    for (const market of markets.items) {
-      const losingTrades = await context.db.trades.findMany({
-        where: {
-          marketAddress: market.id,
-          chainId: chain.chainId,
-          side: losingSide,
-        },
-      });
+    for (const market of marketRows) {
+      const losingTrades = await context.db.sql.select().from(trades).where(
+        and(
+          eq(trades.marketAddress, market.id),
+          eq(trades.chainId, chain.chainId),
+          eq(trades.side, losingSide),
+        ),
+      );
 
-      const winningsForMarket = await context.db.winnings.findMany({
-        where: {
-          marketAddress: market.id,
-          chainId: chain.chainId,
-        },
-      });
+      const winningsForMarket = await context.db.sql.select().from(winnings).where(
+        and(
+          eq(winnings.marketAddress, market.id),
+          eq(winnings.chainId, chain.chainId),
+        ),
+      );
 
       const winners = new Set(
-        winningsForMarket.items.map((w: { user: string }) => w.user.toLowerCase()),
+        winningsForMarket.map((w: { user: string }) => w.user.toLowerCase()),
       );
 
       // Aggregate total spent per user on losing side from trades
       const userLosingSideTotals = new Map<string, bigint>();
       const userLosingTokenTotals = new Map<string, bigint>();
-      for (const trade of losingTrades.items) {
+      for (const trade of losingTrades) {
         const addr = trade.trader.toLowerCase();
         if (winners.has(addr)) continue;
         const current = userLosingSideTotals.get(addr) ?? 0n;
@@ -243,16 +237,16 @@ export async function processLossesForPoll(
 
       // Also get all trades on winning side for these losers (they might have bet both sides)
       const winningSide = losingSide === 'yes' ? 'no' : 'yes';
-      const winningSideTrades = await context.db.trades.findMany({
-        where: {
-          marketAddress: market.id,
-          chainId: chain.chainId,
-          side: winningSide,
-        },
-      });
+      const winningSideTrades = await context.db.sql.select().from(trades).where(
+        and(
+          eq(trades.marketAddress, market.id),
+          eq(trades.chainId, chain.chainId),
+          eq(trades.side, winningSide),
+        ),
+      );
       const userWinningSideTotals = new Map<string, bigint>();
       const userWinningTokenTotals = new Map<string, bigint>();
-      for (const trade of winningSideTrades.items) {
+      for (const trade of winningSideTrades) {
         const addr = trade.trader.toLowerCase();
         if (!userLosingSideTotals.has(addr)) continue;
         const current = userWinningSideTotals.get(addr) ?? 0n;
@@ -261,7 +255,7 @@ export async function processLossesForPoll(
         userWinningTokenTotals.set(addr, currentTokens + (trade.tokenAmount ?? 0n));
       }
 
-      const poll = await context.db.polls.findUnique({ id: pollAddress });
+      const poll = await context.db.find(polls, { id: pollAddress });
 
       for (const [addr, losingSideSpent] of userLosingSideTotals) {
         const winningSideSpent = userWinningSideTotals.get(addr) ?? 0n;
@@ -297,19 +291,16 @@ export async function recordUserLoss(
 ) {
   const normalizedUser = userAddress.toLowerCase() as `0x${string}`;
   await withRetry(async () => {
-    const user = await context.db.users.findUnique({ id: normalizedUser });
+    const user = await context.db.find(users, { id: normalizedUser });
     
     if (user) {
       const newStreak = user.currentStreak <= 0 
         ? user.currentStreak - 1 
         : -1;
 
-      await context.db.users.update({
-        id: normalizedUser,
-        data: {
-          totalLosses: user.totalLosses + 1,
-          currentStreak: newStreak,
-        },
+      await context.db.update(users, { id: normalizedUser }).set({
+        totalLosses: user.totalLosses + 1,
+        currentStreak: newStreak,
       });
     }
   });

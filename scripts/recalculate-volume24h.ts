@@ -14,7 +14,7 @@
  */
 
 import { Pool } from "pg";
-import { discoverPonderSchema } from "./utils/discover-schema.js";
+import { buildSearchPath } from "./utils/discover-schema.js";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -27,17 +27,30 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 
 async function ensureIndexes(client: import("pg").PoolClient) {
   const start = Date.now();
-  await client.query(`
-    CREATE INDEX IF NOT EXISTS idx_trades_market_timestamp
-    ON trades ("marketAddress", timestamp)
-  `);
-  console.log(`[Recalculate] Index ensured in ${Date.now() - start}ms`);
+
+  // Views don't support indexes -- find the real table schema
+  const { rows } = await client.query(
+    `SELECT schemaname FROM pg_tables
+     WHERE tablename = 'trades' AND schemaname NOT IN ('public', 'pandora_views')
+     ORDER BY schemaname DESC LIMIT 1`
+  );
+
+  if (rows.length > 0) {
+    const realSchema = rows[0].schemaname;
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_trades_market_timestamp
+      ON "${realSchema}".trades (market_address, timestamp)
+    `);
+    console.log(`[Recalculate] Index ensured on ${realSchema}.trades in ${Date.now() - start}ms`);
+  } else {
+    console.log(`[Recalculate] Skipped index creation — no real trades table found`);
+  }
 }
 
 async function recalculateVolume24h() {
   console.log("[Recalculate] Starting volume24h + trades24h recalculation...");
 
-  const schemaName = await discoverPonderSchema(pool, "[Recalculate]");
+  const sp = await buildSearchPath(pool, "[Recalculate]");
 
   const timestamp24hAgo = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
   const startTime = Date.now();
@@ -45,11 +58,16 @@ async function recalculateVolume24h() {
   const client = await pool.connect();
 
   try {
-    await client.query(`SET search_path TO "${schemaName}", public`);
-    console.log(`[Recalculate] Set search_path to: ${schemaName}`);
+    await client.query(`SET search_path TO ${sp}`);
+    await client.query(`CREATE TEMP TABLE IF NOT EXISTS live_query_tables (table_name TEXT PRIMARY KEY)`);
+    console.log(`[Recalculate] Set search_path to: ${sp}`);
     console.log(`[Recalculate] Timestamp 24h ago: ${timestamp24hAgo}`);
 
-    await ensureIndexes(client);
+    try {
+      await ensureIndexes(client);
+    } catch (indexErr: any) {
+      console.warn(`[Recalculate] Index creation skipped: ${indexErr.message}`);
+    }
 
     const countResult = await client.query(
       "SELECT COUNT(*)::int AS total FROM markets"
@@ -58,15 +76,14 @@ async function recalculateVolume24h() {
     console.log(`[Recalculate] Found ${totalMarkets} total markets`);
 
     // Single CTE: aggregate 24h trades, LEFT JOIN markets, update only changed rows.
-    // All joins are bytea=bytea inside PostgreSQL — no type mismatch.
     const updateResult = await client.query(
       `WITH agg AS (
-         SELECT "marketAddress",
+         SELECT market_address,
                 COUNT(*)::int AS trade_count,
-                COALESCE(SUM("collateralAmount"), 0) AS volume
+                COALESCE(SUM(collateral_amount), 0) AS volume
          FROM trades
          WHERE timestamp >= $1
-         GROUP BY "marketAddress"
+         GROUP BY market_address
        )
        UPDATE markets AS m
        SET volume24h = COALESCE(sub.volume, 0),
@@ -76,7 +93,7 @@ async function recalculateVolume24h() {
                 COALESCE(a.trade_count, 0) AS trade_count,
                 COALESCE(a.volume, 0) AS volume
          FROM markets m2
-         LEFT JOIN agg a ON m2.id = a."marketAddress"
+         LEFT JOIN agg a ON m2.id = a.market_address
          WHERE m2.volume24h IS DISTINCT FROM COALESCE(a.volume, 0)
             OR COALESCE(m2.trades24h, 0) IS DISTINCT FROM COALESCE(a.trade_count, 0)
        ) AS sub

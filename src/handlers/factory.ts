@@ -1,4 +1,5 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
+import { polls, markets, users, graduatedCreators, marketSystems } from "ponder:schema";
 import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { getOrCreateUser, getNextMarketId } from "../services/db";
@@ -11,8 +12,8 @@ function triggerImageGeneration(context: any, pollAddress: string, chainName: st
 	const apiUrl = process.env.PANDORA_API_URL;
 	if (!apiUrl) return;
 
-	context.db.polls
-		.findUnique({ id: pollAddress })
+	context.db
+		.find(polls, { id: pollAddress })
 		.then((poll: any) => {
 			if (!poll?.question) {
 				console.error(`[${chainName}] No question found for ${pollAddress}`);
@@ -71,83 +72,77 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 		// For AMM, market starts when it's created (no explicit startTimestamp in contract)
 		const marketStartTimestamp = timestamp;
 
-		const existing = await context.db.markets.findUnique({ id: marketAddress });
+		const existing = await context.db.find(markets, { id: marketAddress });
 		const numericId = existing?.numericId ?? (await getNextMarketId(context));
 
-		await context.db.markets.upsert({
+		await context.db.insert(markets).values({
 			id: marketAddress,
-			create: {
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				pollAddress,
-				creator: normalizedCreator,
-				marketType: "amm",
-				isIncomplete: false,
-				collateralToken: collateral,
-				yesToken,
-				noToken,
-				feeTier: Number(feeTier),
-				maxPriceImbalancePerHour: Number(maxPriceImbalancePerHour),
-				marketStartTimestamp,
-				marketCloseTimestamp,
-				totalVolume: 0n,
-				volume24h: 0n,
-				trades24h: 0,
-				totalTrades: 0,
-				currentTvl: 0n,
-				uniqueTraders: 0,
-				initialLiquidity: 0n,
-				reserveYes: 0n,
-				reserveNo: 0n,
-				totalHold: 0n,
-				yesChance: 500_000_000n,
-				creatorFeesEarned: 0n,
-				platformFeesEarned: 0n,
-				numericId,
-				createdAtBlock: event.block.number,
-				createdAt: timestamp,
-				createdTxHash: event.transaction.hash,
-			},
-			update: ({ current }: any) => ({
-				chainId: chain.chainId,
-				chainName: chain.chainName,
-				pollAddress,
-				creator: normalizedCreator,
-				marketType: "amm",
-				isIncomplete: false,
-				collateralToken: collateral,
-				yesToken,
-				noToken,
-				feeTier: Number(feeTier),
-				maxPriceImbalancePerHour: Number(maxPriceImbalancePerHour),
-				marketStartTimestamp,
-				marketCloseTimestamp,
-				totalVolume: current.totalVolume,
-				volume24h: current.volume24h ?? 0n,
-				trades24h: current.trades24h ?? 0,
-				totalTrades: current.totalTrades,
-				currentTvl: current.currentTvl,
-				uniqueTraders: current.uniqueTraders,
-				initialLiquidity: current.initialLiquidity ?? 0n,
-				reserveYes: current.reserveYes ?? 0n,
-				reserveNo: current.reserveNo ?? 0n,
-				totalHold: (current.reserveYes ?? 0n) + (current.reserveNo ?? 0n),
-				yesChance: current.yesChance ?? 500_000_000n,
-				creatorFeesEarned: current.creatorFeesEarned ?? 0n,
-				platformFeesEarned: current.platformFeesEarned ?? 0n,
-				numericId,
-				createdAtBlock: event.block.number,
-				createdAt: timestamp,
-				createdTxHash: event.transaction.hash,
-			}),
-		});
+			chainId: chain.chainId,
+			chainName: chain.chainName,
+			pollAddress,
+			creator: normalizedCreator,
+			marketType: "amm",
+			isIncomplete: false,
+			collateralToken: collateral,
+			yesToken,
+			noToken,
+			feeTier: Number(feeTier),
+			maxPriceImbalancePerHour: Number(maxPriceImbalancePerHour),
+			marketStartTimestamp,
+			marketCloseTimestamp,
+			totalVolume: 0n,
+			volume24h: 0n,
+			trades24h: 0,
+			totalTrades: 0,
+			currentTvl: 0n,
+			uniqueTraders: 0,
+			initialLiquidity: 0n,
+			reserveYes: 0n,
+			reserveNo: 0n,
+			totalHold: 0n,
+			yesChance: 500_000_000n,
+			creatorFeesEarned: 0n,
+			platformFeesEarned: 0n,
+			numericId,
+			createdAtBlock: event.block.number,
+			createdAt: timestamp,
+			createdTxHash: event.transaction.hash,
+		}).onConflictDoUpdate((row: any) => ({
+			chainId: chain.chainId,
+			chainName: chain.chainName,
+			pollAddress,
+			creator: normalizedCreator,
+			marketType: "amm",
+			isIncomplete: false,
+			collateralToken: collateral,
+			yesToken,
+			noToken,
+			feeTier: Number(feeTier),
+			maxPriceImbalancePerHour: Number(maxPriceImbalancePerHour),
+			marketStartTimestamp,
+			marketCloseTimestamp,
+			totalVolume: row.totalVolume,
+			volume24h: row.volume24h ?? 0n,
+			trades24h: row.trades24h ?? 0,
+			totalTrades: row.totalTrades,
+			currentTvl: row.currentTvl,
+			uniqueTraders: row.uniqueTraders,
+			initialLiquidity: row.initialLiquidity ?? 0n,
+			reserveYes: row.reserveYes ?? 0n,
+			reserveNo: row.reserveNo ?? 0n,
+			totalHold: (row.reserveYes ?? 0n) + (row.reserveNo ?? 0n),
+			yesChance: row.yesChance ?? 500_000_000n,
+			creatorFeesEarned: row.creatorFeesEarned ?? 0n,
+			platformFeesEarned: row.platformFeesEarned ?? 0n,
+			numericId,
+			createdAtBlock: event.block.number,
+			createdAt: timestamp,
+			createdTxHash: event.transaction.hash,
+		}));
 
 		const user = await getOrCreateUser(context, creator, chain);
-		await context.db.users.update({
-			id: normalizedCreator,
-			data: {
-				marketsCreated: user.marketsCreated + 1,
-			},
+		await context.db.update(users, { id: normalizedCreator }).set({
+			marketsCreated: user.marketsCreated + 1,
 		});
 
 		await updateAggregateStats(context, chain, timestamp, {
@@ -159,18 +154,16 @@ ponder.on("MarketFactory:MarketCreated", async ({ event, context }: any) => {
 		await updatePollTvl(context, pollAddress);
 
 		// Check if creator is graduated (has Launchpad token that reached $50k TVL)
-		const isGraduated = await context.db.graduatedCreators.findUnique({
+		const isGraduated = await context.db.find(graduatedCreators, {
 			id: normalizedCreator,
 		});
 
 		// Create marketSystems entry to track referral system
-		await context.db.marketSystems.create({
+		await context.db.insert(marketSystems).values({
 			id: marketAddress.toLowerCase() as `0x${string}`,
-			data: {
-				creator: normalizedCreator,
-				system: isGraduated ? "localizer" : "pandora",
-				switchedAt: isGraduated ? timestamp : undefined,
-			},
+			creator: normalizedCreator,
+			system: isGraduated ? "localizer" : "pandora",
+			switchedAt: isGraduated ? timestamp : undefined,
 		});
 
 		console.log(
@@ -214,12 +207,46 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }: any) => 
 		const marketStartTimestamp = BigInt(startTs);
 		const marketCloseTimestamp = BigInt(closeTs);
 
-		const existing = await context.db.markets.findUnique({ id: marketAddress });
+		const existing = await context.db.find(markets, { id: marketAddress });
 		const numericId = existing?.numericId ?? (await getNextMarketId(context));
 
-		await context.db.markets.upsert({
+		await context.db.insert(markets).values({
 			id: marketAddress,
-			create: {
+			chainId: chain.chainId,
+			chainName: chain.chainName,
+			pollAddress,
+			creator: normalizedCreator,
+			marketType: "pari",
+			isIncomplete: false,
+			collateralToken: collateral,
+			curveFlattener: Number(curveFlattener),
+			curveOffset: Number(curveOffset),
+			marketStartTimestamp,
+			marketCloseTimestamp,
+			totalVolume: 0n,
+			volume24h: 0n,
+			trades24h: 0,
+			totalTrades: 0,
+			currentTvl: 0n,
+			uniqueTraders: 0,
+			initialLiquidity: 0n,
+			totalCollateralYes: 0n,
+			totalCollateralNo: 0n,
+			yesChance: 500_000_000n,
+			creatorFeesEarned: 0n,
+			platformFeesEarned: 0n,
+			numericId,
+			createdAtBlock: event.block.number,
+			createdAt: timestamp,
+			createdTxHash: event.transaction.hash,
+		}).onConflictDoUpdate((row: any) => {
+			const totalYes = row.totalCollateralYes ?? 0n;
+			const totalNo = row.totalCollateralNo ?? 0n;
+
+			const total = totalYes + totalNo;
+			const correctedYesChance = total > 0n ? (totalYes * PRICE_SCALE) / total : 500_000_000n;
+
+			return {
 				chainId: chain.chainId,
 				chainName: chain.chainName,
 				pollAddress,
@@ -231,68 +258,28 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }: any) => 
 				curveOffset: Number(curveOffset),
 				marketStartTimestamp,
 				marketCloseTimestamp,
-				totalVolume: 0n,
-				volume24h: 0n,
-				trades24h: 0,
-				totalTrades: 0,
-				currentTvl: 0n,
-				uniqueTraders: 0,
-				initialLiquidity: 0n,
-				totalCollateralYes: 0n,
-				totalCollateralNo: 0n,
-				yesChance: 500_000_000n,
-				creatorFeesEarned: 0n,
-				platformFeesEarned: 0n,
+				totalVolume: row.totalVolume,
+				volume24h: row.volume24h ?? 0n,
+				trades24h: row.trades24h ?? 0,
+				totalTrades: row.totalTrades,
+				currentTvl: row.currentTvl,
+				uniqueTraders: row.uniqueTraders,
+				initialLiquidity: row.initialLiquidity ?? 0n,
+				totalCollateralYes: totalYes,
+				totalCollateralNo: totalNo,
+				yesChance: correctedYesChance,
+				creatorFeesEarned: row.creatorFeesEarned ?? 0n,
+				platformFeesEarned: row.platformFeesEarned ?? 0n,
 				numericId,
 				createdAtBlock: event.block.number,
 				createdAt: timestamp,
 				createdTxHash: event.transaction.hash,
-			},
-			update: ({ current }: any) => {
-				const totalYes = current.totalCollateralYes ?? 0n;
-				const totalNo = current.totalCollateralNo ?? 0n;
-
-				const total = totalYes + totalNo;
-				const correctedYesChance = total > 0n ? (totalYes * PRICE_SCALE) / total : 500_000_000n;
-
-				return {
-					chainId: chain.chainId,
-					chainName: chain.chainName,
-					pollAddress,
-					creator: normalizedCreator,
-					marketType: "pari",
-					isIncomplete: false,
-					collateralToken: collateral,
-					curveFlattener: Number(curveFlattener),
-					curveOffset: Number(curveOffset),
-					marketStartTimestamp,
-					marketCloseTimestamp,
-					totalVolume: current.totalVolume,
-					volume24h: current.volume24h ?? 0n,
-					trades24h: current.trades24h ?? 0,
-					totalTrades: current.totalTrades,
-					currentTvl: current.currentTvl,
-					uniqueTraders: current.uniqueTraders,
-					initialLiquidity: current.initialLiquidity ?? 0n,
-					totalCollateralYes: totalYes,
-					totalCollateralNo: totalNo,
-					yesChance: correctedYesChance,
-					creatorFeesEarned: current.creatorFeesEarned ?? 0n,
-					platformFeesEarned: current.platformFeesEarned ?? 0n,
-					numericId,
-					createdAtBlock: event.block.number,
-					createdAt: timestamp,
-					createdTxHash: event.transaction.hash,
-				};
-			},
+			};
 		});
 
 		const user = await getOrCreateUser(context, creator, chain);
-		await context.db.users.update({
-			id: normalizedCreator,
-			data: {
-				marketsCreated: user.marketsCreated + 1,
-			},
+		await context.db.update(users, { id: normalizedCreator }).set({
+			marketsCreated: user.marketsCreated + 1,
 		});
 
 		await updateAggregateStats(context, chain, timestamp, {
@@ -304,18 +291,16 @@ ponder.on("MarketFactory:PariMutuelCreated", async ({ event, context }: any) => 
 		await updatePollTvl(context, pollAddress);
 
 		// Check if creator is graduated (has Launchpad token that reached $50k TVL)
-		const isGraduated = await context.db.graduatedCreators.findUnique({
+		const isGraduated = await context.db.find(graduatedCreators, {
 			id: normalizedCreator,
 		});
 
 		// Create marketSystems entry to track referral system
-		await context.db.marketSystems.create({
+		await context.db.insert(marketSystems).values({
 			id: marketAddress.toLowerCase() as `0x${string}`,
-			data: {
-				creator: normalizedCreator,
-				system: isGraduated ? "localizer" : "pandora",
-				switchedAt: isGraduated ? timestamp : undefined,
-			},
+			creator: normalizedCreator,
+			system: isGraduated ? "localizer" : "pandora",
+			switchedAt: isGraduated ? timestamp : undefined,
 		});
 
 		console.log(

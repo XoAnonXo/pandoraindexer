@@ -1,3 +1,4 @@
+import { marketSystems, tokenSystems, referrals, users, referralCodes, referralStats } from "ponder:schema";
 import { ReferralFactoryAbi } from "../../abis/ReferralFactory";
 import { getChainConfig } from "../../config";
 import { ChainInfo, makeId } from "../utils/helpers";
@@ -38,14 +39,14 @@ export async function updateReferralVolume(
   const normalizedEntity = entityAddress.toLowerCase() as `0x${string}`;
   let system = "pandora"; // Default to pandora
 
-  const marketSystem = await context.db.marketSystems.findUnique({
+  const marketSystem = await context.db.find(marketSystems, {
     id: normalizedEntity,
   });
 
   if (marketSystem) {
     system = marketSystem.system;
   } else {
-    const tokenSystem = await context.db.tokenSystems.findUnique({
+    const tokenSystem = await context.db.find(tokenSystems, {
       id: normalizedEntity,
     });
     if (tokenSystem) {
@@ -66,8 +67,13 @@ export async function updateReferralVolume(
   const normalizedTrader = traderAddress.toLowerCase() as `0x${string}`;
   const bn =
     typeof blockNumber === "bigint" ? blockNumber : BigInt(blockNumber);
-  const referralFactoryAddress = getChainConfig(chain.chainId)!.contracts
-    .referralFactory;
+  const chainConfig = getChainConfig(chain.chainId)!;
+  const referralFactoryAddress = chainConfig.contracts.referralFactory;
+
+  if (!referralFactoryAddress) return;
+
+  const factoryStartBlock = chainConfig.contractStartBlocks?.referralFactory;
+  if (factoryStartBlock && bn < BigInt(factoryStartBlock)) return;
 
   let referrer: `0x${string}` | null = null;
   try {
@@ -78,21 +84,7 @@ export async function updateReferralVolume(
       args: [traderAddress],
       blockNumber: bn,
     });
-  } catch (error: any) {
-    const errorMsg = String(error?.message || error);
-    const isExpectedError =
-      errorMsg.includes("returned no data") ||
-      errorMsg.includes("execution reverted") ||
-      errorMsg.includes("0x");
-
-    if (!isExpectedError) {
-      console.warn(
-        `[Referral] Unexpected error getting referrer for ${normalizedTrader.slice(
-          0,
-          10
-        )}...: ${errorMsg.slice(0, 100)}`
-      );
-    }
+  } catch {
     return;
   }
 
@@ -103,98 +95,85 @@ export async function updateReferralVolume(
   const normalizedReferrer = referrer.toLowerCase() as `0x${string}`;
   const referralId = `${normalizedReferrer}-${normalizedTrader}`;
 
-  await context.db.referrals.upsert({
+  await context.db.insert(referrals).values({
     id: referralId,
-    create: {
-      referrerAddress: normalizedReferrer,
-      refereeAddress: normalizedTrader,
-      // Unknown code hash if created via volume tracking (event not seen yet)
-      referralCodeHash:
-        "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
-      status: "active",
-      totalVolumeGenerated: volume,
-      totalExitVolumeGenerated: volume,
-      totalFeesGenerated: fees,
-      totalTradesCount: 1,
-      totalRewardsEarned: 0n,
-      referredAt: timestamp,
-      referredAtBlock: 0n, // Unknown if created here
-      firstTradeAt: timestamp,
-      lastTradeAt: timestamp,
-    },
-    update: ({ current }: any) => ({
-      status: "active", // Mark as active once they trade
-      totalVolumeGenerated: current.totalVolumeGenerated + volume,
-      totalExitVolumeGenerated:
-        (current.totalExitVolumeGenerated ?? 0n) + volume,
-      totalFeesGenerated: current.totalFeesGenerated + fees,
-      totalTradesCount: current.totalTradesCount + 1,
-      firstTradeAt: current.firstTradeAt ?? timestamp,
-      lastTradeAt: timestamp,
-    }),
-  });
+    referrerAddress: normalizedReferrer,
+    refereeAddress: normalizedTrader,
+    // Unknown code hash if created via volume tracking (event not seen yet)
+    referralCodeHash:
+      "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
+    status: "active",
+    totalVolumeGenerated: volume,
+    totalExitVolumeGenerated: volume,
+    totalFeesGenerated: fees,
+    totalTradesCount: 1,
+    totalRewardsEarned: 0n,
+    referredAt: timestamp,
+    referredAtBlock: 0n, // Unknown if created here
+    firstTradeAt: timestamp,
+    lastTradeAt: timestamp,
+  }).onConflictDoUpdate((row: any) => ({
+    status: "active", // Mark as active once they trade
+    totalVolumeGenerated: row.totalVolumeGenerated + volume,
+    totalExitVolumeGenerated:
+      (row.totalExitVolumeGenerated ?? 0n) + volume,
+    totalFeesGenerated: row.totalFeesGenerated + fees,
+    totalTradesCount: row.totalTradesCount + 1,
+    firstTradeAt: row.firstTradeAt ?? timestamp,
+    lastTradeAt: timestamp,
+  }));
 
   // Update the referrer's user stats
   const referrerRecord = await getOrCreateUser(context, referrer, chain);
-  await context.db.users.update({
-    id: referrerRecord.id,
-    data: {
-      totalReferralVolume:
-        (referrerRecord.totalReferralVolume ?? 0n) + volume,
-      totalReferralExitVolume:
-        (referrerRecord.totalReferralExitVolume ?? 0n) + volume,
-      totalReferralFees: (referrerRecord.totalReferralFees ?? 0n) + fees,
-    },
+  await context.db.update(users, { id: referrerRecord.id }).set({
+    totalReferralVolume:
+      (referrerRecord.totalReferralVolume ?? 0n) + volume,
+    totalReferralExitVolume:
+      (referrerRecord.totalReferralExitVolume ?? 0n) + volume,
+    totalReferralFees: (referrerRecord.totalReferralFees ?? 0n) + fees,
   });
 
   // Update the referee's user record (ensure referrerAddress is set)
   const refereeRecord = await getOrCreateUser(context, traderAddress, chain);
   if (!refereeRecord.referrerAddress) {
-    await context.db.users.update({
-      id: refereeRecord.id,
-      data: {
-        referrerAddress: normalizedReferrer,
-      },
+    await context.db.update(users, { id: refereeRecord.id }).set({
+      referrerAddress: normalizedReferrer,
     });
   }
 
   // Get the referral code hash to update code stats
-  const referral = await context.db.referrals.findUnique({ id: referralId });
+  const referral = await context.db.find(referrals, { id: referralId });
   if (
     referral?.referralCodeHash &&
     referral.referralCodeHash !==
     ZERO_ADDRESS.replace("0x", "0x" + "0".repeat(64))
   ) {
-    const codeRecord = await context.db.referralCodes.findUnique({
+    const codeRecord = await context.db.find(referralCodes, {
       id: referral.referralCodeHash,
     });
     if (codeRecord) {
-      await context.db.referralCodes.update({
+      await context.db.update(referralCodes, {
         id: referral.referralCodeHash,
-        data: {
-          totalVolumeGenerated:
-            codeRecord.totalVolumeGenerated + volume,
-          totalFeesGenerated: codeRecord.totalFeesGenerated + fees,
-        },
+      }).set({
+        totalVolumeGenerated:
+          codeRecord.totalVolumeGenerated + volume,
+        totalFeesGenerated: codeRecord.totalFeesGenerated + fees,
       });
     }
   }
 
   // Update global referral stats
-  await context.db.referralStats.upsert({
+  await context.db.insert(referralStats).values({
     id: "global",
-    create: {
-      totalCodes: 0,
-      totalReferrals: 0,
-      totalVolumeGenerated: volume,
-      totalFeesGenerated: fees,
-      totalRewardsDistributed: 0n,
-      updatedAt: timestamp,
-    },
-    update: ({ current }: any) => ({
-      totalVolumeGenerated: current.totalVolumeGenerated + volume,
-      totalFeesGenerated: current.totalFeesGenerated + fees,
-      updatedAt: timestamp,
-    }),
-  });
+    totalCodes: 0,
+    totalReferrals: 0,
+    totalVolumeGenerated: volume,
+    totalFeesGenerated: fees,
+    totalRewardsDistributed: 0n,
+    updatedAt: timestamp,
+  }).onConflictDoUpdate((row: any) => ({
+    totalVolumeGenerated: row.totalVolumeGenerated + volume,
+    totalFeesGenerated: row.totalFeesGenerated + fees,
+    updatedAt: timestamp,
+  }));
 }

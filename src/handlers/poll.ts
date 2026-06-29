@@ -1,4 +1,5 @@
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
+import { polls, positionHistory } from "ponder:schema";
 import { getChainInfo, makeId } from "../utils/helpers";
 import { updateAggregateStats } from "../services/stats";
 import { processLossesForPoll, recordUserLoss } from "../services/positions";
@@ -13,17 +14,14 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
 
   console.log(`[${chain.chainName}] AnswerSet event received: ${pollAddress} status=${resolvedStatus}`);
 
-  const poll = await context.db.polls.findUnique({ id: pollAddress });
+  const poll = await context.db.find(polls, { id: pollAddress });
   if (poll) {
     try {
-      await context.db.polls.update({
-        id: pollAddress,
-        data: {
-          status: resolvedStatus,
-          setter: setter.toLowerCase() as `0x${string}`,
-          resolutionReason: reason.slice(0, 4096),
-          resolvedAt: timestamp,
-        },
+      await context.db.update(polls, { id: pollAddress }).set({
+        status: resolvedStatus,
+        setter: setter.toLowerCase() as `0x${string}`,
+        resolutionReason: reason.slice(0, 4096),
+        resolvedAt: timestamp,
       });
       console.log(`[${chain.chainName}] ✅ Poll UPDATED in DB: ${pollAddress} -> status ${resolvedStatus}`);
     } catch (err) {
@@ -42,34 +40,31 @@ ponder.on("PredictionPoll:AnswerSet", async ({ event, context }: any) => {
           ? loss.yesCostBasis
           : loss.noCostBasis;
 
-        await context.db.positionHistory.upsert({
+        await context.db.insert(positionHistory).values({
           id: historyId,
-          create: {
-            chainId: chain.chainId,
-            user: loss.user,
-            marketAddress: loss.marketAddress,
-            pollAddress: pollAddress,
-            marketQuestion: loss.marketQuestion,
-            marketType: loss.marketType,
-            side: loss.losingSide,
-            result: "lost",
-            pollStatus: resolvedStatus,
-            yesCostBasis: loss.yesCostBasis,
-            noCostBasis: loss.noCostBasis,
-            yesTokens: loss.yesTokens,
-            noTokens: loss.noTokens,
-            collateralReceived: 0n,
-            feeAmount: 0n,
-            pnl: -losingSideCost,
-            resolvedAt: timestamp,
-          },
-          update: {
-            result: "lost",
-            pollStatus: resolvedStatus,
-            collateralReceived: 0n,
-            pnl: -losingSideCost,
-            resolvedAt: timestamp,
-          },
+          chainId: chain.chainId,
+          user: loss.user,
+          marketAddress: loss.marketAddress,
+          pollAddress: pollAddress,
+          marketQuestion: loss.marketQuestion,
+          marketType: loss.marketType,
+          side: loss.losingSide,
+          result: "lost",
+          pollStatus: resolvedStatus,
+          yesCostBasis: loss.yesCostBasis,
+          noCostBasis: loss.noCostBasis,
+          yesTokens: loss.yesTokens,
+          noTokens: loss.noTokens,
+          collateralReceived: 0n,
+          feeAmount: 0n,
+          pnl: -losingSideCost,
+          resolvedAt: timestamp,
+        }).onConflictDoUpdate({
+          result: "lost",
+          pollStatus: resolvedStatus,
+          collateralReceived: 0n,
+          pnl: -losingSideCost,
+          resolvedAt: timestamp,
         });
       }
       if (losses.length > 0) {
@@ -94,14 +89,10 @@ ponder.on("PredictionPoll:ArbitrationStarted", async ({ event, context }: any) =
   const pollAddress = event.log.address;
   const timestamp = event.block.timestamp;
 
-  await context.db.polls.update({
-    id: pollAddress,
-    data: {
-      arbitrationStarted: true,
-      disputedBy: arbiter.toLowerCase(),
-      disputedAt: timestamp,
-      finalizationEpoch: Number(newFinalizationEpoch),
-    },
+  await context.db.update(polls, { id: pollAddress }).set({
+    arbitrationStarted: true,
+    disputedBy: arbiter.toLowerCase(),
+    disputedAt: timestamp,
+    finalizationEpoch: Number(newFinalizationEpoch),
   });
 });
-

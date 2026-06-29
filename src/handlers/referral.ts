@@ -13,7 +13,14 @@
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
-import { ponder } from "@/generated";
+import { ponder } from "ponder:registry";
+import {
+	referralCodes,
+	referralStats,
+	referrals,
+	users,
+	claimEvents,
+} from "ponder:schema";
 import { decodeFunctionData, type Hex } from "viem";
 import { getChainInfo } from "../utils/helpers";
 import { getOrCreateUser } from "../services/db";
@@ -38,35 +45,30 @@ ponder.on("ReferralFactory:ReferralCodeRegistered", async ({ event, context }: a
   console.log(`[${chain.chainName}] Referral code registered: "${code}" by ${normalizedReferrer}`);
 
   // Create referral code record
-  await context.db.referralCodes.create({
+  await context.db.insert(referralCodes).values({
     id: normalizedCodeHash,
-    data: {
-      ownerAddress: normalizedReferrer,
-      code: code,
-      totalReferrals: 0,
-      totalVolumeGenerated: 0n,
-      totalFeesGenerated: 0n,
-      createdAt: timestamp,
-      createdAtBlock: blockNumber,
-    },
+    ownerAddress: normalizedReferrer,
+    code: code,
+    totalReferrals: 0,
+    totalVolumeGenerated: 0n,
+    totalFeesGenerated: 0n,
+    createdAt: timestamp,
+    createdAtBlock: blockNumber,
   });
 
   // Update global referral stats
-  await context.db.referralStats.upsert({
+  await context.db.insert(referralStats).values({
     id: "global",
-    create: {
-      totalCodes: 1,
-      totalReferrals: 0,
-      totalVolumeGenerated: 0n,
-      totalFeesGenerated: 0n,
-      totalRewardsDistributed: 0n,
-      updatedAt: timestamp,
-    },
-    update: ({ current }: any) => ({
-      totalCodes: current.totalCodes + 1,
-      updatedAt: timestamp,
-    }),
-  });
+    totalCodes: 1,
+    totalReferrals: 0,
+    totalVolumeGenerated: 0n,
+    totalFeesGenerated: 0n,
+    totalRewardsDistributed: 0n,
+    updatedAt: timestamp,
+  }).onConflictDoUpdate((row: any) => ({
+    totalCodes: row.totalCodes + 1,
+    updatedAt: timestamp,
+  }));
 });
 
 // =============================================================================
@@ -117,71 +119,57 @@ ponder.on("ReferralFactory:ReferralRegistered", async ({ event, context }: any) 
   const normalizedCodeHash = referralCodeHash?.toLowerCase() as Hex | null;
 
   // Create referral relationship record
-  await context.db.referrals.create({
+  await context.db.insert(referrals).values({
     id: referralId,
-    data: {
-      referrerAddress: normalizedReferrer,
-      refereeAddress: normalizedReferee,
-      referralCodeHash: normalizedCodeHash,
-      status: "pending",
-      totalVolumeGenerated: 0n,
-      totalExitVolumeGenerated: 0n,
-      totalFeesGenerated: 0n,
-      totalTradesCount: 0,
-      totalRewardsEarned: 0n,
-      referredAt: timestamp,
-      referredAtBlock: blockNumber,
-    },
+    referrerAddress: normalizedReferrer,
+    refereeAddress: normalizedReferee,
+    referralCodeHash: normalizedCodeHash,
+    status: "pending",
+    totalVolumeGenerated: 0n,
+    totalExitVolumeGenerated: 0n,
+    totalFeesGenerated: 0n,
+    totalTradesCount: 0,
+    totalRewardsEarned: 0n,
+    referredAt: timestamp,
+    referredAtBlock: blockNumber,
   });
 
   // Update referee's user record
   const refereeRecord = await getOrCreateUser(context, referee, chain);
-  await context.db.users.update({
-    id: refereeRecord.id,
-    data: {
-      referrerAddress: normalizedReferrer,
-      referredAt: timestamp,
-    },
+  await context.db.update(users, { id: refereeRecord.id }).set({
+    referrerAddress: normalizedReferrer,
+    referredAt: timestamp,
   });
 
   // Update referrer's stats
   const referrerRecord = await getOrCreateUser(context, referrer, chain);
-  await context.db.users.update({
-    id: referrerRecord.id,
-    data: {
-      totalReferrals: referrerRecord.totalReferrals + 1,
-    },
+  await context.db.update(users, { id: referrerRecord.id }).set({
+    totalReferrals: referrerRecord.totalReferrals + 1,
   });
 
   // Update referralCodes.totalReferrals
   if (normalizedCodeHash) {
-    const codeRecord = await context.db.referralCodes.findUnique({ id: normalizedCodeHash });
+    const codeRecord = await context.db.find(referralCodes, { id: normalizedCodeHash });
     if (codeRecord) {
-      await context.db.referralCodes.update({
-        id: normalizedCodeHash,
-        data: {
-          totalReferrals: codeRecord.totalReferrals + 1,
-        },
+      await context.db.update(referralCodes, { id: normalizedCodeHash }).set({
+        totalReferrals: codeRecord.totalReferrals + 1,
       });
     }
   }
 
   // Update global referral stats
-  await context.db.referralStats.upsert({
+  await context.db.insert(referralStats).values({
     id: "global",
-    create: {
-      totalCodes: 0,
-      totalReferrals: 1,
-      totalVolumeGenerated: 0n,
-      totalFeesGenerated: 0n,
-      totalRewardsDistributed: 0n,
-      updatedAt: timestamp,
-    },
-    update: ({ current }: any) => ({
-      totalReferrals: current.totalReferrals + 1,
-      updatedAt: timestamp,
-    }),
-  });
+    totalCodes: 0,
+    totalReferrals: 1,
+    totalVolumeGenerated: 0n,
+    totalFeesGenerated: 0n,
+    totalRewardsDistributed: 0n,
+    updatedAt: timestamp,
+  }).onConflictDoUpdate((row: any) => ({
+    totalReferrals: row.totalReferrals + 1,
+    updatedAt: timestamp,
+  }));
 });
 
 // =============================================================================
@@ -218,35 +206,30 @@ ponder.on("ReferralCampaign:Claimed", async ({ event, context }: any) => {
   );
 
   // Update global referral stats with distributed rewards
-  await context.db.referralStats.upsert({
+  await context.db.insert(referralStats).values({
     id: "global",
-    create: {
-      totalCodes: 0,
-      totalReferrals: 0,
-      totalVolumeGenerated: 0n,
-      totalFeesGenerated: 0n,
-      totalRewardsDistributed: amount,
-      updatedAt: timestamp,
-    },
-    update: ({ current }: any) => ({
-      totalRewardsDistributed: current.totalRewardsDistributed + amount,
-      updatedAt: timestamp,
-    }),
-  });
+    totalCodes: 0,
+    totalReferrals: 0,
+    totalVolumeGenerated: 0n,
+    totalFeesGenerated: 0n,
+    totalRewardsDistributed: amount,
+    updatedAt: timestamp,
+  }).onConflictDoUpdate((row: any) => ({
+    totalRewardsDistributed: row.totalRewardsDistributed + amount,
+    updatedAt: timestamp,
+  }));
 
   // Create claimEvents record for backend sync
   // Backend reads this table (READ-only) and updates app_internal.claim_signatures
-  await context.db.claimEvents.create({
+  await context.db.insert(claimEvents).values({
     id: eventId,
-    data: {
-      campaignAddress,
-      userAddress: normalizedUser,
-      amount,
-      signature: normalizedSignature,
-      blockNumber,
-      timestamp,
-      txHash,
-    },
+    campaignAddress,
+    userAddress: normalizedUser,
+    amount,
+    signature: normalizedSignature,
+    blockNumber,
+    timestamp,
+    txHash,
   });
 });
 
@@ -277,21 +260,18 @@ ponder.on("ReferralCampaign:ClaimedBatch", async ({ event, context }: any) => {
   );
 
   // Update global referral stats with distributed rewards
-  await context.db.referralStats.upsert({
+  await context.db.insert(referralStats).values({
     id: "global",
-    create: {
-      totalCodes: 0,
-      totalReferrals: 0,
-      totalVolumeGenerated: 0n,
-      totalFeesGenerated: 0n,
-      totalRewardsDistributed: totalAmount,
-      updatedAt: timestamp,
-    },
-    update: ({ current }: any) => ({
-      totalRewardsDistributed: current.totalRewardsDistributed + totalAmount,
-      updatedAt: timestamp,
-    }),
-  });
+    totalCodes: 0,
+    totalReferrals: 0,
+    totalVolumeGenerated: 0n,
+    totalFeesGenerated: 0n,
+    totalRewardsDistributed: totalAmount,
+    updatedAt: timestamp,
+  }).onConflictDoUpdate((row: any) => ({
+    totalRewardsDistributed: row.totalRewardsDistributed + totalAmount,
+    updatedAt: timestamp,
+  }));
 
   // Backend will read these and update app_internal.claim_signatures
   if (signatures && Array.isArray(signatures)) {
@@ -300,17 +280,15 @@ ponder.on("ReferralCampaign:ClaimedBatch", async ({ event, context }: any) => {
       const normalizedSignature = sig?.toLowerCase() as `0x${string}`;
       const eventId = `${txHash}-${logIndex}-${i}`;
 
-      await context.db.claimEvents.create({
+      await context.db.insert(claimEvents).values({
         id: eventId,
-        data: {
-          campaignAddress,
-          userAddress: normalizedUser,
-          amount: 0n,
-          signature: normalizedSignature,
-          blockNumber,
-          timestamp,
-          txHash,
-        },
+        campaignAddress,
+        userAddress: normalizedUser,
+        amount: 0n,
+        signature: normalizedSignature,
+        blockNumber,
+        timestamp,
+        txHash,
       });
     }
   }
