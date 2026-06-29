@@ -67,8 +67,13 @@ export async function updateReferralVolume(
   const normalizedTrader = traderAddress.toLowerCase() as `0x${string}`;
   const bn =
     typeof blockNumber === "bigint" ? blockNumber : BigInt(blockNumber);
-  const referralFactoryAddress = getChainConfig(chain.chainId)!.contracts
-    .referralFactory;
+  const chainConfig = getChainConfig(chain.chainId)!;
+  const referralFactoryAddress = chainConfig.contracts.referralFactory;
+
+  if (!referralFactoryAddress) return;
+
+  const factoryStartBlock = chainConfig.contractStartBlocks?.referralFactory;
+  if (factoryStartBlock && bn < BigInt(factoryStartBlock)) return;
 
   let referrer: `0x${string}` | null = null;
   try {
@@ -79,21 +84,7 @@ export async function updateReferralVolume(
       args: [traderAddress],
       blockNumber: bn,
     });
-  } catch (error: any) {
-    const errorMsg = String(error?.message || error);
-    const isExpectedError =
-      errorMsg.includes("returned no data") ||
-      errorMsg.includes("execution reverted") ||
-      errorMsg.includes("0x");
-
-    if (!isExpectedError) {
-      console.warn(
-        `[Referral] Unexpected error getting referrer for ${normalizedTrader.slice(
-          0,
-          10
-        )}...: ${errorMsg.slice(0, 100)}`
-      );
-    }
+  } catch {
     return;
   }
 
